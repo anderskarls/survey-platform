@@ -1,11 +1,15 @@
 import { prisma } from "../prisma.js";
 import { nanoid } from "nanoid";
 
+export type SurveyMode = "SURVEY" | "QUIZ";
+
 export async function createSurvey(
   courseId: number,
   title: string,
   questionIds: number[],
-  description?: string
+  description?: string,
+  mode: SurveyMode = "SURVEY",
+  lockMode: boolean = false
 ): Promise<string> {
   const shareCode = nanoid(8);
 
@@ -14,6 +18,8 @@ export async function createSurvey(
       title,
       description: description || "",
       shareCode,
+      mode,
+      lockMode,
       courseId,
       questions: {
         create: questionIds.map((qId, index) => ({
@@ -24,11 +30,17 @@ export async function createSurvey(
     },
   });
 
-  return JSON.stringify({
-    id: survey.id,
-    title: survey.title,
-    shareCode,
-    questionCount: questionIds.length,
-    url: `/s/${shareCode}`,
-  }, null, 2);
+  return JSON.stringify(
+    {
+      id: survey.id,
+      title: survey.title,
+      mode: survey.mode,
+      lockMode: survey.lockMode,
+      shareCode,
+      questionCount: questionIds.length,
+      url: `/s/${shareCode}`,
+    },
+    null,
+    2
+  );
 }

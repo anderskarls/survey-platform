@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import { importQuestions } from "./tools/import-questions.js";
 import { createSurvey } from "./tools/create-survey.js";
+import { createQuizFromCsv } from "./tools/create-quiz-from-csv.js";
 import { getResults } from "./tools/get-results.js";
 import { summarizeResults } from "./tools/summarize-results.js";
 import { getStudentProgress } from "./tools/get-student-progress.js";
@@ -52,7 +53,7 @@ server.tool(
 
 server.tool(
   "create_survey",
-  "Skapa en ny enkät i en kurs från fråge-ID:n i frågebanken",
+  "Skapa en ny enkät eller quiz i en kurs från fråge-ID:n i frågebanken",
   {
     course_id: z.number().int().positive().describe("Kursens ID"),
     title: z.string().min(1).describe("Enkätens titel"),
@@ -61,14 +62,28 @@ server.tool(
       .min(1)
       .describe("Lista med fråge-ID:n att inkludera"),
     description: z.string().optional().describe("Valfri beskrivning"),
+    mode: z
+      .enum(["SURVEY", "QUIZ"])
+      .default("SURVEY")
+      .describe(
+        "SURVEY = öppen enkät utan rätt/fel. QUIZ = rättas och eleven ser poäng/feedback. Default SURVEY."
+      ),
+    lock_mode: z
+      .boolean()
+      .default(false)
+      .describe(
+        "Provläge: registrerar om eleven byter fönster/flik under tiden. Default false."
+      ),
   },
-  async ({ course_id, title, question_ids, description }) => {
+  async ({ course_id, title, question_ids, description, mode, lock_mode }) => {
     try {
       const result = await createSurvey(
         course_id,
         title,
         question_ids,
-        description
+        description,
+        mode,
+        lock_mode
       );
       return { content: [{ type: "text" as const, text: result }] };
     } catch (error) {
@@ -77,6 +92,55 @@ server.tool(
           {
             type: "text" as const,
             text: `Fel vid skapande av enkät: ${(error as Error).message}`,
+          },
+        ],
+        isError: true,
+      };
+    }
+  }
+);
+
+server.tool(
+  "create_quiz_from_csv",
+  "Importera frågor från CSV OCH skapa en quiz/enkät av exakt de frågorna i ett enda anrop. Använd detta när du vill skapa en quiz direkt från nygenererade frågor (t.ex. från en lektionsplanering) utan att först behöva ta reda på fråge-ID:n. Frågornas ordning i quizzen följer CSV-raderna. CSV-format: topic,type,text,option1,option2,...,correctAnswer",
+  {
+    course_id: z.number().int().positive().describe("Kursens ID"),
+    title: z.string().min(1).describe("Quizzens/enkätens titel"),
+    csv_content: z
+      .string()
+      .min(1)
+      .describe("CSV-innehåll med frågorna som ska importeras och ingå"),
+    description: z.string().optional().describe("Valfri beskrivning"),
+    mode: z
+      .enum(["SURVEY", "QUIZ"])
+      .default("QUIZ")
+      .describe(
+        "QUIZ = rättas och eleven ser poäng/feedback. SURVEY = öppen enkät utan rätt/fel. Default QUIZ."
+      ),
+    lock_mode: z
+      .boolean()
+      .default(false)
+      .describe(
+        "Provläge: registrerar om eleven byter fönster/flik under tiden. Default false."
+      ),
+  },
+  async ({ course_id, title, csv_content, description, mode, lock_mode }) => {
+    try {
+      const result = await createQuizFromCsv(
+        course_id,
+        title,
+        csv_content,
+        description,
+        mode,
+        lock_mode
+      );
+      return { content: [{ type: "text" as const, text: result }] };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: `Fel vid skapande av quiz från CSV: ${(error as Error).message}`,
           },
         ],
         isError: true,
