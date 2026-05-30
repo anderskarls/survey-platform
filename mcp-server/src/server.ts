@@ -16,6 +16,8 @@ import {
   bulkPostAssignmentFeedback,
 } from "./tools/post-assignment-feedback.js";
 import { deleteSurvey } from "./tools/delete-survey.js";
+import { importMoment } from "./tools/import-moment.js";
+import { getMomentReport } from "./tools/get-moment-report.js";
 import { listTopics } from "./resources/topics.js";
 import { getQuestionsByTopic } from "./resources/questions.js";
 import { listCourses } from "./resources/courses.js";
@@ -357,6 +359,78 @@ server.tool(
       return {
         content: [
           { type: "text" as const, text: `Fel: ${(error as Error).message}` },
+        ],
+        isError: true,
+      };
+    }
+  }
+);
+
+server.tool(
+  "import_moment",
+  "Skapa ett helt moment (Unit) med lektionsöversikt och flera elevuppgifter i ett anrop. Varje uppgift blir en egen enkät/quiz från CSV, alla grupperade under momentet. Skicka momentets hela lektionsbåge i `lessons` (alla lektioner, även de utan digital uppgift, fylls från momentplanen) och ange `lesson` per uppgift så eleven kan följa hela momentet. Använd när /planera-moment genererat ett moment. CSV-format per uppgift: topic,type,text,option1,...,correctAnswer.",
+  {
+    course_id: z.number().int().positive().describe("Kursens ID"),
+    title: z.string().min(1).describe("Momentets titel"),
+    description: z.string().optional().describe("Valfri momentbeskrivning"),
+    lessons: z
+      .array(
+        z.object({
+          n: z.number().int().positive().describe("Lektionsnummer"),
+          title: z.string().min(1).describe("Lektionens titel"),
+          note: z
+            .string()
+            .optional()
+            .describe("Valfri notis, t.ex. \"läsning + diskussion\" för lektioner utan digital uppgift"),
+        })
+      )
+      .default([])
+      .describe("Hela momentets lektionsbåge - även lektioner utan digital uppgift"),
+    assignments: z
+      .array(
+        z.object({
+          title: z.string().min(1).describe("Uppgiftens titel"),
+          lesson: z
+            .number()
+            .int()
+            .positive()
+            .optional()
+            .describe("Lektionsnummer (matchar lessons[].n) som uppgiften hör till"),
+          csv_content: z.string().min(1).describe("CSV med uppgiftens frågor"),
+          mode: z.enum(["SURVEY", "QUIZ"]).default("QUIZ").describe("QUIZ rättas, SURVEY öppen"),
+          lock_mode: z.boolean().default(false).describe("Provläge"),
+        })
+      )
+      .min(1)
+      .describe("En post per digital uppgift i momentet"),
+  },
+  async ({ course_id, title, description, lessons, assignments }) => {
+    try {
+      const result = await importMoment(course_id, title, assignments, lessons, description);
+      return { content: [{ type: "text" as const, text: result }] };
+    } catch (error) {
+      return {
+        content: [
+          { type: "text" as const, text: `Fel vid import av moment: ${(error as Error).message}` },
+        ],
+        isError: true,
+      };
+    }
+  }
+);
+
+server.tool(
+  "get_moment_report",
+  "Hämta aggregerat underlag för en lärarrapport om ett helt moment: completion per uppgift, flervals-% per fråga, alla fritextsvar (med feedback-status), och flaggade frågor. Formaterat för att du ska syntetisera en rapport mot momentets bedömningskriterier.",
+  { unit_id: z.number().int().positive().describe("Momentets (Unit) ID") },
+  async ({ unit_id }) => {
+    try {
+      const result = await getMomentReport(unit_id);
+      return { content: [{ type: "text" as const, text: result }] };
+    } catch (error) {
+      return {
+        content: [
+          { type: "text" as const, text: `Fel vid momentrapport: ${(error as Error).message}` },
         ],
         isError: true,
       };
