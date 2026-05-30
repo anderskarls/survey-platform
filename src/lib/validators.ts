@@ -5,7 +5,7 @@ export const respondSchema = z.object({
     .array(
       z.object({
         questionId: z.number().int().positive(),
-        value: z.string().min(1, "Svar krävs").max(5000, "Svaret är för långt"),
+        value: z.string().min(1, "Svar krävs").max(20000, "Svaret är för långt"),
       })
     )
     .min(1, "Minst ett svar krävs"),

@@ -85,7 +85,7 @@ export default function QuestionRenderer({
             <textarea
               value={answers[q.id] || ""}
               onChange={(e) => onAnswer(q.id, e.target.value)}
-              rows={3}
+              rows={8}
               placeholder="Skriv ditt svar..."
               className="input-field"
             />
