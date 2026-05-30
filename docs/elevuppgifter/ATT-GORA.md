@@ -2,6 +2,10 @@
 
 Saker som medvetet skjutits upp. Återkom hit före go-live.
 
+## Aktivt - återkom hit
+
+- [ ] **ÅTERKOMMA: import_moment.** Pausad 2026-05-30 (jobbar med design just nu). Bygget är redan gjort (2026-05-30 09:53 - dist/ + Prisma-klient har Unit-modellen). ENDA blockern: MCP-servern i den körande Claude Code-sessionen är stale (startad före bygget) så de nya verktygen syns inte. **Fix: starta om Claude Code => `import_moment` + `get_moment_report` laddas. Ingen extern build behövs.** Verifiera sedan `import_moment` skarpt mot prod och skjut in ett riktigt moment.
+
 ## Innan appen tas i bruk live (om några månader)
 
 - [ ] **Task 1: Säker DB-miljö (UPPSKJUTEN 2026-05-30).** Sätt upp en Neon dev-branch + backup-rutin så schemaändringar kan testas innan de når prod.
