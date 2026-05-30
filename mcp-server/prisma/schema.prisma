@@ -15,6 +15,20 @@ model Course {
   topics    Topic[]
   surveys   Survey[]
   students  Student[]
+  units     Unit[]
+}
+
+model Unit {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String   @default("")
+  lessons     Json?
+  courseId    Int
+  course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  surveys     Survey[]
+
+  @@unique([courseId, title])
 }
 
 model Student {
@@ -72,10 +86,15 @@ model Survey {
   lockMode    Boolean          @default(false)
   courseId     Int
   course      Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  unitId      Int?
+  unit        Unit?            @relation(fields: [unitId], references: [id], onDelete: SetNull)
+  lesson      Int?
   createdAt   DateTime         @default(now())
   questions   SurveyQuestion[]
   responses   Response[]
   drafts      DraftResponse[]
+
+  @@index([unitId])
 }
 
 model SurveyQuestion {
