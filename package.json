@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && prisma migrate deploy && next build",
+    "build": "prisma generate && (prisma migrate deploy || (sleep 8 && prisma migrate deploy) || (sleep 15 && prisma migrate deploy)) && next build",
     "start": "next start",
     "lint": "eslint",
     "setup": "npm install && npx prisma db push --skip-generate && npx prisma generate && cd mcp-server && npm install && npm run build",
