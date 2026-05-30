@@ -24,6 +24,8 @@
 
 ## Task 1: Säker DB-miljö (prereq - gating, delvis manuellt)
 
+> **STATUS (2026-05-30): UPPSKJUTEN.** Appen går inte live på flera månader. Tills vidare appliceras migrationer direkt mot prod (användaren är bekväm med det eftersom inga elever använder appen ännu). Endast Steg 4 (`migration_lock.toml`) är gjort - committat `be9a78a`. Resten (Neon dev-branch + backup) återkoms till FÖRE go-live. Se `docs/elevuppgifter/ATT-GORA.md`.
+
 **Mål:** Inget schemaarbete får ske mot prod. Lokal `.env` pekar på prod-Neon; `setup` kör `db push`.
 
 - [ ] **Steg 1: Skapa en Neon dev-branch** av prod-databasen via Neon-dashboarden (branch = billig kopia, isolerad). Notera dess connection string.
@@ -163,7 +165,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
 **Files:**
 - Ändra: `prisma/schema.prisma`
 
-**Context:** Den enda migrationen. Rent additiv - noll dataförlust. KÖRS MOT DEV-BRANCH (Task 1), aldrig prod direkt.
+**Context:** Den enda migrationen. Rent additiv - noll dataförlust. **INTERIM (Task 1 uppskjuten):** körs direkt mot prod tills dev-branchen finns - acceptabelt eftersom appen inte är live och migrationen bara lägger till. Granska ändå att den genererade SQL:en endast är additiv (Steg 4). Körs från en maskin där TCP 5432 mot Neon inte är blockerad (inte den här Brain-maskinen).
 
 - [ ] **Steg 1: Lägg till `Unit`-modellen** i `prisma/schema.prisma` (t.ex. efter `Course`-modellen):
 
@@ -202,7 +204,7 @@ I `Survey`-modellen, lägg till fälten och indexet:
   @@index([unitId])
 ```
 
-- [ ] **Steg 3: Skapa migrationen MOT DEV-BRANCH.** Säkerställ att `DATABASE_URL` pekar på dev-branchen, sedan:
+- [ ] **Steg 3: Skapa migrationen.** Säkerställ att `DATABASE_URL` pekar på rätt DB (interim: prod; efter Task 1: dev-branchen), sedan:
 
 ```powershell
 cd "C:\Brain\resources\survey-platform"; if ($?) { npx prisma migrate dev --name unit_grouping_lessons }
