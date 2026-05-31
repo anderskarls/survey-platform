@@ -72,7 +72,9 @@ Gjort: `period String?` + `goals String[] @default([])` på `Unit` i båda schem
   - OBS migrationsbegränsning (se `ATT-GORA.md` Task 1): den här Brain-maskinen kan inte köra `prisma migrate` (TCP 5432 blockerat). Migrationen måste köras från en maskin där 5432 är öppet. Detta är den **enda** migrationen i hela planen - bunta den.
 - Uppdatera `import_moment` (MCP) så den valfritt tar emot `date`/`week` per lektion + `period`/`goals` på momentet. Befintliga anrop fungerar oförändrat.
 
-### Fas 1b - Admin: redigera lektionsdatum (S-M, nytt gränssnitt)
+### Fas 1b - Admin: redigera lektionsdatum (S-M, nytt gränssnitt) - KLAR 2026-05-31 (tsc+eslint grönt, ej visuellt testad)
+Byggt: API `PATCH /api/courses/[courseId]/units/[unitId]` (requireAdmin, äganderättskoll, validerar/saniterar period/goals/lessons - ISO-datum + fri veckoetikett, bevarar title/note, `Prisma.InputJsonValue`-cast). Admin-sidor: `admin/courses/[courseId]/units/page.tsx` (momentlista) + `units/[unitId]/page.tsx` (editor) + klientformulär `src/components/admin/UnitEditor.tsx` (period-fält, dynamisk mål-lista, per-lektion datum+vecka, spara->PATCH->router.refresh). "Moment"-länk tillagd i `CourseSidebar`. Nu KAN läraren sätta datum -> elevvyns missed/upcoming/veckogruppering aktiveras. tsc+eslint grönt.
+
 - Finns ingen unit-redigering i admin idag. Bygg en fokuserad yta under `src/app/admin/courses/[courseId]/` (t.ex. `units/[unitId]/page.tsx`) där läraren kan sätta/justera `date` per lektion + `period`/`goals`.
 - Behöver en server action / API-route som skriver tillbaka till `Unit.lessons` (JSON) + `Unit.period`/`goals`.
 - Minsta version: en enkel formulärlista över lektionerna med ett datumfält per rad.
