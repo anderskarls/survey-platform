@@ -16,6 +16,8 @@ interface LessonOutline {
   n: number;
   title: string;
   note?: string;
+  date?: string; // rekommenderat datum (ISO YYYY-MM-DD), självgående - inte ett lås
+  week?: string; // valfri veckoetikett, t.ex. "v.17"
 }
 
 export async function importMoment(
@@ -23,12 +25,21 @@ export async function importMoment(
   title: string,
   assignments: AssignmentInput[],
   lessons: LessonOutline[],
-  description?: string
+  description?: string,
+  period?: string,
+  goals?: string[]
 ): Promise<string> {
   const result = await prisma.$transaction(
     async (tx) => {
       const unit = await tx.unit.create({
-        data: { title, description: description || "", lessons, courseId },
+        data: {
+          title,
+          description: description || "",
+          lessons,
+          period: period ?? null,
+          goals: goals ?? [],
+          courseId,
+        },
       });
 
       const created: {

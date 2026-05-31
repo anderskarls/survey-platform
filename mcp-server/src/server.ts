@@ -382,10 +382,26 @@ server.tool(
             .string()
             .optional()
             .describe("Valfri notis, t.ex. \"läsning + diskussion\" för lektioner utan digital uppgift"),
+          date: z
+            .string()
+            .optional()
+            .describe("Rekommenderat datum (ISO YYYY-MM-DD). Självgående - inte ett lås; driver missad/kommande och veckogruppering i elevvyn"),
+          week: z
+            .string()
+            .optional()
+            .describe("Valfri veckoetikett, t.ex. \"v.17\""),
         })
       )
       .default([])
       .describe("Hela momentets lektionsbåge - även lektioner utan digital uppgift"),
+    period: z
+      .string()
+      .optional()
+      .describe("Momentets tidsperiod, t.ex. \"ca 800-300 f.Kr.\" (visas i elevens momenthuvud)"),
+    goals: z
+      .array(z.string())
+      .default([])
+      .describe("Lärandemål på momentnivå som visas för eleven"),
     assignments: z
       .array(
         z.object({
@@ -404,9 +420,9 @@ server.tool(
       .min(1)
       .describe("En post per digital uppgift i momentet"),
   },
-  async ({ course_id, title, description, lessons, assignments }) => {
+  async ({ course_id, title, description, lessons, assignments, period, goals }) => {
     try {
-      const result = await importMoment(course_id, title, assignments, lessons, description);
+      const result = await importMoment(course_id, title, assignments, lessons, description, period, goals);
       return { content: [{ type: "text" as const, text: result }] };
     } catch (error) {
       return {

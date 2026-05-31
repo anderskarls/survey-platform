@@ -23,6 +23,8 @@ model Unit {
   title       String
   description String   @default("")
   lessons     Json?
+  period      String?
+  goals       String[] @default([])
   courseId    Int
   course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
   createdAt   DateTime @default(now())

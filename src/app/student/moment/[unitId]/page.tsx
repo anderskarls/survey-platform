@@ -7,6 +7,8 @@ interface LessonOutline {
   n: number;
   title: string;
   note?: string;
+  date?: string; // rekommenderat datum (ISO YYYY-MM-DD), självgående - inte ett lås
+  week?: string; // valfri veckoetikett, t.ex. "v.17"
 }
 
 export default async function MomentPage({
