@@ -2,6 +2,7 @@ import { getStudentSession } from "@/lib/student-session";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { buildMomentState, LessonOutline, TaskState } from "@/lib/moment-status";
+import { quizResult, draftProgress } from "@/lib/moment-scoring";
 import { IconCheck, IconArrowRight, IconFlag, IconClock, IconDot } from "@/components/moment-icons";
 import Link from "next/link";
 
@@ -75,7 +76,7 @@ function NextCard({ task }: { task: FlowTask }) {
         <h3 className="font-bold tracking-tight">{task.title}</h3>
         <div className="text-xs text-muted mt-0.5">
           {task.questionCount > 0 ? `${task.questionCount} frågor` : "Uppgift"}
-          {active && <span className="text-primary font-medium"> · pågår</span>}
+          {active && <span className="text-primary font-medium"> · pågår{task.progress ? ` ${task.progress}` : ""}</span>}
         </div>
       </div>
       <Link href={`/student/quiz/${task.surveyId}`} className="btn-primary shrink-0 inline-flex items-center gap-2">
@@ -89,7 +90,7 @@ function NextCard({ task }: { task: FlowTask }) {
 function FlowRow({ task }: { task: FlowTask }) {
   const dateLabel = formatDate(task.lessonDate);
   const right: Record<TaskState["status"], React.ReactNode> = {
-    done: <span className="text-xs text-success">Klar</span>,
+    done: <span className="text-xs text-success">{task.result ?? "Klar"}</span>,
     active: <span className="text-xs text-primary font-medium">Pågår</span>,
     todo: <span className="text-xs text-accent font-medium">Att göra</span>,
     missed: (
@@ -138,17 +139,44 @@ export default async function MomentTasksPage({
 
   const surveyIds = unit.surveys.map((s) => s.id);
   const [responses, drafts] = await Promise.all([
-    prisma.response.findMany({ where: { studentId, surveyId: { in: surveyIds } }, select: { surveyId: true } }),
-    prisma.draftResponse.findMany({ where: { studentId, surveyId: { in: surveyIds } }, select: { surveyId: true } }),
+    prisma.response.findMany({
+      where: { studentId, surveyId: { in: surveyIds } },
+      orderBy: { createdAt: "asc" },
+      select: { surveyId: true, answers: { select: { isCorrect: true } } },
+    }),
+    prisma.draftResponse.findMany({
+      where: { studentId, surveyId: { in: surveyIds } },
+      select: { surveyId: true, answers: true },
+    }),
   ]);
 
   const lessons = (Array.isArray(unit.lessons) ? unit.lessons : []) as unknown as LessonOutline[];
   const modeBySurvey = new Map(unit.surveys.map((s) => [s.id, s.mode]));
   const kindOf = (surveyId: number) => KIND_LABEL[modeBySurvey.get(surveyId) ?? "QUIZ"] ?? "Övning";
+  const questionCountBySurvey = new Map(unit.surveys.map((s) => [s.id, s.questions.length]));
+
+  const resultBySurvey = new Map<number, string>();
+  for (const r of responses) {
+    const res = quizResult(r.answers); // asc -> latest wins
+    if (res) resultBySurvey.set(r.surveyId, res);
+    else resultBySurvey.delete(r.surveyId);
+  }
+  const progressBySurvey = new Map<number, string>();
+  for (const d of drafts) {
+    const p = draftProgress(d.answers, questionCountBySurvey.get(d.surveyId) ?? 0);
+    if (p) progressBySurvey.set(d.surveyId, p);
+  }
 
   const moment = buildMomentState({
     lessons,
-    surveys: unit.surveys.map((s) => ({ id: s.id, title: s.title, lesson: s.lesson, questionCount: s.questions.length })),
+    surveys: unit.surveys.map((s) => ({
+      id: s.id,
+      title: s.title,
+      lesson: s.lesson,
+      questionCount: s.questions.length,
+      result: resultBySurvey.get(s.id),
+      progress: progressBySurvey.get(s.id),
+    })),
     submittedSurveyIds: responses.map((r) => r.surveyId),
     draftSurveyIds: drafts.map((d) => d.surveyId),
   });

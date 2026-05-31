@@ -2,6 +2,7 @@ import { getStudentSession } from "@/lib/student-session";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { buildMomentState, LessonOutline, LessonState, TaskState } from "@/lib/moment-status";
+import { quizResult, draftProgress } from "@/lib/moment-scoring";
 import { IconCheck, IconArrowRight, IconFlag, IconClock } from "@/components/moment-icons";
 import Link from "next/link";
 
@@ -60,6 +61,14 @@ function TaskRow({ task, kind }: { task: TaskState; kind: string }) {
   const m = meta[task.status];
   const label = action[task.status];
   const isUpcoming = task.status === "upcoming";
+  const statusText =
+    task.status === "done"
+      ? task.result ?? "Klar"
+      : task.status === "active"
+      ? task.progress
+        ? `Pågår ${task.progress}`
+        : "Pågår"
+      : m.text;
   return (
     <div className={`flex items-center gap-3 py-3 ${isUpcoming ? "opacity-60" : ""}`}>
       <div className="flex-1 min-w-0">
@@ -69,7 +78,7 @@ function TaskRow({ task, kind }: { task: TaskState; kind: string }) {
           {task.questionCount > 0 && <span className="text-muted font-normal"> · {task.questionCount} frågor</span>}
         </div>
       </div>
-      <div className={`text-xs shrink-0 ${m.cls}`}>{m.text}</div>
+      <div className={`text-xs shrink-0 ${m.cls}`}>{statusText}</div>
       {label && !isUpcoming ? (
         <Link
           href={`/student/quiz/${task.surveyId}`}
@@ -179,17 +188,32 @@ export default async function MomentPage({
   const [responses, drafts] = await Promise.all([
     prisma.response.findMany({
       where: { studentId, surveyId: { in: surveyIds } },
-      select: { surveyId: true },
+      orderBy: { createdAt: "asc" },
+      select: { surveyId: true, answers: { select: { isCorrect: true } } },
     }),
     prisma.draftResponse.findMany({
       where: { studentId, surveyId: { in: surveyIds } },
-      select: { surveyId: true },
+      select: { surveyId: true, answers: true },
     }),
   ]);
 
   const lessons = (Array.isArray(unit.lessons) ? unit.lessons : []) as unknown as LessonOutline[];
   const modeBySurvey = new Map(unit.surveys.map((s) => [s.id, s.mode]));
   const kindOf = (surveyId: number) => KIND_LABEL[modeBySurvey.get(surveyId) ?? "QUIZ"] ?? "Övning";
+  const questionCountBySurvey = new Map(unit.surveys.map((s) => [s.id, s.questions.length]));
+
+  // result ("8/8") from the latest graded response; progress ("11/14") from a saved draft
+  const resultBySurvey = new Map<number, string>();
+  for (const r of responses) {
+    const res = quizResult(r.answers); // responses are asc -> latest wins
+    if (res) resultBySurvey.set(r.surveyId, res);
+    else resultBySurvey.delete(r.surveyId);
+  }
+  const progressBySurvey = new Map<number, string>();
+  for (const d of drafts) {
+    const p = draftProgress(d.answers, questionCountBySurvey.get(d.surveyId) ?? 0);
+    if (p) progressBySurvey.set(d.surveyId, p);
+  }
 
   const moment = buildMomentState({
     lessons,
@@ -198,6 +222,8 @@ export default async function MomentPage({
       title: s.title,
       lesson: s.lesson,
       questionCount: s.questions.length,
+      result: resultBySurvey.get(s.id),
+      progress: progressBySurvey.get(s.id),
     })),
     submittedSurveyIds: responses.map((r) => r.surveyId),
     draftSurveyIds: drafts.map((d) => d.surveyId),

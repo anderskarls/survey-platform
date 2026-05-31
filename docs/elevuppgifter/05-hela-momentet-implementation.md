@@ -106,8 +106,8 @@ Bytt elevskalet från topbar + `max-w-2xl` till sidebar-skal. `BaseSidebar` utö
 - Mobilvyer (`design/variants/moment-mobile.jsx`): grön header-block + framstegsbar + kolumnlayout.
 - Påverkar ALLA elevsidor - regressionstesta dashboard/resultat/quiz/feedback.
 
-### Fas 6 - Polish (S)
-- Exakta resultat (`8/8` via `src/lib/mastery.ts` `calculateMastery`), draft-progress (`11/14` ur `DraftResponse.answers`-JSON), `.animate-fade-in`, missad-banner högst upp på Momentvägen.
+### Fas 6 - Polish (S) - KLAR 2026-05-31 (tsc+eslint grönt, 15/15 assertions)
+Ny `src/lib/moment-scoring.ts`: `quizResult(answers)` -> "8/8" (räknar bara flervalssvar med boolean isCorrect; fritext=null hoppas -> null), `draftProgress(answersJson, total)` -> "11/14" (räknar ifyllda nycklar i DraftResponse.answers-JSON). `buildMomentState`/`SurveyInput`/`TaskState` fick genomsläpp `result?`/`progress?` (statuslogiken rör dem ej). Båda sidorna (Momentvägen + Uppgiftsflödet) hämtar nu responses med `answers.isCorrect` (senaste vinner) + drafts med `answers`, beräknar maps och matar in. Visning: done-uppgift visar "8/8" (annars "Klar"), aktiv visar "Pågår 11/14". `.animate-fade-in` + missad-banner redan på plats sedan Fas 3. Statushelper-regression verifierad (15/15 assertions inkl. scoring + threading).
 
 ---
 

@@ -29,6 +29,8 @@ export interface SurveyInput {
   title: string;
   lesson: number | null; // Survey.lesson (matches LessonOutline.n), or null = loose
   questionCount: number;
+  result?: string; // e.g. "8/8" for a graded quiz (display only, computed by the page)
+  progress?: string; // e.g. "11/14" answered in a saved draft (display only)
 }
 
 export interface TaskState {
@@ -37,6 +39,8 @@ export interface TaskState {
   questionCount: number;
   lesson: number | null;
   status: TaskStatus;
+  result?: string;
+  progress?: string;
 }
 
 export interface LessonState {
@@ -132,6 +136,8 @@ export function buildMomentState(input: {
     title: s.title,
     questionCount: s.questionCount,
     lesson: s.lesson,
+    result: s.result,
+    progress: s.progress,
     status: deriveTaskStatus({
       hasResponse: submitted.has(s.id),
       hasDraft: drafts.has(s.id),
