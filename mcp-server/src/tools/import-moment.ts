@@ -1,4 +1,5 @@
 import { prisma } from "../prisma.js";
+import { Prisma } from "@prisma/client";
 import { nanoid } from "nanoid";
 import Papa from "papaparse";
 
@@ -35,7 +36,7 @@ export async function importMoment(
         data: {
           title,
           description: description || "",
-          lessons,
+          lessons: lessons as unknown as Prisma.InputJsonValue,
           period: period ?? null,
           goals: goals ?? [],
           courseId,
