@@ -30,9 +30,15 @@ tags:
   - name: surveys
     description: Create and manage surveys
   - name: students
-    description: Read student progress
+    description: List and create students, read progress
   - name: questions
     description: Import and manage questions
+  - name: courses
+    description: List, create and read courses
+  - name: topics
+    description: List and create topics
+  - name: units
+    description: Import moments (units), edit them, get reports
 
 paths:
   /api/surveys:
@@ -116,6 +122,25 @@ paths:
           $ref: "#/components/responses/NotFound"
 
   /api/courses/{courseId}/surveys:
+    get:
+      tags: [surveys]
+      summary: List surveys in a course
+      operationId: listCourseSurveys
+      parameters:
+        - $ref: "#/components/parameters/CourseId"
+      responses:
+        "200":
+          description: Surveys in the course
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SurveyListItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
     post:
       tags: [surveys]
       summary: Create a new survey in a course
@@ -294,6 +319,417 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
+  /api/courses:
+    get:
+      tags: [courses]
+      summary: List all courses
+      operationId: listCourses
+      description: Returns every course with counts of topics, surveys and students.
+      responses:
+        "200":
+          description: List of courses
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Course"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      tags: [courses]
+      summary: Create a course
+      operationId: createCourse
+      description: Creates a course; a unique join code is generated server-side.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCourseRequest"
+      responses:
+        "201":
+          description: Course created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Course"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/courses/{courseId}:
+    get:
+      tags: [courses]
+      summary: Get a single course
+      operationId: getCourse
+      parameters:
+        - $ref: "#/components/parameters/CourseId"
+      responses:
+        "200":
+          description: Course
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Course"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/courses/{courseId}/units:
+    post:
+      tags: [units]
+      summary: Import a moment (unit) with its assignments
+      operationId: importMoment
+      description: |
+        Creates a Unit plus one survey per assignment in a single transaction.
+        Each assignment's questions are parsed from its CSV (same columns as
+        question import). Assignments default to QUIZ mode.
+      parameters:
+        - $ref: "#/components/parameters/CourseId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ImportMomentRequest"
+      responses:
+        "201":
+          description: Moment created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ImportMomentResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/courses/{courseId}/units/{unitId}:
+    patch:
+      tags: [units]
+      summary: Update a moment's metadata
+      operationId: updateUnit
+      description: |
+        Updates period, learning goals and the lesson outline (titles, notes,
+        recommended dates, week labels). Replaces the lessons array wholesale.
+      parameters:
+        - $ref: "#/components/parameters/CourseId"
+        - $ref: "#/components/parameters/UnitId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUnitRequest"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/courses/{courseId}/units/{unitId}/report:
+    get:
+      tags: [units]
+      summary: Get a markdown teacher-report for a moment
+      operationId: getMomentReport
+      description: |
+        Returns a markdown report: completion per assignment, per-question
+        breakdown (option counts with the correct answer marked for quizzes,
+        all free-text answers for surveys) and flagged questions. Raw material
+        for an AI-written teacher report.
+      parameters:
+        - $ref: "#/components/parameters/CourseId"
+        - $ref: "#/components/parameters/UnitId"
+      responses:
+        "200":
+          description: Markdown report
+          content:
+            text/markdown:
+              schema:
+                type: string
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/courses/{courseId}/surveys/import:
+    post:
+      tags: [surveys]
+      summary: Create a survey/quiz directly from CSV
+      operationId: createQuizFromCsv
+      description: |
+        Parses CSV, creates the questions, and attaches them to a new survey in
+        CSV order — in one call. Defaults to QUIZ mode. Returns the share code
+        and link.
+      parameters:
+        - $ref: "#/components/parameters/CourseId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateQuizFromCsvRequest"
+      responses:
+        "201":
+          description: Survey created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreatedQuizFromCsv"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/courses/{courseId}/questions:
+    get:
+      tags: [questions]
+      summary: List questions in a course
+      operationId: listQuestions
+      parameters:
+        - $ref: "#/components/parameters/CourseId"
+        - name: topicId
+          in: query
+          required: false
+          description: Filter to a single topic
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        "200":
+          description: Questions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Question"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      tags: [questions]
+      summary: Create a single question
+      operationId: createQuestion
+      parameters:
+        - $ref: "#/components/parameters/CourseId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateQuestionRequest"
+      responses:
+        "201":
+          description: Question created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Question"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/courses/{courseId}/questions/{questionId}:
+    delete:
+      tags: [questions]
+      summary: Delete a question
+      operationId: deleteQuestion
+      parameters:
+        - $ref: "#/components/parameters/CourseId"
+        - $ref: "#/components/parameters/QuestionId"
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/courses/{courseId}/topics:
+    get:
+      tags: [topics]
+      summary: List topics in a course
+      operationId: listTopics
+      parameters:
+        - $ref: "#/components/parameters/CourseId"
+      responses:
+        "200":
+          description: Topics
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Topic"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      tags: [topics]
+      summary: Create a topic
+      operationId: createTopic
+      parameters:
+        - $ref: "#/components/parameters/CourseId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTopicRequest"
+      responses:
+        "201":
+          description: Topic created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Topic"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/courses/{courseId}/students:
+    get:
+      tags: [students]
+      summary: List students in a course
+      operationId: listStudents
+      parameters:
+        - $ref: "#/components/parameters/CourseId"
+      responses:
+        "200":
+          description: Students
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StudentListItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      tags: [students]
+      summary: Create students (generates login credentials)
+      operationId: createStudents
+      description: |
+        Creates students by explicit numbers, a single number, or a count
+        (1..N). Existing numbers are skipped. Returns generated usernames and
+        plaintext passwords — shown once, store them safely.
+      parameters:
+        - $ref: "#/components/parameters/CourseId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateStudentsRequest"
+      responses:
+        "201":
+          description: Students created (zero or more)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateStudentsResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/surveys/{surveyId}:
+    get:
+      tags: [surveys]
+      summary: Get a survey with its questions
+      operationId: getSurvey
+      parameters:
+        - $ref: "#/components/parameters/SurveyId"
+      responses:
+        "200":
+          description: Survey
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SurveyDetail"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [surveys]
+      summary: Delete a survey
+      operationId: deleteSurvey
+      parameters:
+        - $ref: "#/components/parameters/SurveyId"
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/surveys/{surveyId}/export:
+    get:
+      tags: [results]
+      summary: Export survey responses as CSV
+      operationId: exportSurveyCsv
+      description: |
+        Returns a UTF-8 CSV (with BOM for Excel): one row per student response,
+        one column per question. Includes a deviations column for lock-mode
+        quizzes.
+      parameters:
+        - $ref: "#/components/parameters/SurveyId"
+      responses:
+        "200":
+          description: CSV file
+          content:
+            text/csv:
+              schema:
+                type: string
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
 components:
   securitySchemes:
     bearerAuth:
@@ -338,6 +774,15 @@ components:
         type: integer
         format: int64
         minimum: 1
+    UnitId:
+      name: unitId
+      in: path
+      required: true
+      description: Unit (moment) ID
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
 
   responses:
     BadRequest:
@@ -354,6 +799,12 @@ components:
             $ref: "#/components/schemas/Error"
     NotFound:
       description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Forbidden:
+      description: Authenticated but not allowed for this resource
       content:
         application/json:
           schema:
@@ -770,3 +1221,380 @@ components:
         imported:
           type: integer
           description: Number of questions successfully imported
+
+    OkResponse:
+      type: object
+      required: [ok]
+      properties:
+        ok:
+          type: boolean
+
+    SuccessResponse:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+
+    Course:
+      type: object
+      required: [id, name, code]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        code:
+          type: string
+          description: Join code, also used as prefix in student usernames
+        createdAt:
+          type: string
+          format: date-time
+        _count:
+          type: object
+          description: Present on list/get; which counts are included varies
+          properties:
+            topics:
+              type: integer
+            surveys:
+              type: integer
+            students:
+              type: integer
+
+    CreateCourseRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+
+    Topic:
+      type: object
+      required: [id, name, courseId]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        courseId:
+          type: integer
+        _count:
+          type: object
+          properties:
+            questions:
+              type: integer
+
+    CreateTopicRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+
+    Option:
+      type: object
+      required: [id, text, isCorrect]
+      properties:
+        id:
+          type: integer
+        text:
+          type: string
+        isCorrect:
+          type: boolean
+        questionId:
+          type: integer
+
+    Question:
+      type: object
+      required: [id, text, type, topicId]
+      properties:
+        id:
+          type: integer
+        text:
+          type: string
+        type:
+          $ref: "#/components/schemas/QuestionType"
+        topicId:
+          type: integer
+        options:
+          type: array
+          items:
+            $ref: "#/components/schemas/Option"
+        topic:
+          $ref: "#/components/schemas/Topic"
+
+    CreateQuestionRequest:
+      type: object
+      required: [text, type, topicId]
+      properties:
+        text:
+          type: string
+          minLength: 1
+          maxLength: 1000
+        type:
+          $ref: "#/components/schemas/QuestionType"
+        topicId:
+          type: integer
+          minimum: 1
+        options:
+          type: array
+          description: Option texts (MULTIPLE_CHOICE only)
+          items:
+            type: string
+        correctOptionIndex:
+          type: integer
+          minimum: 0
+          description: Index into options that is the correct answer
+
+    StudentListItem:
+      type: object
+      required: [id, number, username, responseCount]
+      properties:
+        id:
+          type: integer
+        number:
+          type: integer
+        username:
+          type: string
+        responseCount:
+          type: integer
+
+    CreateStudentsRequest:
+      oneOf:
+        - type: object
+          required: [numbers]
+          properties:
+            numbers:
+              type: array
+              minItems: 1
+              items:
+                type: integer
+                minimum: 1
+        - type: object
+          required: [count]
+          properties:
+            count:
+              type: integer
+              minimum: 1
+              maximum: 200
+              description: Create students numbered 1..count
+        - type: object
+          required: [number]
+          properties:
+            number:
+              type: integer
+              minimum: 1
+
+    StudentCredential:
+      type: object
+      required: [number, username, password]
+      properties:
+        number:
+          type: integer
+        username:
+          type: string
+        password:
+          type: string
+          description: Plaintext password, shown once
+
+    CreateStudentsResponse:
+      type: object
+      required: [created, credentials]
+      properties:
+        created:
+          type: integer
+        credentials:
+          type: array
+          items:
+            $ref: "#/components/schemas/StudentCredential"
+
+    SurveyDetail:
+      type: object
+      required: [id, title, mode, courseId, shareCode]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        description:
+          type: string
+        shareCode:
+          type: string
+        mode:
+          $ref: "#/components/schemas/SurveyMode"
+        lockMode:
+          type: boolean
+        courseId:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        questions:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+            description: Survey-question join row with embedded question and options
+        _count:
+          type: object
+          properties:
+            responses:
+              type: integer
+
+    LessonOutline:
+      type: object
+      required: [n, title]
+      properties:
+        n:
+          type: integer
+          description: Lesson order number
+        title:
+          type: string
+          minLength: 1
+          maxLength: 300
+        note:
+          type: string
+        date:
+          type: string
+          pattern: '^\d{4}-\d{2}-\d{2}$'
+          description: Recommended date (YYYY-MM-DD), advisory only
+        week:
+          type: string
+          description: Free week label such as v.17
+
+    MomentAssignment:
+      type: object
+      required: [title, csvContent]
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        csvContent:
+          type: string
+          minLength: 1
+          maxLength: 1000000
+          description: CSV with columns topic, text, type, option1..option10, correctAnswer
+        lesson:
+          type: integer
+          description: Lesson number this assignment belongs to
+        mode:
+          $ref: "#/components/schemas/SurveyMode"
+        lockMode:
+          type: boolean
+          default: false
+
+    ImportMomentRequest:
+      type: object
+      required: [title, assignments]
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 2000
+        period:
+          type: string
+          maxLength: 200
+          description: Period label such as v.17-v.21
+        goals:
+          type: array
+          description: Learning goals
+          items:
+            type: string
+            maxLength: 500
+        lessons:
+          type: array
+          items:
+            $ref: "#/components/schemas/LessonOutline"
+        assignments:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/MomentAssignment"
+
+    ImportMomentResponse:
+      type: object
+      required: [unitId, title, assignments]
+      properties:
+        unitId:
+          type: integer
+        title:
+          type: string
+        assignments:
+          type: array
+          items:
+            type: object
+            required: [title, lesson, shareCode, url, questionCount]
+            properties:
+              title:
+                type: string
+              lesson:
+                type: [integer, "null"]
+              shareCode:
+                type: string
+              url:
+                type: string
+              questionCount:
+                type: integer
+
+    UpdateUnitRequest:
+      type: object
+      properties:
+        period:
+          type: [string, "null"]
+        goals:
+          type: array
+          items:
+            type: string
+        lessons:
+          type: array
+          items:
+            $ref: "#/components/schemas/LessonOutline"
+
+    CreateQuizFromCsvRequest:
+      type: object
+      required: [title, csvContent]
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        csvContent:
+          type: string
+          minLength: 1
+          maxLength: 1000000
+          description: CSV with columns topic, text, type, option1..option10, correctAnswer
+        description:
+          type: string
+          maxLength: 1000
+        mode:
+          $ref: "#/components/schemas/SurveyMode"
+        lockMode:
+          type: boolean
+          default: false
+
+    CreatedQuizFromCsv:
+      type: object
+      required: [id, title, mode, lockMode, shareCode, questionCount, url]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        mode:
+          $ref: "#/components/schemas/SurveyMode"
+        lockMode:
+          type: boolean
+        shareCode:
+          type: string
+        questionCount:
+          type: integer
+        url:
+          type: string

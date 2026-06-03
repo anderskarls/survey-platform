@@ -104,3 +104,64 @@ export const createAssignmentFeedbackSchema = z.object({
     .min(1, "Minst en feedback krävs")
     .max(200, "Max 200 feedbacks per anrop"),
 });
+
+const lessonOutlineSchema = z.object({
+  n: z.number().int(),
+  title: z.string().min(1, "Lektionstitel krävs").max(300).transform((s) => s.trim()),
+  note: z.string().max(2000).optional(),
+  date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Datum måste vara YYYY-MM-DD")
+    .optional(),
+  week: z.string().max(50).optional(),
+});
+
+export const importMomentSchema = z.object({
+  title: z.string().min(1, "Titel krävs").max(200).transform((s) => s.trim()),
+  description: z
+    .string()
+    .max(2000)
+    .optional()
+    .default("")
+    .transform((s) => s.trim()),
+  period: z
+    .string()
+    .max(200)
+    .optional()
+    .transform((s) => (s && s.trim() ? s.trim() : undefined)),
+  goals: z
+    .array(z.string().max(500).transform((s) => s.trim()))
+    .optional()
+    .default([]),
+  lessons: z.array(lessonOutlineSchema).optional().default([]),
+  assignments: z
+    .array(
+      z.object({
+        title: z.string().min(1, "Uppgiftstitel krävs").max(200).transform((s) => s.trim()),
+        csvContent: z
+          .string()
+          .min(1, "CSV-innehåll krävs")
+          .max(1_000_000, "CSV-filen är för stor (max 1MB)"),
+        lesson: z.number().int().optional(),
+        mode: z.enum(["SURVEY", "QUIZ"]).optional().default("QUIZ"),
+        lockMode: z.boolean().optional().default(false),
+      })
+    )
+    .min(1, "Minst en uppgift krävs"),
+});
+
+export const createQuizFromCsvSchema = z.object({
+  title: z.string().min(1, "Titel krävs").max(200).transform((s) => s.trim()),
+  csvContent: z
+    .string()
+    .min(1, "CSV-innehåll krävs")
+    .max(1_000_000, "CSV-filen är för stor (max 1MB)"),
+  description: z
+    .string()
+    .max(1000)
+    .optional()
+    .default("")
+    .transform((s) => s.trim()),
+  mode: z.enum(["SURVEY", "QUIZ"]).optional().default("QUIZ"),
+  lockMode: z.boolean().optional().default(false),
+});
