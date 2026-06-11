@@ -12,6 +12,11 @@ export const respondSchema = z.object({
   lockModeViolations: z.number().int().min(0).max(1000).optional(),
 });
 
+export const practiceAttemptSchema = z.object({
+  questionId: z.number().int().positive(),
+  value: z.string().min(1, "Svar krävs").max(2000, "Svaret är för långt"),
+});
+
 export const createCourseSchema = z.object({
   name: z
     .string()

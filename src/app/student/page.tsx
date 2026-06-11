@@ -1,7 +1,9 @@
 import { getStudentSession } from "@/lib/student-session";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { calculateMastery, getSpacedReviewIds, ResponseRecord } from "@/lib/mastery";
+import { calculateMastery, ResponseRecord } from "@/lib/mastery";
+import { loadRelearningData } from "@/lib/relearning-data";
+import { summarizeStates } from "@/lib/relearning";
 import Link from "next/link";
 import FlaggedQuestionsList from "@/components/FlaggedQuestionsList";
 
@@ -67,32 +69,9 @@ export default async function StudentDashboard() {
       fq.question.options.find((o) => o.isCorrect)?.text ?? null,
   }));
 
-  // Spaced review: find questions ready for review (wrong/unsure 2+ days ago, not mastered)
-  const allQuestionIds = surveys.flatMap((s) => s.questions.map((sq) => sq.questionId));
-  const spacedReviewIds = getSpacedReviewIds(allQuestionIds, allRecords);
-
-  // Build questionId → survey lookup once, instead of O(n*m) per spaced id
-  const surveyByQuestionId = new Map<number, { id: number; title: string }>();
-  for (const s of surveys) {
-    for (const sq of s.questions) {
-      if (!surveyByQuestionId.has(sq.questionId)) {
-        surveyByQuestionId.set(sq.questionId, { id: s.id, title: s.title });
-      }
-    }
-  }
-
-  const reviewBySurvey = new Map<number, { surveyId: number; surveyTitle: string; count: number }>();
-  for (const qId of spacedReviewIds) {
-    const entry = surveyByQuestionId.get(qId);
-    if (!entry) continue;
-    const existing = reviewBySurvey.get(entry.id);
-    if (existing) {
-      existing.count++;
-    } else {
-      reviewBySurvey.set(entry.id, { surveyId: entry.id, surveyTitle: entry.title, count: 1 });
-    }
-  }
-  const reviewSurveys = Array.from(reviewBySurvey.values());
+  // Successiv ominlärning: frågor eleven missat, due enligt spacad streak-logik
+  const relearning = await loadRelearningData(studentId);
+  const practiceStats = summarizeStates(relearning.states);
 
   // Moment-gruppering: surveys med unitId visas under sina moment, fristående i den platta listan
   const submittedSurveyIds = new Set(responses.map((r) => r.surveyId));
@@ -132,34 +111,25 @@ export default async function StudentDashboard() {
         </div>
       )}
 
-      {reviewSurveys.length > 0 && (
+      {practiceStats.due > 0 && (
         <div className="mb-8">
           <h3 className="text-lg font-semibold mb-3 flex items-center gap-2 tracking-tight">
-            Frågor att repetera
+            Att öva på
             <span className="text-sm font-normal text-muted">
-              ({spacedReviewIds.length})
+              ({practiceStats.due})
             </span>
           </h3>
-          <p className="text-sm text-muted mb-3">
-            Dessa frågor är redo att repeteras - forskning visar att spacing förbättrar minnet.
-          </p>
-          <div className="space-y-2">
-            {reviewSurveys.map((rs) => (
-              <div key={rs.surveyId} className="card p-4 flex items-center justify-between">
-                <div>
-                  <span className="font-medium">{rs.surveyTitle}</span>
-                  <span className="text-sm text-muted ml-2">
-                    {rs.count} {rs.count === 1 ? "fråga" : "frågor"}
-                  </span>
-                </div>
-                <Link
-                  href={`/student/quiz/${rs.surveyId}`}
-                  className="btn-accent inline-block"
-                >
-                  Repetera
-                </Link>
-              </div>
-            ))}
+          <div className="card p-4 flex items-center justify-between">
+            <div>
+              <span className="font-medium">Dagens övningspass</span>
+              <p className="text-sm text-muted mt-0.5">
+                {practiceStats.due} {practiceStats.due === 1 ? "fråga" : "frågor"} redo
+                att övas - rätt tre olika dagar gör att de sitter.
+              </p>
+            </div>
+            <Link href="/student/practice" className="btn-accent inline-block">
+              Öva nu
+            </Link>
           </div>
         </div>
       )}

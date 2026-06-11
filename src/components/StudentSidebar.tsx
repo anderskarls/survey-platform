@@ -6,11 +6,13 @@ interface StudentSidebarProps {
   courseName: string;
   studentNumber?: number;
   unreadFeedback: number;
+  practiceDue?: number;
 }
 
-export default function StudentSidebar({ courseName, studentNumber, unreadFeedback }: StudentSidebarProps) {
+export default function StudentSidebar({ courseName, studentNumber, unreadFeedback, practiceDue }: StudentSidebarProps) {
   const links = [
     { href: "/student", label: "Hem", exact: true },
+    { href: "/student/practice", label: "Att öva på", badge: practiceDue || undefined },
     { href: "/student/results", label: "Mina resultat" },
     { href: "/student/feedback", label: "Feedback", badge: unreadFeedback || undefined },
   ];

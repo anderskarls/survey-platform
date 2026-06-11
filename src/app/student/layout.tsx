@@ -1,5 +1,7 @@
 import { getStudentSession } from "@/lib/student-session";
 import { prisma } from "@/lib/prisma";
+import { loadRelearningData } from "@/lib/relearning-data";
+import { summarizeStates } from "@/lib/relearning";
 import StudentSidebar from "@/components/StudentSidebar";
 
 export const dynamic = "force-dynamic";
@@ -10,13 +12,18 @@ export default async function StudentLayout({
   children: React.ReactNode;
 }) {
   const session = await getStudentSession();
-  const [unreadFeedback, course] = await Promise.all([
+  const [unreadFeedback, course, practiceDue] = await Promise.all([
     session
       ? prisma.assignmentFeedback.count({ where: { studentId: session.studentId, readAt: null } })
       : Promise.resolve(0),
     session
       ? prisma.course.findUnique({ where: { id: session.courseId }, select: { name: true } })
       : Promise.resolve(null),
+    session
+      ? loadRelearningData(session.studentId).then(
+          (d) => summarizeStates(d.states).due
+        )
+      : Promise.resolve(0),
   ]);
 
   return (
@@ -31,6 +38,7 @@ export default async function StudentLayout({
         courseName={course?.name ?? "Min kurs"}
         studentNumber={session?.studentNumber}
         unreadFeedback={unreadFeedback}
+        practiceDue={practiceDue}
       />
       <main id="main-content" className="flex-1 p-4 md:p-8">
         <div className="max-w-3xl mx-auto">{children}</div>

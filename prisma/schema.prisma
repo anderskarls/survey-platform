@@ -45,6 +45,7 @@ model Student {
   flaggedQuestions   FlaggedQuestion[]
   drafts            DraftResponse[]
   assignmentFeedbacks AssignmentFeedback[]
+  practiceAttempts   PracticeAttempt[]
 
   @@unique([courseId, number])
 }
@@ -69,6 +70,7 @@ model Question {
   surveyQuestions SurveyQuestion[]
   answers         Answer[]
   flaggedBy       FlaggedQuestion[]
+  practiceAttempts PracticeAttempt[]
 }
 
 model QuestionOption {
@@ -163,6 +165,20 @@ model DraftResponse {
 
   @@unique([surveyId, studentId])
   @@index([studentId])
+}
+
+model PracticeAttempt {
+  id         Int      @id @default(autoincrement())
+  studentId  Int
+  student    Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  questionId Int
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  value      String
+  isCorrect  Boolean?
+  createdAt  DateTime @default(now())
+
+  @@index([studentId, questionId])
+  @@index([studentId, createdAt])
 }
 
 model Admin {
