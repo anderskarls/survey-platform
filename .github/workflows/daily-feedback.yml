@@ -1,0 +1,43 @@
+name: Daglig Feedback-rapport
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 15 * * 1-5'  # Måndag–fredag kl 17:00 Stockholm (UTC+2)
+
+jobs:
+  generate-report:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: Check for new responses and generate report
+        run: npx tsx scripts/generate-daily-report.ts
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: Commit and push report
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add reports/
+          git diff --staged --quiet || git commit -m "Daglig feedback-rapport $(date +%Y-%m-%d)"
+          git push
