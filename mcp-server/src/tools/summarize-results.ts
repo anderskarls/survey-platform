@@ -73,6 +73,18 @@ export async function summarizeResults(surveyId: number): Promise<string> {
           const marker = isQuiz ? (a.isCorrect ? " ✓" : " ✗") : "";
           lines.push(`- Elev #${a.studentNumber}: ${a.value}${marker}`);
         });
+    } else if (q.type === "REFLECTION") {
+      lines.push("_Självreflektion - ej bedömd, ingår inte i någon svarsprocent_");
+      lines.push(`Antal reflektioner: ${answersWithStudent.length}`);
+      if (answersWithStudent.length > 0) {
+        lines.push("");
+        lines.push("Reflektioner:");
+        answersWithStudent
+          .sort((a, b) => a.studentNumber - b.studentNumber)
+          .forEach((a) => {
+            lines.push(`- Elev #${a.studentNumber}: "${a.value}"`);
+          });
+      }
     } else {
       lines.push(`Antal fritextsvar: ${answersWithStudent.length}`);
       if (answersWithStudent.length > 0) {
@@ -89,7 +101,10 @@ export async function summarizeResults(surveyId: number): Promise<string> {
   }
 
   lines.push("---");
-  lines.push("Sammanfatta gärna fritextsvaren ovan och identifiera teman och mönster.");
+  lines.push(
+    "Sammanfatta gärna fritextsvaren och reflektionerna ovan och identifiera teman och mönster. " +
+      "Reflektioner är självreflektion - bedöm dem inte och sätt aldrig betygsbokstäver i text eleven läser."
+  );
 
   return lines.join("\n");
 }

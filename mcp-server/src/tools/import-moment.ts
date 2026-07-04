@@ -61,8 +61,13 @@ export async function importMoment(
           const topicName = row.topic?.trim() || "Övrigt";
           const text = row.text?.trim();
           if (!text) continue;
+          const rawType = row.type?.trim().toUpperCase();
           const type =
-            row.type?.trim().toUpperCase() === "FREE_TEXT" ? "FREE_TEXT" : "MULTIPLE_CHOICE";
+            rawType === "FREE_TEXT"
+              ? "FREE_TEXT"
+              : rawType === "REFLECTION"
+                ? "REFLECTION"
+                : "MULTIPLE_CHOICE";
           const options: string[] = [];
           for (let i = 1; i <= 10; i++) {
             const val = row[`option${i}`]?.trim();

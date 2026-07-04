@@ -18,6 +18,7 @@ import {
 import { deleteSurvey } from "./tools/delete-survey.js";
 import { importMoment } from "./tools/import-moment.js";
 import { getMomentReport } from "./tools/get-moment-report.js";
+import { summarizeReflections } from "./tools/summarize-reflections.js";
 import { listTopics } from "./resources/topics.js";
 import { getQuestionsByTopic } from "./resources/questions.js";
 import { listCourses } from "./resources/courses.js";
@@ -447,6 +448,55 @@ server.tool(
       return {
         content: [
           { type: "text" as const, text: `Fel vid momentrapport: ${(error as Error).message}` },
+        ],
+        isError: true,
+      };
+    }
+  }
+);
+
+server.tool(
+  "summarize_reflections",
+  "Hämta elevernas självreflektioner (frågor med type=REFLECTION) för en kurs, formaterat som underlag för en lärarsammanfattning, grupperat per uppgift/lektion. Reflektioner bedöms inte och ingår inte i quiz-/svarsprocent-statistik. Använd t.ex. för veckans 'vad fastnade eleverna på'. Filtrera valfritt på moment (unit_id), lektion eller datumintervall.",
+  {
+    course_code: z.string().min(1).describe("Kurskod (t.ex. MEK24B)"),
+    unit_id: z
+      .number()
+      .int()
+      .positive()
+      .optional()
+      .describe("Valfritt: begränsa till ett moment (Unit)"),
+    lesson: z
+      .number()
+      .int()
+      .positive()
+      .optional()
+      .describe("Valfritt: begränsa till ett lektionsnummer"),
+    from: z
+      .string()
+      .optional()
+      .describe("Valfritt: startdatum YYYY-MM-DD (inklusive)"),
+    to: z
+      .string()
+      .optional()
+      .describe("Valfritt: slutdatum YYYY-MM-DD (inklusive)"),
+  },
+  async ({ course_code, unit_id, lesson, from, to }) => {
+    try {
+      const result = await summarizeReflections(course_code, {
+        unitId: unit_id,
+        lesson,
+        from,
+        to,
+      });
+      return { content: [{ type: "text" as const, text: result }] };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: `Fel vid reflektionssammanfattning: ${(error as Error).message}`,
+          },
         ],
         isError: true,
       };

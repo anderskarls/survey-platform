@@ -14,7 +14,13 @@ export async function importQuestions(courseId: number, csvContent: string): Pro
         const text = row.text?.trim();
         if (!text) continue;
 
-        const type = row.type?.trim().toUpperCase() === "FREE_TEXT" ? "FREE_TEXT" : "MULTIPLE_CHOICE";
+        const rawType = row.type?.trim().toUpperCase();
+        const type =
+          rawType === "FREE_TEXT"
+            ? "FREE_TEXT"
+            : rawType === "REFLECTION"
+              ? "REFLECTION"
+              : "MULTIPLE_CHOICE";
 
         const options: string[] = [];
         for (let i = 1; i <= 10; i++) {

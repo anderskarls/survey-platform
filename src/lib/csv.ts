@@ -23,9 +23,17 @@ export function parseCsvContent(csvContent: string): CsvQuestionRow[] {
       }
     }
 
+    const rawType = row.type?.trim().toUpperCase();
+    const type =
+      rawType === "FREE_TEXT"
+        ? "FREE_TEXT"
+        : rawType === "REFLECTION"
+          ? "REFLECTION"
+          : "MULTIPLE_CHOICE";
+
     return {
       topic: row.topic?.trim() || "Övrigt",
-      type: row.type?.trim().toUpperCase() === "FREE_TEXT" ? "FREE_TEXT" : "MULTIPLE_CHOICE",
+      type,
       text: row.text?.trim() || "",
       options,
       correctAnswer: row.correctAnswer?.trim() || undefined,

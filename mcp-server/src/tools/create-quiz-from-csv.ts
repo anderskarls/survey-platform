@@ -37,10 +37,13 @@ export async function createQuizFromCsv(
         const text = row.text?.trim();
         if (!text) continue;
 
+        const rawType = row.type?.trim().toUpperCase();
         const type =
-          row.type?.trim().toUpperCase() === "FREE_TEXT"
+          rawType === "FREE_TEXT"
             ? "FREE_TEXT"
-            : "MULTIPLE_CHOICE";
+            : rawType === "REFLECTION"
+              ? "REFLECTION"
+              : "MULTIPLE_CHOICE";
 
         const options: string[] = [];
         for (let i = 1; i <= 10; i++) {

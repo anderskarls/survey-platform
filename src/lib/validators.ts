@@ -59,7 +59,7 @@ export const createQuestionSchema = z.object({
     .min(1, "Frågetext krävs")
     .max(1000)
     .transform((s) => s.trim()),
-  type: z.enum(["MULTIPLE_CHOICE", "FREE_TEXT"]),
+  type: z.enum(["MULTIPLE_CHOICE", "FREE_TEXT", "REFLECTION"]),
   topicId: z.number().int().positive(),
   options: z.array(z.string()).optional(),
   correctOptionIndex: z.number().int().min(0).optional(),

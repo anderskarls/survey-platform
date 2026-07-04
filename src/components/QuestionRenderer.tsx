@@ -81,6 +81,19 @@ export default function QuestionRenderer({
                 <span className="text-base text-muted">Jag är inte säker</span>
               </label>
             </div>
+          ) : q.type === "REFLECTION" ? (
+            <div>
+              <p className="text-sm text-muted mb-2">
+                Reflektera fritt - det finns inget rätt eller fel. Skriv det du faktiskt tänker.
+              </p>
+              <textarea
+                value={answers[q.id] || ""}
+                onChange={(e) => onAnswer(q.id, e.target.value)}
+                rows={6}
+                placeholder="Din reflektion..."
+                className="input-field"
+              />
+            </div>
           ) : (
             <textarea
               value={answers[q.id] || ""}
