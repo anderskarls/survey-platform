@@ -1,35 +1,41 @@
-// Successiv ominlärning (Rawson & Dunlosky 2022): en missad fråga övas tills
-// eleven svarat rätt vid tre separata dagssessioner, därefter glesas den ut.
-// Ren modul utan DB-beroenden - se docs/ovning/01-successiv-ominlarning.md.
+// Anki-lik övning via FSRS-6 (ts-fsrs, long-term-schemaläggaren): varje mött
+// flervalsfråga får ett minneskort som replayas ur hela försökshistoriken
+// (skarpa quiz-svar + övningsförsök) - ingen persisterad kortstatus.
+// Ren modul utan DB-beroenden - se docs/ovning/02-fsrs.md.
+
+import {
+  createEmptyCard,
+  fsrs,
+  generatorParameters,
+  Rating,
+  type Card,
+  type Grade,
+} from "ts-fsrs";
 
 export interface AttemptRecord {
   questionId: number;
   isCorrect: boolean | null; // null = "Jag är inte säker" (räknas som miss)
+  /** FSRS-betyg 1-4 (Rating). null/undefined = härled ur isCorrect */
+  grade?: number | null;
   createdAt: Date;
+  /** Tie-break vid identisk tidsstämpel: quiz-svar före övningsförsök */
+  source?: "answer" | "practice";
 }
 
-export type RelearningStatus = "learning" | "graduated";
-
-export interface QuestionRelearningState {
-  questionId: number;
-  status: RelearningStatus;
-  /** Sammanhängande dagssessioner med rätt svar sedan senaste missen (0-3) */
-  streakDays: number;
-  /** Kalenderdag (Europe/Stockholm) för senaste försöket */
-  lastAttemptDay: string;
-  /** Hela dagar kvar tills frågan är due (0 = due nu) */
-  daysUntilDue: number;
-  due: boolean;
-}
-
-/** Rätt vid 3 spacade sessioner -> graderad ("tre rätt före glesning") */
-export const GRADUATION_STREAK = 3;
-/** Expanderande intervall (dagar) per streaknivå 0/1/2 */
-export const REVIEW_GAPS_DAYS = [1, 2, 4];
-/** Underhållsintervall efter gradering (10-procentsregeln mot läsårsretention) */
-export const MAINTENANCE_GAP_DAYS = 28;
 /** Max antal frågor per övningspass */
-export const PRACTICE_SET_CAP = 12;
+export const PRACTICE_SET_CAP = 20;
+/** "Behärskad" = schemalagt intervall minst så här många dagar */
+export const MASTERED_INTERVAL_DAYS = 7;
+
+export const FSRS_PARAMS = generatorParameters({
+  request_retention: 0.9, // 90 % målretention (Ankis rekommendation)
+  maximum_interval: 120, // läsårshorisont: aldrig mer än ~4 månader
+  enable_fuzz: false, // determinism: replay + tester måste vara reproducerbara
+  enable_short_term: false, // dagsgranularitet: alla intervall >= 1 dag,
+  // samma-dag-repetition sköts av klientens passkö
+});
+
+const scheduler = fsrs(FSRS_PARAMS);
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -49,68 +55,110 @@ function dayDiff(fromDay: string, toDay: string): number {
   return Math.round((Date.parse(toDay) - Date.parse(fromDay)) / DAY_MS);
 }
 
+/** FSRS-betyg för ett försök: explicit kolumn om satt, annars härlett */
+export function gradeForAttempt(a: AttemptRecord): Grade {
+  if (a.grade != null && a.grade >= 1 && a.grade <= 4) return a.grade as Grade;
+  return a.isCorrect === true ? Rating.Good : Rating.Again;
+}
+
+/** Kronologisk ordning; vid samma tidsstämpel quiz-svar före övningsförsök */
+function sortAttempts(attempts: AttemptRecord[]): AttemptRecord[] {
+  return attempts
+    .map((a, index) => ({ a, index }))
+    .sort((x, y) => {
+      const t = x.a.createdAt.getTime() - y.a.createdAt.getTime();
+      if (t !== 0) return t;
+      const sx = x.a.source === "practice" ? 1 : 0;
+      const sy = y.a.source === "practice" ? 1 : 0;
+      if (sx !== sy) return sx - sy;
+      return x.index - y.index;
+    })
+    .map((x) => x.a);
+}
+
+export interface ReplayedCard {
+  card: Card;
+  lastGrade: Grade;
+}
+
+/** Foldar hela försökshistoriken genom FSRS till dagens kortstatus */
+export function replayCard(attempts: AttemptRecord[]): ReplayedCard | null {
+  if (attempts.length === 0) return null;
+  const sorted = sortAttempts(attempts);
+  let card = createEmptyCard(sorted[0].createdAt);
+  let lastGrade: Grade = Rating.Good;
+  for (const a of sorted) {
+    const grade = gradeForAttempt(a);
+    card = scheduler.next(card, a.createdAt, grade).card;
+    lastGrade = grade;
+  }
+  return { card, lastGrade };
+}
+
+export interface QuestionPracticeState {
+  questionId: number;
+  /** Exakt FSRS-due (med klockslag) */
+  due: Date;
+  /** dayKey(due) */
+  dueDay: string;
+  /** Due i dagstermer: dueDay <= idag (Europe/Stockholm) */
+  isDue: boolean;
+  /** Hela dagar kvar tills frågan är due (0 = due nu) */
+  daysUntilDue: number;
+  stability: number;
+  difficulty: number;
+  /** Sannolikhet att minnet sitter just nu (0..1) */
+  retrievability: number;
+  /** Schemalagt intervall i dagar */
+  scheduledDays: number;
+  lastReview: Date;
+  lapses: number;
+  reps: number;
+  /** Intervall >= MASTERED_INTERVAL_DAYS och senaste betyg inte "Om igen" */
+  mastered: boolean;
+}
+
 /**
- * Beräknar ominlärningsstatus för en fråga ur den samlade försökshistoriken
- * (skarpa quiz-svar + övningsförsök). Returnerar null om frågan inte hör
- * hemma i övningspoolen (aldrig missad, eller inga försök alls).
- *
- * Sessionslogik: en session = en kalenderdag. Dagens utfall = sista försöket
- * den dagen. Streak = antal sammanhängande korrekta dagssessioner räknat
- * bakifrån; en miss-dag nollställer.
+ * Beräknar FSRS-status för en fråga ur den samlade försökshistoriken.
+ * Poolen = ALLA frågor eleven mött (minst ett försök); null bara vid tom
+ * historik. Rätt på första försöket ger långt startintervall i stället för
+ * att som förr aldrig schemaläggas.
  */
 export function buildQuestionState(
   attempts: AttemptRecord[],
   now: Date = new Date()
-): QuestionRelearningState | null {
-  if (attempts.length === 0) return null;
+): QuestionPracticeState | null {
+  const replayed = replayCard(attempts);
+  if (!replayed) return null;
+  const { card, lastGrade } = replayed;
 
-  const sorted = [...attempts].sort(
-    (a, b) => a.createdAt.getTime() - b.createdAt.getTime()
-  );
-
-  // Frågan ingår i poolen bara om den någon gång missats (fel eller osäker)
-  if (!sorted.some((a) => a.isCorrect !== true)) return null;
-
-  // Gruppera per dagssession; dagens utfall = sista försöket den dagen
-  const outcomeByDay = new Map<string, boolean>();
-  for (const a of sorted) {
-    outcomeByDay.set(dayKey(a.createdAt), a.isCorrect === true);
-  }
-
-  const days = Array.from(outcomeByDay.keys()); // insättningsordning = kronologisk
-  let streakDays = 0;
-  for (let i = days.length - 1; i >= 0; i--) {
-    if (outcomeByDay.get(days[i])) streakDays++;
-    else break;
-  }
-
-  const status: RelearningStatus =
-    streakDays >= GRADUATION_STREAK ? "graduated" : "learning";
-  const lastAttemptDay = days[days.length - 1];
-
-  const requiredGap =
-    status === "graduated"
-      ? MAINTENANCE_GAP_DAYS
-      : REVIEW_GAPS_DAYS[Math.min(streakDays, REVIEW_GAPS_DAYS.length - 1)];
-
-  const gap = dayDiff(lastAttemptDay, dayKey(now));
-  const daysUntilDue = Math.max(0, requiredGap - gap);
+  const dueDay = dayKey(card.due);
+  const daysUntilDue = Math.max(0, dayDiff(dayKey(now), dueDay));
 
   return {
-    questionId: sorted[0].questionId,
-    status,
-    streakDays: Math.min(streakDays, GRADUATION_STREAK),
-    lastAttemptDay,
+    questionId: attempts[0].questionId,
+    due: card.due,
+    dueDay,
+    isDue: daysUntilDue === 0,
     daysUntilDue,
-    due: daysUntilDue === 0,
+    stability: card.stability,
+    difficulty: card.difficulty,
+    retrievability: scheduler.get_retrievability(card, now, false),
+    scheduledDays: card.scheduled_days,
+    lastReview: card.last_review ?? attempts[0].createdAt,
+    lapses: card.lapses,
+    reps: card.reps,
+    mastered:
+      card.scheduled_days >= MASTERED_INTERVAL_DAYS &&
+      lastGrade !== Rating.Again,
   };
 }
 
-/** Beräknar status för alla frågor med försök; poolen = någon gång missade */
+/** Beräknar status för alla frågor med minst ett försök */
 export function buildRelearningStates(
   attempts: AttemptRecord[],
   now: Date = new Date()
-): Map<number, QuestionRelearningState> {
+): Map<number, QuestionPracticeState> {
   const byQuestion = new Map<number, AttemptRecord[]>();
   for (const a of attempts) {
     const list = byQuestion.get(a.questionId);
@@ -118,7 +166,7 @@ export function buildRelearningStates(
     else byQuestion.set(a.questionId, [a]);
   }
 
-  const states = new Map<number, QuestionRelearningState>();
+  const states = new Map<number, QuestionPracticeState>();
   for (const [questionId, list] of byQuestion) {
     const state = buildQuestionState(list, now);
     if (state) states.set(questionId, state);
@@ -132,24 +180,25 @@ export interface PracticeCandidate {
 }
 
 /**
- * Väljer dagens övningspass: due-frågor, lägst streak först, mest försenade
- * först inom samma streak, round-robin över topics för tematisk variation.
+ * Väljer dagens övningspass: due-frågor, svagast minne först (lägst
+ * retrievability), äldst due som tie-break, round-robin över topics för
+ * tematisk variation.
  */
 export function selectPracticeSet(
   candidates: PracticeCandidate[],
-  states: Map<number, QuestionRelearningState>,
+  states: Map<number, QuestionPracticeState>,
   cap: number = PRACTICE_SET_CAP
 ): number[] {
   const due = candidates
     .map((c) => ({ ...c, state: states.get(c.questionId) }))
     .filter(
-      (c): c is PracticeCandidate & { state: QuestionRelearningState } =>
-        c.state !== undefined && c.state.due
+      (c): c is PracticeCandidate & { state: QuestionPracticeState } =>
+        c.state !== undefined && c.state.isDue
     )
     .sort((a, b) => {
-      if (a.state.streakDays !== b.state.streakDays)
-        return a.state.streakDays - b.state.streakDays;
-      return a.state.lastAttemptDay.localeCompare(b.state.lastAttemptDay);
+      if (a.state.retrievability !== b.state.retrievability)
+        return a.state.retrievability - b.state.retrievability;
+      return a.state.dueDay.localeCompare(b.state.dueDay);
     });
 
   // Round-robin över topics så passet inte blir en lång rad ur samma quiz
@@ -177,21 +226,50 @@ export function selectPracticeSet(
   return result;
 }
 
+export interface PracticeIntervals {
+  again: number;
+  hard: number;
+  good: number;
+  easy: number;
+}
+
+/**
+ * Förhandsvisar nästa intervall (hela dagar) per betygsknapp, som Ankis
+ * svarsknappar. Replayar historiken och frågar schemaläggaren om alla
+ * fyra utfall vid `now`.
+ */
+export function previewIntervals(
+  attempts: AttemptRecord[],
+  now: Date = new Date()
+): PracticeIntervals {
+  const replayed = replayCard(attempts);
+  const card = replayed ? replayed.card : createEmptyCard(now);
+  const preview = scheduler.repeat(card, now);
+  const days = (grade: Grade) =>
+    Math.max(1, dayDiff(dayKey(now), dayKey(preview[grade].card.due)));
+  return {
+    again: days(Rating.Again),
+    hard: days(Rating.Hard),
+    good: days(Rating.Good),
+    easy: days(Rating.Easy),
+  };
+}
+
 export interface RelearningSummary {
   due: number;
   learning: number;
-  graduated: number;
+  graduated: number; // behärskade (intervall >= MASTERED_INTERVAL_DAYS)
 }
 
 export function summarizeStates(
-  states: Map<number, QuestionRelearningState>
+  states: Map<number, QuestionPracticeState>
 ): RelearningSummary {
   let due = 0;
   let learning = 0;
   let graduated = 0;
   for (const s of states.values()) {
-    if (s.due) due++;
-    if (s.status === "graduated") graduated++;
+    if (s.isDue) due++;
+    if (s.mastered) graduated++;
     else learning++;
   }
   return { due, learning, graduated };

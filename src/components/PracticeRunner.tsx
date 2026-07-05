@@ -7,35 +7,18 @@ export interface PracticeQuestion {
   id: number;
   text: string;
   options: string[];
-  streakDays: number;
   courseName?: string | null;
 }
 
 interface AttemptResult {
   isCorrect: boolean | null;
   correctAnswer: string | null;
-  streakDays: number;
-  graduated: boolean;
-  daysUntilDue: number | null;
+  nextDueDays: number | null;
+  mastered: boolean;
 }
 
 interface Props {
   questions: PracticeQuestion[];
-}
-
-function StreakDots({ streakDays }: { streakDays: number }) {
-  return (
-    <span className="inline-flex items-center gap-1" aria-label={`${streakDays} av 3 dagar med rätt`}>
-      {[0, 1, 2].map((i) => (
-        <span
-          key={i}
-          className={`inline-block w-2.5 h-2.5 rounded-full ${
-            i < streakDays ? "bg-success" : "bg-surface-muted border border-border"
-          }`}
-        />
-      ))}
-    </span>
-  );
 }
 
 export default function PracticeRunner({ questions }: Props) {
@@ -68,7 +51,7 @@ export default function PracticeRunner({ questions }: Props) {
       }
       setResult(data);
       if (data.isCorrect === true) setCorrectCount((c) => c + 1);
-      if (data.graduated) setGraduatedCount((c) => c + 1);
+      if (data.mastered) setGraduatedCount((c) => c + 1);
     } catch {
       setError("Kunde inte skicka svaret. Kontrollera din internetanslutning.");
     } finally {
@@ -95,13 +78,13 @@ export default function PracticeRunner({ questions }: Props) {
         </p>
         {graduatedCount > 0 && (
           <p className="text-sm text-success mb-1">
-            {graduatedCount} {graduatedCount === 1 ? "fråga" : "frågor"} klarade
-            tredje dagen med rätt och går nu in i underhållsläge.
+            {graduatedCount} {graduatedCount === 1 ? "fråga" : "frågor"} sitter
+            nu så bra att nästa repetition ligger minst en vecka bort.
           </p>
         )}
         <p className="text-sm text-muted mb-6">
-          Frågor du svarade fel på återkommer imorgon. Rätt svar måste sitta
-          tre olika dagar - det är då minnet byggs på riktigt.
+          Frågorna återkommer lagom innan du hinner glömma dem - ju bättre de
+          sitter, desto längre blir pausen.
         </p>
         <Link href="/student" className="btn-primary inline-block py-3 px-6">
           Tillbaka till dashboard
@@ -119,7 +102,14 @@ export default function PracticeRunner({ questions }: Props) {
           <span className="text-sm font-semibold text-muted">
             Fråga {index + 1} av {total}
           </span>
-          <StreakDots streakDays={showFeedback ? result.streakDays : question.streakDays} />
+          {showFeedback && result.nextDueDays !== null && (
+            <span className="text-xs font-semibold text-muted bg-surface-muted rounded-full px-2.5 py-1">
+              nästa{" "}
+              {result.nextDueDays <= 1
+                ? "imorgon"
+                : `om ${result.nextDueDays} dagar`}
+            </span>
+          )}
         </div>
         <div className="w-full bg-surface-muted rounded-full h-1.5">
           <div
@@ -209,13 +199,9 @@ export default function PracticeRunner({ questions }: Props) {
             {result.isCorrect === true ? (
               <p className="font-semibold">
                 Rätt!{" "}
-                {result.graduated
-                  ? "Tre dagar med rätt - frågan går in i underhållsläge och återkommer om ungefär en månad."
-                  : `${result.streakDays} av 3 dagar med rätt. ${
-                      result.daysUntilDue === 1
-                        ? "Frågan återkommer imorgon eller senare."
-                        : `Frågan återkommer om ${result.daysUntilDue} dagar.`
-                    }`}
+                {result.nextDueDays !== null && result.nextDueDays > 1
+                  ? `Frågan återkommer om ${result.nextDueDays} dagar.`
+                  : "Frågan återkommer imorgon eller senare."}
               </p>
             ) : (
               <p className="font-semibold">

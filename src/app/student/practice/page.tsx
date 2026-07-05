@@ -21,7 +21,7 @@ export default async function PracticePage() {
     // Nästa tillfälle = minsta antal dagar tills någon fråga blir due
     let nextInDays: number | null = null;
     for (const s of states.values()) {
-      if (!s.due && (nextInDays === null || s.daysUntilDue < nextInDays)) {
+      if (!s.isDue && (nextInDays === null || s.daysUntilDue < nextInDays)) {
         nextInDays = s.daysUntilDue;
       }
     }
@@ -85,7 +85,6 @@ export default async function PracticePage() {
       id: q.id,
       text: q.text,
       options: q.options.map((o) => o.text),
-      streakDays: states.get(q.id)?.streakDays ?? 0,
       courseName: multiCourse
         ? (questionInfo.get(q.id)?.courseName ?? null)
         : null,

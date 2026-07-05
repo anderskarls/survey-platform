@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import {
   AttemptRecord,
   PracticeCandidate,
-  QuestionRelearningState,
+  QuestionPracticeState,
   buildRelearningStates,
   summarizeStates,
 } from "@/lib/relearning";
@@ -59,19 +59,18 @@ export interface PracticeQuestionInfo {
 
 export interface RelearningData {
   accounts: LinkedAccount[];
-  states: Map<number, QuestionRelearningState>;
+  states: Map<number, QuestionPracticeState>;
   candidates: PracticeCandidate[];
   questionInfo: Map<number, PracticeQuestionInfo>;
 }
 
 /**
  * Laddar elevens samlade försökshistorik (skarpa quiz-svar + övningsförsök)
- * för flervalsfrågor och beräknar ominlärningsstatus. Poolen = frågor eleven
- * någon gång missat (fel eller "Jag är inte säker"). Länkade konton
- * (samma personKey, t.ex. samma elev i två kurser) slås ihop så att
- * övningen täcker alla kurser oavsett vilket konto eleven är inloggad på.
- * Varje fråga hör till exakt en kurs, så historiken per fråga blandas aldrig
- * mellan konton.
+ * för flervalsfrågor och beräknar FSRS-status. Poolen = alla frågor eleven
+ * mött (minst ett försök). Länkade konton (samma personKey, t.ex. samma elev
+ * i två kurser) slås ihop så att övningen täcker alla kurser oavsett vilket
+ * konto eleven är inloggad på. Varje fråga hör till exakt en kurs, så
+ * historiken per fråga blandas aldrig mellan konton.
  */
 export async function loadRelearningData(
   studentId: number,
@@ -101,6 +100,7 @@ export async function loadRelearningData(
       select: {
         questionId: true,
         isCorrect: true,
+        grade: true,
         createdAt: true,
         question: {
           select: { topicId: true, topic: { select: { courseId: true } } },
@@ -110,16 +110,23 @@ export async function loadRelearningData(
   ]);
 
   const attempts: AttemptRecord[] = [
-    ...answers.map((a) => ({
-      questionId: a.questionId,
-      isCorrect: a.isCorrect,
-      createdAt: a.response.createdAt,
-    })),
-    ...practice.map((p) => ({
-      questionId: p.questionId,
-      isCorrect: p.isCorrect,
-      createdAt: p.createdAt,
-    })),
+    ...answers.map(
+      (a): AttemptRecord => ({
+        questionId: a.questionId,
+        isCorrect: a.isCorrect,
+        createdAt: a.response.createdAt,
+        source: "answer",
+      })
+    ),
+    ...practice.map(
+      (p): AttemptRecord => ({
+        questionId: p.questionId,
+        isCorrect: p.isCorrect,
+        grade: p.grade,
+        createdAt: p.createdAt,
+        source: "practice",
+      })
+    ),
   ];
 
   const topicByQuestion = new Map<number, number>();
@@ -209,6 +216,7 @@ export async function loadCourseRelearningOverview(
         studentId: true,
         questionId: true,
         isCorrect: true,
+        grade: true,
         createdAt: true,
       },
     }),
@@ -237,13 +245,16 @@ export async function loadCourseRelearningOverview(
       questionId: a.questionId,
       isCorrect: a.isCorrect,
       createdAt: a.response.createdAt,
+      source: "answer",
     });
   }
   for (const p of practice) {
     push(p.studentId, {
       questionId: p.questionId,
       isCorrect: p.isCorrect,
+      grade: p.grade,
       createdAt: p.createdAt,
+      source: "practice",
     });
   }
 
@@ -302,13 +313,13 @@ export async function loadCourseRelearningOverview(
     if (activity.attempts7d > 0) totals.activePractitioners7d++;
 
     for (const s of states.values()) {
-      if (s.status !== "learning") continue;
+      if (s.mastered) continue;
       const counter = gapCounters.get(s.questionId) ?? {
         studentsInLearning: 0,
         studentsDue: 0,
       };
       counter.studentsInLearning++;
-      if (s.due) counter.studentsDue++;
+      if (s.isDue) counter.studentsDue++;
       gapCounters.set(s.questionId, counter);
     }
   }

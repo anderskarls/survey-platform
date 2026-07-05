@@ -83,9 +83,8 @@ export async function POST(request: NextRequest) {
       {
         isCorrect,
         correctAnswer: correctOption?.text ?? null,
-        streakDays: state?.streakDays ?? 0,
-        graduated: state?.status === "graduated",
-        daysUntilDue: state?.daysUntilDue ?? null,
+        nextDueDays: state?.daysUntilDue ?? null,
+        mastered: state?.mastered ?? false,
       },
       { status: 201 }
     );
