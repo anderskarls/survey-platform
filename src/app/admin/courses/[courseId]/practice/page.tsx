@@ -47,7 +47,7 @@ export default async function CoursePracticePage({
       color: "text-primary",
     },
     {
-      label: "Klarade (3 dagar rätt)",
+      label: "Behärskade (minst veckointervall)",
       value: String(totals.graduated),
       color: "text-primary",
     },
@@ -67,10 +67,12 @@ export default async function CoursePracticePage({
     <div className="animate-fade-in">
       <h1 className="text-2xl font-bold mb-2 tracking-tight">Övning</h1>
       <p className="text-muted text-sm mb-8">
-        Successiv ominlärning: frågor en elev missat återkommer i elevens
-        övningspass tills de besvarats rätt tre olika dagar, därefter
-        underhåll var fjärde vecka. Här ser du vem som övar, vem som låter
-        luckorna ligga, och vilka frågor som inte sitter i klassen.
+        Spaced repetition i Anki-stil (FSRS): alla flervalsfrågor en elev mött
+        schemaläggs individuellt och återkommer i övningspasset lagom innan de
+        glöms - oftare när de är svåra, alltmer sällan när de sitter. Behärskad
+        = nästa repetition ligger minst en vecka bort. Här ser du vem som övar,
+        vem som låter luckorna ligga, och vilka frågor som inte sitter i
+        klassen.
       </p>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
@@ -101,9 +103,8 @@ export default async function CoursePracticePage({
       ) : studentsWithPool.length === 0 ? (
         <div className="card p-12 text-center">
           <p className="text-muted">
-            Inga luckor ännu. När elever svarar fel (eller &quot;är inte
-            säker&quot;) på flervalsfrågor i quiz hamnar frågorna i deras
-            övningspool och dyker upp här.
+            Ingen övningsdata ännu. När elever besvarar flervalsfrågor i quiz
+            schemaläggs frågorna i deras övningspool och dyker upp här.
           </p>
         </div>
       ) : (
@@ -122,7 +123,7 @@ export default async function CoursePracticePage({
                     Under inlärning
                   </th>
                   <th className="p-4 font-semibold text-muted text-xs uppercase tracking-wider text-center">
-                    Klarade
+                    Behärskade
                   </th>
                   <th className="p-4 font-semibold text-muted text-xs uppercase tracking-wider text-center">
                     Försök 7 d
@@ -214,9 +215,8 @@ export default async function CoursePracticePage({
                 Klassens luckor
               </h2>
               <p className="text-sm text-muted mb-3">
-                Frågor som flest elever ännu inte fått att sitta (under
-                inlärning). Toppen av listan är kandidater att ta upp i
-                helklass.
+                Frågor som flest elever ännu inte behärskar (intervall under en
+                vecka). Toppen av listan är kandidater att ta upp i helklass.
               </p>
               <div className="card overflow-x-auto">
                 <table className="w-full text-sm">

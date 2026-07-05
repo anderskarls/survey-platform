@@ -124,7 +124,7 @@ export default async function StudentDashboard() {
               <span className="font-medium">Dagens övningspass</span>
               <p className="text-sm text-muted mt-0.5">
                 {practiceStats.due} {practiceStats.due === 1 ? "fråga" : "frågor"} redo
-                att övas - rätt tre olika dagar gör att de sitter.
+                att övas - repetition lagom innan du glömmer bygger minnet.
               </p>
             </div>
             <Link href="/student/practice" className="btn-accent inline-block">
