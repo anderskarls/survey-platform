@@ -30,14 +30,15 @@ export default async function PracticePage() {
       <div className="animate-fade-in">
         <h2 className="text-xl font-bold tracking-tight mb-1">Att öva på</h2>
         <p className="text-sm text-muted mb-6">
-          Frågor du missat återkommer här tills du svarat rätt tre olika dagar.
+          Frågor du mött återkommer här lagom innan du hinner glömma dem.
         </p>
         <div className="card p-6 text-center">
           <p className="font-semibold mb-1">Inget att öva på just nu</p>
           {states.size === 0 ? (
             <p className="text-sm text-muted">
-              När du svarar fel på en quizfråga hamnar den här, så att du kan
-              träna bort luckan i lugn och ro.
+              När du gjort en quiz hamnar frågorna här och återkommer med
+              växande mellanrum - oftare om de är svåra, mer sällan när de
+              sitter.
             </p>
           ) : (
             <p className="text-sm text-muted">
@@ -59,8 +60,8 @@ export default async function PracticePage() {
               {stats.graduated > 0 && (
                 <>
                   {stats.graduated}{" "}
-                  {stats.graduated === 1 ? "fråga är" : "frågor är"} i
-                  underhållsläge.
+                  {stats.graduated === 1 ? "fråga sitter" : "frågor sitter"} så
+                  bra att nästa repetition ligger minst en vecka bort.
                 </>
               )}
             </p>
@@ -95,8 +96,9 @@ export default async function PracticePage() {
       <h2 className="text-xl font-bold tracking-tight mb-1">Att öva på</h2>
       <p className="text-sm text-muted mb-6">
         {questions.length} {questions.length === 1 ? "fråga" : "frågor"} är redo
-        att övas. Rätt svar tre olika dagar gör att frågan sitter - det är
-        därför samma fråga kommer tillbaka.
+        att övas. Frågor du missar återkommer senare i passet, och hur lätt en
+        fråga kändes styr när den dyker upp nästa gång - repetition precis
+        innan du glömmer är det som bygger minnet.
       </p>
       <PracticeRunner questions={questions} />
     </div>

@@ -11,31 +11,43 @@ export interface PracticeQuestion {
 }
 
 interface AttemptResult {
+  attemptId: number;
   isCorrect: boolean | null;
   correctAnswer: string | null;
+  appliedGrade: number;
   nextDueDays: number | null;
   mastered: boolean;
+  intervals: { hard: number; good: number; easy: number };
 }
 
 interface Props {
   questions: PracticeQuestion[];
 }
 
+function inDays(days: number): string {
+  return days <= 1 ? "imorgon" : `om ${days} dagar`;
+}
+
 export default function PracticeRunner({ questions }: Props) {
-  const [index, setIndex] = useState(0);
+  // Passkö i Anki-stil: fel/osäker lägger tillbaka frågan sist i kön,
+  // passet är klart först när varje fråga besvarats rätt en gång.
+  const [queue, setQueue] = useState<PracticeQuestion[]>(questions);
   const [selected, setSelected] = useState<string | null>(null);
   const [result, setResult] = useState<AttemptResult | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [grading, setGrading] = useState(false);
   const [error, setError] = useState("");
-  const [correctCount, setCorrectCount] = useState(0);
-  const [graduatedCount, setGraduatedCount] = useState(0);
-  const [finished, setFinished] = useState(false);
+  const [completedCount, setCompletedCount] = useState(0);
+  const [missedIds, setMissedIds] = useState<Set<number>>(new Set());
+  const [firstTryCorrect, setFirstTryCorrect] = useState(0);
+  const [masteredCount, setMasteredCount] = useState(0);
 
-  const question = questions[index];
-  const total = questions.length;
+  const uniqueTotal = questions.length;
+  const question = queue[0];
+  const finished = question === undefined;
 
   async function handleSubmit() {
-    if (!selected || submitting) return;
+    if (!question || !selected || submitting) return;
     setError("");
     setSubmitting(true);
     try {
@@ -50,8 +62,11 @@ export default function PracticeRunner({ questions }: Props) {
         return;
       }
       setResult(data);
-      if (data.isCorrect === true) setCorrectCount((c) => c + 1);
-      if (data.mastered) setGraduatedCount((c) => c + 1);
+      if (data.isCorrect === true) {
+        if (!missedIds.has(question.id)) setFirstTryCorrect((c) => c + 1);
+      } else {
+        setMissedIds((prev) => new Set(prev).add(question.id));
+      }
     } catch {
       setError("Kunde inte skicka svaret. Kontrollera din internetanslutning.");
     } finally {
@@ -59,14 +74,37 @@ export default function PracticeRunner({ questions }: Props) {
     }
   }
 
-  function handleNext() {
-    if (index + 1 >= total) {
-      setFinished(true);
-    } else {
-      setIndex((i) => i + 1);
-      setSelected(null);
-      setResult(null);
+  function advance(requeue: boolean) {
+    setQueue((q) => {
+      const [head, ...rest] = q;
+      return requeue && head ? [...rest, head] : rest;
+    });
+    if (!requeue) setCompletedCount((c) => c + 1);
+    setSelected(null);
+    setResult(null);
+  }
+
+  // Självskattning i Anki-stil: Bra är redan sparat på servern,
+  // Svårt/Lätt justeras via PATCH. Misslyckad PATCH stoppar inte passet -
+  // Bra står kvar som rimlig default.
+  async function handleGrade(grade: 2 | 3 | 4) {
+    if (!result || grading) return;
+    if (result.mastered) setMasteredCount((c) => c + 1);
+    if (grade !== 3) {
+      setGrading(true);
+      try {
+        await fetch("/api/student/practice", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ attemptId: result.attemptId, grade }),
+        });
+      } catch {
+        // Ignorera: Bra ligger kvar som default
+      } finally {
+        setGrading(false);
+      }
     }
+    advance(false);
   }
 
   if (finished) {
@@ -74,12 +112,18 @@ export default function PracticeRunner({ questions }: Props) {
       <div className="card p-6 text-center animate-fade-in">
         <h2 className="text-2xl font-bold tracking-tight mb-2">Passet klart!</h2>
         <p className="text-lg mb-1">
-          {correctCount} av {total} rätt
+          {firstTryCorrect} av {uniqueTotal} rätt på första försöket
         </p>
-        {graduatedCount > 0 && (
+        {missedIds.size > 0 && (
+          <p className="text-sm text-muted mb-1">
+            {missedIds.size} {missedIds.size === 1 ? "fråga" : "frågor"} krävde
+            omkörning i passet.
+          </p>
+        )}
+        {masteredCount > 0 && (
           <p className="text-sm text-success mb-1">
-            {graduatedCount} {graduatedCount === 1 ? "fråga" : "frågor"} sitter
-            nu så bra att nästa repetition ligger minst en vecka bort.
+            {masteredCount} {masteredCount === 1 ? "fråga" : "frågor"} sitter nu
+            så bra att nästa repetition ligger minst en vecka bort.
           </p>
         )}
         <p className="text-sm text-muted mb-6">
@@ -100,21 +144,18 @@ export default function PracticeRunner({ questions }: Props) {
       <div className="card p-4 mb-4">
         <div className="flex items-center justify-between mb-2">
           <span className="text-sm font-semibold text-muted">
-            Fråga {index + 1} av {total}
+            Klara: {completedCount} av {uniqueTotal}
           </span>
-          {showFeedback && result.nextDueDays !== null && (
+          {queue.length > 1 && (
             <span className="text-xs font-semibold text-muted bg-surface-muted rounded-full px-2.5 py-1">
-              nästa{" "}
-              {result.nextDueDays <= 1
-                ? "imorgon"
-                : `om ${result.nextDueDays} dagar`}
+              {queue.length - 1} kvar i kön
             </span>
           )}
         </div>
         <div className="w-full bg-surface-muted rounded-full h-1.5">
           <div
             className="bg-primary h-1.5 rounded-full transition-all duration-300"
-            style={{ width: `${Math.round(((index + (showFeedback ? 1 : 0)) / total) * 100)}%` }}
+            style={{ width: `${Math.round((completedCount / uniqueTotal) * 100)}%` }}
           />
         </div>
       </div>
@@ -198,15 +239,12 @@ export default function PracticeRunner({ questions }: Props) {
           >
             {result.isCorrect === true ? (
               <p className="font-semibold">
-                Rätt!{" "}
-                {result.nextDueDays !== null && result.nextDueDays > 1
-                  ? `Frågan återkommer om ${result.nextDueDays} dagar.`
-                  : "Frågan återkommer imorgon eller senare."}
+                Rätt! Hur kändes frågan? Ditt svar styr när den återkommer.
               </p>
             ) : (
               <p className="font-semibold">
                 {selected === "__UNSURE__" ? "Du var osäker." : "Inte rätt."}{" "}
-                Läs det rätta svaret ovan - frågan återkommer imorgon.
+                Läs det rätta svaret ovan - frågan återkommer senare i passet.
               </p>
             )}
           </div>
@@ -220,9 +258,38 @@ export default function PracticeRunner({ questions }: Props) {
       </div>
 
       {showFeedback ? (
-        <button onClick={handleNext} className="btn-primary w-full py-3">
-          {index + 1 >= total ? "Visa resultat" : "Nästa fråga"}
-        </button>
+        result.isCorrect === true ? (
+          <div className="grid grid-cols-3 gap-2">
+            <button
+              onClick={() => handleGrade(2)}
+              disabled={grading}
+              className="btn-secondary py-3 flex flex-col items-center"
+            >
+              <span className="font-semibold">Svårt</span>
+              <span className="text-xs text-muted">{inDays(result.intervals.hard)}</span>
+            </button>
+            <button
+              onClick={() => handleGrade(3)}
+              disabled={grading}
+              className="btn-primary py-3 flex flex-col items-center"
+            >
+              <span className="font-semibold">Bra</span>
+              <span className="text-xs opacity-80">{inDays(result.intervals.good)}</span>
+            </button>
+            <button
+              onClick={() => handleGrade(4)}
+              disabled={grading}
+              className="btn-secondary py-3 flex flex-col items-center"
+            >
+              <span className="font-semibold">Lätt</span>
+              <span className="text-xs text-muted">{inDays(result.intervals.easy)}</span>
+            </button>
+          </div>
+        ) : (
+          <button onClick={() => advance(true)} className="btn-primary w-full py-3">
+            Nästa fråga
+          </button>
+        )
       ) : (
         <button
           onClick={handleSubmit}
