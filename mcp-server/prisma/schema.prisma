@@ -177,6 +177,7 @@ model PracticeAttempt {
   question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
   value      String
   isCorrect  Boolean?
+  grade      Int?     @db.SmallInt // FSRS Rating 1-4; null = före FSRS (härleds ur isCorrect)
   createdAt  DateTime @default(now())
 
   @@index([studentId, questionId])
