@@ -17,6 +17,13 @@ export const practiceAttemptSchema = z.object({
   value: z.string().min(1, "Svar krävs").max(2000, "Svaret är för långt"),
 });
 
+// Självskattning efter rätt svar: 2=Svårt, 3=Bra, 4=Lätt (ts-fsrs Rating).
+// "Om igen" (1) sätts alltid av servern vid fel/osäker och kan inte väljas.
+export const practiceGradeSchema = z.object({
+  attemptId: z.number().int().positive(),
+  grade: z.union([z.literal(2), z.literal(3), z.literal(4)]),
+});
+
 export const createCourseSchema = z.object({
   name: z
     .string()
