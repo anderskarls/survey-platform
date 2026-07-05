@@ -7,40 +7,104 @@ import {
   summarizeStates,
 } from "@/lib/relearning";
 
+export interface LinkedAccount {
+  studentId: number;
+  courseId: number;
+  courseName: string;
+}
+
+/**
+ * Slår upp alla elevkonton som hör till samma fysiska elev via personKey.
+ * Utan personKey är eleven bara sitt eget konto.
+ */
+export async function resolveLinkedAccounts(
+  studentId: number
+): Promise<LinkedAccount[]> {
+  const self = await prisma.student.findUnique({
+    where: { id: studentId },
+    select: {
+      id: true,
+      personKey: true,
+      courseId: true,
+      course: { select: { name: true } },
+    },
+  });
+  if (!self) return [];
+  if (!self.personKey) {
+    return [
+      { studentId: self.id, courseId: self.courseId, courseName: self.course.name },
+    ];
+  }
+  const accounts = await prisma.student.findMany({
+    where: { personKey: self.personKey },
+    select: {
+      id: true,
+      courseId: true,
+      course: { select: { name: true } },
+    },
+    orderBy: { id: "asc" },
+  });
+  return accounts.map((a) => ({
+    studentId: a.id,
+    courseId: a.courseId,
+    courseName: a.course.name,
+  }));
+}
+
+export interface PracticeQuestionInfo {
+  courseId: number;
+  courseName: string;
+  ownerStudentId: number;
+}
+
 export interface RelearningData {
+  accounts: LinkedAccount[];
   states: Map<number, QuestionRelearningState>;
   candidates: PracticeCandidate[];
+  questionInfo: Map<number, PracticeQuestionInfo>;
 }
 
 /**
  * Laddar elevens samlade försökshistorik (skarpa quiz-svar + övningsförsök)
  * för flervalsfrågor och beräknar ominlärningsstatus. Poolen = frågor eleven
- * någon gång missat (fel eller "Jag är inte säker").
+ * någon gång missat (fel eller "Jag är inte säker"). Länkade konton
+ * (samma personKey, t.ex. samma elev i två kurser) slås ihop så att
+ * övningen täcker alla kurser oavsett vilket konto eleven är inloggad på.
+ * Varje fråga hör till exakt en kurs, så historiken per fråga blandas aldrig
+ * mellan konton.
  */
 export async function loadRelearningData(
   studentId: number,
   now: Date = new Date()
 ): Promise<RelearningData> {
+  const accounts = await resolveLinkedAccounts(studentId);
+  const studentIds = accounts.map((a) => a.studentId);
+  const accountByCourse = new Map(accounts.map((a) => [a.courseId, a]));
+
   const [answers, practice] = await Promise.all([
     prisma.answer.findMany({
       where: {
-        response: { studentId },
+        response: { studentId: { in: studentIds } },
         question: { type: "MULTIPLE_CHOICE" },
       },
       select: {
         questionId: true,
         isCorrect: true,
         response: { select: { createdAt: true } },
-        question: { select: { topicId: true } },
+        question: {
+          select: { topicId: true, topic: { select: { courseId: true } } },
+        },
       },
     }),
     prisma.practiceAttempt.findMany({
-      where: { studentId },
+      where: { studentId: { in: studentIds } },
       select: {
         questionId: true,
         isCorrect: true,
         createdAt: true,
-        question: { select: { topicId: true } },
+        question: {
+          select: { topicId: true, topic: { select: { courseId: true } } },
+        },
       },
     }),
   ]);
@@ -59,8 +123,22 @@ export async function loadRelearningData(
   ];
 
   const topicByQuestion = new Map<number, number>();
-  for (const a of answers) topicByQuestion.set(a.questionId, a.question.topicId);
-  for (const p of practice) topicByQuestion.set(p.questionId, p.question.topicId);
+  const questionInfo = new Map<number, PracticeQuestionInfo>();
+  function register(questionId: number, topicId: number, courseId: number) {
+    topicByQuestion.set(questionId, topicId);
+    const account = accountByCourse.get(courseId);
+    if (account && !questionInfo.has(questionId)) {
+      questionInfo.set(questionId, {
+        courseId,
+        courseName: account.courseName,
+        ownerStudentId: account.studentId,
+      });
+    }
+  }
+  for (const a of answers)
+    register(a.questionId, a.question.topicId, a.question.topic.courseId);
+  for (const p of practice)
+    register(p.questionId, p.question.topicId, p.question.topic.courseId);
 
   const states = buildRelearningStates(attempts, now);
   const candidates: PracticeCandidate[] = Array.from(states.keys()).map(
@@ -70,7 +148,7 @@ export async function loadRelearningData(
     })
   );
 
-  return { states, candidates };
+  return { accounts, states, candidates, questionInfo };
 }
 
 export interface StudentPracticeOverview {

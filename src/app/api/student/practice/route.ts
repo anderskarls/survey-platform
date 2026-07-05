@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { practiceAttemptSchema } from "@/lib/validators";
 import { handleApiError } from "@/lib/api-helpers";
 import { getStudentSession } from "@/lib/student-session";
+import { resolveLinkedAccounts } from "@/lib/relearning-data";
 import { AttemptRecord, buildQuestionState } from "@/lib/relearning";
 
 export async function POST(request: NextRequest) {
@@ -22,12 +23,19 @@ export async function POST(request: NextRequest) {
       where: { id: questionId },
       include: { options: true, topic: { select: { courseId: true } } },
     });
-    if (!question || question.topic.courseId !== session.courseId) {
+    // Frågan måste höra till någon av elevens länkade kurser. Försöket
+    // bokförs på kontot i frågans kurs så lärarstatistiken per kurs stämmer.
+    const accounts = await resolveLinkedAccounts(session.studentId);
+    const owner = question
+      ? accounts.find((a) => a.courseId === question.topic.courseId)
+      : undefined;
+    if (!question || !owner) {
       return NextResponse.json(
         { error: "Frågan hittades inte" },
         { status: 404 }
       );
     }
+    const ownerStudentId = owner.studentId;
     if (question.type !== "MULTIPLE_CHOICE") {
       return NextResponse.json(
         { error: "Bara flervalsfrågor kan övas" },
@@ -43,17 +51,17 @@ export async function POST(request: NextRequest) {
     }
 
     await prisma.practiceAttempt.create({
-      data: { studentId: session.studentId, questionId, value, isCorrect },
+      data: { studentId: ownerStudentId, questionId, value, isCorrect },
     });
 
     // Räkna om frågans status med hela historiken (quiz-svar + övningar)
     const [answers, practice] = await Promise.all([
       prisma.answer.findMany({
-        where: { questionId, response: { studentId: session.studentId } },
+        where: { questionId, response: { studentId: ownerStudentId } },
         select: { isCorrect: true, response: { select: { createdAt: true } } },
       }),
       prisma.practiceAttempt.findMany({
-        where: { questionId, studentId: session.studentId },
+        where: { questionId, studentId: ownerStudentId },
         select: { isCorrect: true, createdAt: true },
       }),
     ]);

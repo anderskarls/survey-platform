@@ -78,17 +78,24 @@ export const studentLoginSchema = z.object({
   password: z.string().min(1, "Lösenord krävs"),
 });
 
-export const createStudentsSchema = z.union([
-  z.object({
-    numbers: z.array(z.number().int().positive()).min(1),
-  }),
-  z.object({
-    count: z.number().int().positive().max(200),
-  }),
-  z.object({
-    number: z.number().int().positive(),
-  }),
-]);
+export const createStudentsSchema = z
+  .union([
+    z.object({
+      numbers: z.array(z.number().int().positive()).min(1),
+    }),
+    z.object({
+      count: z.number().int().positive().max(200),
+    }),
+    z.object({
+      number: z.number().int().positive(),
+    }),
+  ])
+  .and(
+    z.object({
+      // Länka nya konton till samma elevnummer i en annan kurs (samma fysiska elev)
+      linkCourseId: z.number().int().positive().optional(),
+    })
+  );
 
 export const createAssignmentFeedbackSchema = z.object({
   feedbacks: z

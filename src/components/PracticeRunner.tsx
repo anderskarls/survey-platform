@@ -8,6 +8,7 @@ export interface PracticeQuestion {
   text: string;
   options: string[];
   streakDays: number;
+  courseName?: string | null;
 }
 
 interface AttemptResult {
@@ -129,6 +130,11 @@ export default function PracticeRunner({ questions }: Props) {
       </div>
 
       <div className="card p-6 mb-4">
+        {question.courseName && (
+          <span className="inline-block text-xs font-semibold uppercase tracking-wider text-muted bg-surface-muted rounded-full px-2.5 py-1 mb-3">
+            {question.courseName}
+          </span>
+        )}
         <p className="font-semibold tracking-tight mb-4">{question.text}</p>
 
         <div className="flex flex-col gap-2" role="radiogroup" aria-label={question.text}>

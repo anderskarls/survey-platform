@@ -10,6 +10,12 @@ interface Student {
   number: number;
   username: string;
   responseCount: number;
+  linkedCourses: string[];
+}
+
+interface CourseOption {
+  id: number;
+  name: string;
 }
 
 interface Credential {
@@ -26,6 +32,8 @@ export default function StudentsPage() {
   const [count, setCount] = useState("30");
   const [adding, setAdding] = useState(false);
   const [credentials, setCredentials] = useState<Credential[] | null>(null);
+  const [otherCourses, setOtherCourses] = useState<CourseOption[]>([]);
+  const [linkCourseId, setLinkCourseId] = useState("");
 
   const loadStudents = useCallback(async () => {
     try {
@@ -44,6 +52,20 @@ export default function StudentsPage() {
     loadStudents();
   }, [loadStudents]);
 
+  useEffect(() => {
+    async function loadCourses() {
+      try {
+        const res = await fetch("/api/courses");
+        if (!res.ok) return;
+        const all: CourseOption[] = await res.json();
+        setOtherCourses(all.filter((c) => c.id !== Number(courseId)));
+      } catch {
+        // Länkvalet är valfritt - tyst fallback till "ingen länkning"
+      }
+    }
+    loadCourses();
+  }, [courseId]);
+
   async function handleAddBulk(e: React.FormEvent) {
     e.preventDefault();
     const n = Number(count);
@@ -53,12 +75,21 @@ export default function StudentsPage() {
       const res = await fetch(`/api/courses/${courseId}/students`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ count: n }),
+        body: JSON.stringify({
+          count: n,
+          ...(linkCourseId ? { linkCourseId: Number(linkCourseId) } : {}),
+        }),
       });
       if (res.ok) {
         const data = await res.json();
         if (data.credentials?.length > 0) {
           setCredentials(data.credentials);
+        }
+        if (data.linked > 0) {
+          showToast(
+            `${data.linked} ${data.linked === 1 ? "elev länkad" : "elever länkade"} mot samma elevnummer i den andra kursen`,
+            "success"
+          );
         }
         loadStudents();
         setCount("30");
@@ -101,7 +132,7 @@ export default function StudentsPage() {
       <h1 className="text-2xl font-bold mb-6 tracking-tight">Elever</h1>
 
       <div className="card p-4 mb-6">
-        <form onSubmit={handleAddBulk} className="flex items-end gap-3">
+        <form onSubmit={handleAddBulk} className="flex flex-wrap items-end gap-3">
           <div>
             <label htmlFor="student-count" className="block text-sm font-semibold mb-1">Antal elever</label>
             <input
@@ -114,11 +145,37 @@ export default function StudentsPage() {
               className="input-field w-24"
             />
           </div>
+          {otherCourses.length > 0 && (
+            <div>
+              <label htmlFor="link-course" className="block text-sm font-semibold mb-1">
+                Länka mot kurs (samma elever)
+              </label>
+              <select
+                id="link-course"
+                value={linkCourseId}
+                onChange={(e) => setLinkCourseId(e.target.value)}
+                className="input-field"
+              >
+                <option value="">Ingen länkning</option>
+                {otherCourses.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           <button type="submit" disabled={adding} className="btn-primary">
             {adding ? "Lägger till..." : "Lägg till elever (1-N)"}
           </button>
           <span className="text-xs text-muted">
             Skapar elevnummer 1 till {count || "N"} med autogenererade inloggningsuppgifter.
+            {linkCourseId && (
+              <>
+                {" "}Elevnummer som finns i den länkade kursen kopplas ihop som
+                samma elev - då blandas övningsfrågor från båda kurserna.
+              </>
+            )}
           </span>
         </form>
       </div>
@@ -181,6 +238,7 @@ export default function StudentsPage() {
                 <th className="p-4 font-semibold text-muted text-xs uppercase tracking-wider">Elevnummer</th>
                 <th className="p-4 font-semibold text-muted text-xs uppercase tracking-wider">Användarnamn</th>
                 <th className="p-4 font-semibold text-muted text-xs uppercase tracking-wider">Antal enkätsvar</th>
+                <th className="p-4 font-semibold text-muted text-xs uppercase tracking-wider">Länkad till</th>
                 <th className="p-4"></th>
               </tr>
             </thead>
@@ -190,6 +248,9 @@ export default function StudentsPage() {
                   <td className="p-4 font-semibold">#{s.number}</td>
                   <td className="p-4 font-mono text-muted text-sm">{s.username}</td>
                   <td className="p-4 text-muted">{s.responseCount}</td>
+                  <td className="p-4 text-muted text-sm">
+                    {s.linkedCourses.length > 0 ? s.linkedCourses.join(", ") : "-"}
+                  </td>
                   <td className="p-4">
                     <Link
                       href={`/admin/courses/${courseId}/students/${s.number}`}

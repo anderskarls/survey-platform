@@ -57,3 +57,21 @@ Ny additiv tabell `PracticeAttempt { studentId, questionId, value, isCorrect, cr
 ### Transparens (pedagogisk not)
 
 Eleverna ska veta varför frågor återkommer: utan metakognitiv förklaring tolkas spacing som tjat och undviks (Pan et al. 2024). Övningssidan har en kort förklaringsrad; läraren förklarar modellen i klassrummet (kopplas till moment 0 "Så funkar glömska" i läsårsskissen för Hi 1b).
+
+## Kursöverskridande övning via länkade elevkonton (tillagd 2026-07-05)
+
+**Behov:** samma elevgrupp läser två kurser hos samma lärare (t.ex. Samhällskunskap 1b + Historia 1b, 2+2 lektioner/vecka = lektionstillfälle 4 av 5 dagar). Övningspasset ska täcka båda kursernas luckor oavsett vilken lektion eleven sitter i - fler spacade repetitionstillfällen per vecka, plus ämnesinterleaving på köpet.
+
+### Modell: personKey
+
+`Student.personKey String?` (additiv migration `20260705120000_student_person_key`). Konton med samma nyckel = samma fysiska elev. Ett konto förblir hårt knutet till sin kurs; länken är ett rent metadata-lager ovanpå.
+
+- **Länkning vid skapande:** admin-elevsidan har valet "Länka mot kurs (samma elever)". `POST /api/courses/[id]/students` tar valfritt `linkCourseId`; elevnummer som finns i länk-kursen får delad `personKey` (befintligt konto får nyckel om det saknar en, i samma transaktion).
+- **Sammanslagen pool:** `loadRelearningData()` löser upp länkade konton via `resolveLinkedAccounts()` och laddar försökshistorik för alla. Varje fråga hör till exakt en kurs, så per-fråga-historik blandas aldrig mellan konton. Round-robin över topics ger automatiskt varvning mellan ämnena.
+- **Attribution:** `POST /api/student/practice` bokför försöket på kontot i frågans kurs (`ownerStudentId`), oavsett vilket konto eleven är inloggad på. Lärarvyn per kurs förblir därmed korrekt utan ändring.
+- **UX:** när poolen spänner över flera kurser visar övningskortet en kursetikett per fråga. Badge och dashboardkort räknar den sammanslagna poolen.
+
+### Avgränsningar
+
+- Länkning sker vid kontoskapande (samma elevnummer i båda kurserna). Ingen efterhands-parning i UI:t ännu - kandidat om behovet uppstår (t.ex. MCP-verktyg eller redigering per elev).
+- Eleverna har fortfarande separata inloggningar per kurs; länkningen påverkar bara övningen, inte auth, quiz, feedback eller statistik.

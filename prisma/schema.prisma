@@ -38,6 +38,7 @@ model Student {
   number       Int
   username     String     @unique
   passwordHash String
+  personKey    String?    // samma nyckel = samma fysiska elev i flera kurser
   courseId      Int
   course       Course     @relation(fields: [courseId], references: [id], onDelete: Cascade)
   createdAt    DateTime   @default(now())
@@ -48,6 +49,7 @@ model Student {
   practiceAttempts   PracticeAttempt[]
 
   @@unique([courseId, number])
+  @@index([personKey])
 }
 
 model Topic {

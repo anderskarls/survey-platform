@@ -10,9 +10,12 @@ export default async function PracticePage() {
   const session = await getStudentSession();
   if (!session) redirect("/login");
 
-  const { states, candidates } = await loadRelearningData(session.studentId);
+  const { states, candidates, questionInfo, accounts } =
+    await loadRelearningData(session.studentId);
   const stats = summarizeStates(states);
   const setIds = selectPracticeSet(candidates, states);
+  // Kursetiketter visas bara när övningen spänner över flera kurser
+  const multiCourse = new Set(accounts.map((a) => a.courseId)).size > 1;
 
   if (setIds.length === 0) {
     // Nästa tillfälle = minsta antal dagar tills någon fråga blir due
@@ -83,6 +86,9 @@ export default async function PracticePage() {
       text: q.text,
       options: q.options.map((o) => o.text),
       streakDays: states.get(q.id)?.streakDays ?? 0,
+      courseName: multiCourse
+        ? (questionInfo.get(q.id)?.courseName ?? null)
+        : null,
     }));
 
   return (

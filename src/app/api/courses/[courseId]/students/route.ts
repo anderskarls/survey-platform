@@ -36,12 +36,37 @@ export async function GET(
     orderBy: { number: "asc" },
   });
 
+  // Länkade konton i andra kurser (samma personKey = samma fysiska elev)
+  const personKeys = students
+    .map((s) => s.personKey)
+    .filter((k): k is string => k !== null);
+  const siblings =
+    personKeys.length > 0
+      ? await prisma.student.findMany({
+          where: { personKey: { in: personKeys }, courseId: { not: cId } },
+          select: {
+            personKey: true,
+            course: { select: { name: true } },
+          },
+        })
+      : [];
+  const linkedCoursesByKey = new Map<string, string[]>();
+  for (const sib of siblings) {
+    if (sib.personKey === null) continue;
+    const list = linkedCoursesByKey.get(sib.personKey) ?? [];
+    list.push(sib.course.name);
+    linkedCoursesByKey.set(sib.personKey, list);
+  }
+
   return NextResponse.json(
     students.map((s) => ({
       id: s.id,
       number: s.number,
       username: s.username,
       responseCount: s._count.responses,
+      linkedCourses: s.personKey
+        ? (linkedCoursesByKey.get(s.personKey) ?? [])
+        : [],
     }))
   );
 }
@@ -68,6 +93,26 @@ export async function POST(
 
     const body = await request.json();
     const parsed = createStudentsSchema.parse(body);
+
+    // Valfri länkning: samma elevnummer i annan kurs = samma fysiska elev
+    const linkCourseId = parsed.linkCourseId;
+    if (linkCourseId !== undefined) {
+      if (linkCourseId === cId) {
+        return NextResponse.json(
+          { error: "En kurs kan inte länkas mot sig själv" },
+          { status: 400 }
+        );
+      }
+      const linkCourse = await prisma.course.findUnique({
+        where: { id: linkCourseId },
+      });
+      if (!linkCourse) {
+        return NextResponse.json(
+          { error: "Kursen att länka mot hittades inte" },
+          { status: 404 }
+        );
+      }
+    }
 
     // Support single number or array of numbers
     const numbers: number[] =
@@ -110,6 +155,23 @@ export async function POST(
       }
     }
 
+    // Länkning: para nya konton med samma elevnummer i länk-kursen via personKey
+    const personKeyByNumber = new Map<number, string>();
+    const linkUpdates: { id: number; personKey: string }[] = [];
+    if (linkCourseId !== undefined) {
+      const linkStudents = await prisma.student.findMany({
+        where: { courseId: linkCourseId, number: { in: toCreate } },
+        select: { id: true, number: true, personKey: true },
+      });
+      for (const ls of linkStudents) {
+        const key = ls.personKey ?? nanoid(12);
+        personKeyByNumber.set(ls.number, key);
+        if (ls.personKey === null) {
+          linkUpdates.push({ id: ls.id, personKey: key });
+        }
+      }
+    }
+
     // Hash passwords
     const hashedData = await Promise.all(
       credentials.map(async (c) => ({
@@ -117,14 +179,24 @@ export async function POST(
         username: c.username,
         passwordHash: await bcrypt.hash(c.password, 12),
         courseId: cId,
+        personKey: personKeyByNumber.get(c.number) ?? null,
       }))
     );
 
-    await prisma.student.createMany({ data: hashedData });
+    await prisma.$transaction([
+      ...linkUpdates.map((u) =>
+        prisma.student.update({
+          where: { id: u.id },
+          data: { personKey: u.personKey },
+        })
+      ),
+      prisma.student.createMany({ data: hashedData }),
+    ]);
 
     return NextResponse.json(
       {
         created: toCreate.length,
+        linked: personKeyByNumber.size,
         credentials: credentials.map((c) => ({
           number: c.number,
           username: c.username,
