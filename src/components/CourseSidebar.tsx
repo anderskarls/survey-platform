@@ -19,6 +19,7 @@ export default function CourseSidebar({ courseId, courseName }: CourseSidebarPro
     { href: `${base}/students`, label: "Elever" },
     { href: `${base}/progress`, label: "Elevöversikt" },
     { href: `${base}/practice`, label: "Övning" },
+    { href: `${base}/kampanj`, label: "Kampanjen" },
   ];
 
   return (
