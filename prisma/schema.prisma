@@ -16,6 +16,7 @@ model Course {
   surveys   Survey[]
   students  Student[]
   units     Unit[]
+  campaignSnapshot CampaignSnapshot?
 }
 
 model Unit {
@@ -29,6 +30,7 @@ model Unit {
   course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
   createdAt   DateTime @default(now())
   surveys     Survey[]
+  topics      Topic[]
 
   @@unique([courseId, title])
 }
@@ -57,9 +59,12 @@ model Topic {
   name      String
   courseId   Int
   course    Course     @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  unitId    Int?
+  unit      Unit?      @relation(fields: [unitId], references: [id], onDelete: SetNull)
   questions Question[]
 
   @@unique([courseId, name])
+  @@index([unitId])
 }
 
 model Question {
@@ -182,6 +187,14 @@ model PracticeAttempt {
 
   @@index([studentId, questionId])
   @@index([studentId, createdAt])
+}
+
+model CampaignSnapshot {
+  id       Int      @id @default(autoincrement())
+  courseId Int      @unique
+  course   Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  payload  Json     // sektorpositioner vid senast visade dagsrapport
+  shownAt  DateTime @default(now())
 }
 
 model Admin {
