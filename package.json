@@ -7,6 +7,7 @@
     "build": "prisma generate && (prisma migrate deploy || (sleep 8 && prisma migrate deploy) || (sleep 15 && prisma migrate deploy)) && next build",
     "start": "next start",
     "lint": "eslint",
+    "test": "vitest run",
     "setup": "npm install && npx prisma db push --skip-generate && npx prisma generate && cd mcp-server && npm install && npm run build",
     "seed-admin": "npx tsx scripts/seed-admin.ts"
   },
@@ -39,6 +40,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.10"
   }
 }
