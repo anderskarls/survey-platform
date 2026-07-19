@@ -155,11 +155,25 @@ export const SUBSKILL_CRITERIA: Partial<Record<Subskill, SubskillCriteria>> = {
 };
 
 /**
- * De tre kvalitetssprången som all progression bygger på. AI-feedbackens
+ * De tre kvalitetssprången som all progression bygger på. Feedbackens
  * enda förbättringsförslag ska peka mot det tidigaste språng som inte tagits.
  */
 export const KVALITETSSPRANG = [
   "Från ATT till HUR: ange mekanismen i varje samband, inte bara ordningsföljden",
   "Från påstående till kriterium: motivera val och placeringar med en uttalad grund",
   "Från en linje till flera i samspel: visa hur faktorer samverkar eller var alternativa vägar fanns",
+] as const;
+
+/**
+ * Regler för feedback på övningssvar - följer med i pending-svaret så att
+ * den som genererar feedbacken (läraren via CLI-flödet) alltid har dem.
+ * Från utvecklingsplanen; ej förhandlingsbara.
+ */
+export const FEEDBACK_REGLER = [
+  "Exakt format: 'Styrka: <en mening om något specifikt som fungerar>' följt av 'Nästa steg: <EN konkret handling som lyfter just detta svar>'.",
+  "En styrka + EN förbättring, läsbar på ca 15 sekunder. Inget annat.",
+  "Aldrig nivåord (E-nivå, godtagbart, N1 osv) och inga omdömen om eleven som person.",
+  "Förbättringen pekar mot det tidigaste kvalitetssprång som inte tagits (se kvalitetssprang).",
+  "Kommentera resonemangets struktur, inte stavning eller stil.",
+  "Rikta förbättringen mot den TIDIGASTE typiska svagheten du hittar (se svagheter, i prioritetsordning).",
 ] as const;

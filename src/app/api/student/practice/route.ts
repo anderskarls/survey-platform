@@ -10,14 +10,12 @@ import {
   previewIntervals,
 } from "@/lib/relearning";
 import {
-  Subskill,
   exemplarsSchema,
   gradeSorting,
   sortingConfigSchema,
   sortingPlacementsSchema,
   type SortingResult,
 } from "@/lib/formaga";
-import { generateAiFeedback } from "@/lib/ai-feedback";
 import { Rating } from "ts-fsrs";
 
 /** Hela försökshistoriken för en fråga hos ett elevkonto (quiz + övning) */
@@ -66,8 +64,10 @@ function isFormagaFritext(question: {
 
 // Fas 1: svara. Servern rättar (flerval, sortering) eller tar emot fritext,
 // sparar försöket med defaultbetyg och returnerar intervallförhandsvisningar
-// för självskattningsknapparna. Exempelsvar och AI-feedback returneras
-// EFTER försöket - aldrig före; det är hela poängen med timingen.
+// för självskattningsknapparna. Exempelsvaren returneras EFTER försöket -
+// aldrig före; det är hela poängen med timingen. Feedback på fritextsvar
+// genereras asynkront via lärarens CLI-flöde (/api/practice/feedback),
+// aldrig av servern själv.
 export async function POST(request: NextRequest) {
   try {
     const session = await getStudentSession();
@@ -152,17 +152,6 @@ export async function POST(request: NextRequest) {
     const history = await loadQuestionHistory(questionId, ownerStudentId);
     const intervals = previewIntervals(history, now);
 
-    // AI-feedback i realtid för fritextövningar. Ingen elevidentitet i
-    // anropet. Misslyckas det fortsätter övningen utan feedback.
-    let aiFeedback: string | null = null;
-    if (fritext && value !== "__UNSURE__") {
-      aiFeedback = await generateAiFeedback({
-        questionText: question.text,
-        subskill: question.subskill as Subskill,
-        answer: value,
-      });
-    }
-
     // Defaultbetyg: rätt -> Bra, fel/osäker -> Om igen. Fritext -> Bra som
     // neutral default tills elevens självskattning justerar via PATCH.
     const appliedGrade =
@@ -174,7 +163,6 @@ export async function POST(request: NextRequest) {
         value,
         isCorrect,
         grade: appliedGrade,
-        aiFeedback,
       },
     });
 
@@ -202,7 +190,6 @@ export async function POST(request: NextRequest) {
         isCorrect,
         correctAnswer,
         sorting,
-        aiFeedback,
         exemplars: exemplars.success ? exemplars.data : null,
         selfAssess: fritext,
         appliedGrade,

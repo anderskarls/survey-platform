@@ -319,6 +319,62 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
+  /api/practice/feedback:
+    get:
+      tags: [feedback]
+      summary: List practice attempts without feedback
+      description: |
+        Returns free-text practice attempts from the ability training
+        (förmågeträning) that lack feedback, grouped by question. Each
+        question carries the subskill's quality criteria, and the response
+        includes the non-negotiable feedback rules - the full prompt
+        material for whoever generates the feedback. No student identity
+        is exposed; feedback is submitted per attempt id.
+      operationId: getPendingPracticeFeedback
+      parameters:
+        - name: courseId
+          in: query
+          required: false
+          description: Only include attempts from this course
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Pending practice feedback grouped by question
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PendingPracticeFeedback"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      tags: [feedback]
+      summary: Submit feedback for practice attempts
+      description: |
+        Bulk-saves feedback for one or more practice attempts, keyed by
+        attempt id. Attempts that are not free-text ability exercises are
+        skipped. Re-submitting overwrites (idempotent batches).
+      operationId: submitPracticeFeedback
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubmitPracticeFeedbackRequest"
+      responses:
+        "200":
+          description: Feedback saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubmitFeedbackResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
   /api/courses:
     get:
       tags: [courses]
@@ -1048,6 +1104,87 @@ components:
           type: integer
         message:
           type: string
+
+    PendingPracticeFeedback:
+      type: object
+      required: [total_pending, regler, kvalitetssprang, questions]
+      properties:
+        total_pending:
+          type: integer
+        regler:
+          type: array
+          description: Non-negotiable rules for how feedback must be written
+          items:
+            type: string
+        kvalitetssprang:
+          type: array
+          description: The three quality leaps the improvement suggestion targets
+          items:
+            type: string
+        questions:
+          type: array
+          items:
+            $ref: "#/components/schemas/PendingPracticeQuestion"
+
+    PendingPracticeQuestion:
+      type: object
+      required:
+        [question_id, question_text, subskill, topic, course, pending_count, attempts]
+      properties:
+        question_id:
+          type: integer
+        question_text:
+          type: string
+        subskill:
+          type: string
+          description: Delfärdighet (kategorisera, kedjor, forgrena, vikta, kritisera)
+        topic:
+          type: string
+        course:
+          type: string
+        kriterier:
+          description: Quality criteria per level (n1-n3) and typical weaknesses
+          type: [object, "null"]
+          additionalProperties: true
+        pending_count:
+          type: integer
+        attempts:
+          type: array
+          items:
+            $ref: "#/components/schemas/PendingPracticeAttempt"
+
+    PendingPracticeAttempt:
+      type: object
+      required: [attempt_id, value, submitted_at]
+      properties:
+        attempt_id:
+          type: integer
+        value:
+          type: string
+        submitted_at:
+          type: string
+          format: date-time
+
+    SubmitPracticeFeedbackRequest:
+      type: object
+      required: [feedbacks]
+      properties:
+        feedbacks:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/PracticeFeedbackItem"
+
+    PracticeFeedbackItem:
+      type: object
+      required: [attempt_id, feedback]
+      properties:
+        attempt_id:
+          type: integer
+          minimum: 1
+        feedback:
+          type: string
+          minLength: 1
 
     CreateAssignmentFeedbackRequest:
       type: object

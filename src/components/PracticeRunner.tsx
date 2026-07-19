@@ -32,7 +32,6 @@ interface AttemptResult {
     total: number;
     allCorrect: boolean;
   } | null;
-  aiFeedback: string | null;
   exemplars: ExemplarView[] | null;
   /** Fritextövning: eleven sätter hela betyget själv efter exempelsvaren */
   selfAssess: boolean;
@@ -48,16 +47,6 @@ interface Props {
 
 function inDays(days: number): string {
   return days <= 1 ? "imorgon" : `om ${days} dagar`;
-}
-
-/** "Styrka: ... Nästa steg: ..." -> rader för snyggare rendering */
-function feedbackLines(feedback: string): { label: string; text: string }[] {
-  const match = feedback.match(/Styrka:\s*([\s\S]*?)\s*Nästa steg:\s*([\s\S]*)/);
-  if (!match) return [{ label: "", text: feedback }];
-  return [
-    { label: "Styrka", text: match[1].trim() },
-    { label: "Nästa steg", text: match[2].trim() },
-  ];
 }
 
 export default function PracticeRunner({ questions }: Props) {
@@ -383,19 +372,6 @@ export default function PracticeRunner({ questions }: Props) {
           </div>
         )}
 
-        {showFeedback && result.aiFeedback && (
-          <div className="mt-4 p-4 rounded-xl bg-primary-light" role="status">
-            {feedbackLines(result.aiFeedback).map((line, i) => (
-              <p key={i} className={`text-sm ${i > 0 ? "mt-2" : ""}`}>
-                {line.label && (
-                  <span className="font-semibold">{line.label}: </span>
-                )}
-                {line.text}
-              </p>
-            ))}
-          </div>
-        )}
-
         {showFeedback && result.exemplars && result.exemplars.length > 0 && (
           <ExemplarPanel exemplars={result.exemplars} />
         )}
@@ -486,11 +462,7 @@ export default function PracticeRunner({ questions }: Props) {
           disabled={!readyToSubmit || submitting}
           className="btn-primary w-full py-3"
         >
-          {submitting
-            ? isFreeText
-              ? "Skickar och hämtar återkoppling..."
-              : "Rättar..."
-            : "Svara"}
+          {submitting ? (isFreeText ? "Skickar..." : "Rättar...") : "Svara"}
         </button>
       )}
     </div>

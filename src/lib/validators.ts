@@ -109,6 +109,21 @@ export const createStudentsSchema = z
     })
   );
 
+export const submitPracticeFeedbackSchema = z.object({
+  feedbacks: z
+    .array(
+      z.object({
+        attempt_id: z.number().int().positive(),
+        feedback: z
+          .string()
+          .min(1, "Feedback krävs")
+          .max(2000, "Feedbacken är för lång (max 2000 tecken)"),
+      })
+    )
+    .min(1, "Minst en feedback krävs")
+    .max(200, "Max 200 feedbacks per anrop"),
+});
+
 export const createAssignmentFeedbackSchema = z.object({
   feedbacks: z
     .array(
