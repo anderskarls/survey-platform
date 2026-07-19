@@ -36,14 +36,23 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    const { text, type, topicId, options, correctOptionIndex } =
+    const { text, type, topicId, options, correctOptionIndex, subskill, config, exemplars } =
       createQuestionSchema.parse(body);
+    if (type === "SORTING" && !config) {
+      return NextResponse.json(
+        { error: "Sorteringsfrågor kräver config med categories och items" },
+        { status: 400 }
+      );
+    }
 
     const question = await prisma.question.create({
       data: {
         text,
         type,
         topicId,
+        subskill: subskill ?? (type === "SORTING" ? "kategorisera" : undefined),
+        config: config ?? undefined,
+        exemplars: exemplars ?? undefined,
         options:
           type === "MULTIPLE_CHOICE" && options?.length
             ? {

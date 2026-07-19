@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { loadRelearningData } from "@/lib/relearning-data";
 import { selectPracticeSet, summarizeStates } from "@/lib/relearning";
 import PracticeRunner from "@/components/PracticeRunner";
+import { toPracticeQuestion } from "@/lib/practice-question";
 import Link from "next/link";
 
 export default async function PracticePage() {
@@ -82,14 +83,8 @@ export default async function PracticePage() {
   const questions = setIds
     .map((id) => byId.get(id))
     .filter((q): q is NonNullable<typeof q> => q !== undefined)
-    .map((q) => ({
-      id: q.id,
-      text: q.text,
-      options: q.options.map((o) => o.text),
-      courseName: multiCourse
-        ? (questionInfo.get(q.id)?.courseName ?? null)
-        : null,
-    }));
+    .map((q) => toPracticeQuestion(q, multiCourse ? (questionInfo.get(q.id)?.courseName ?? null) : null))
+    .filter((q): q is NonNullable<typeof q> => q !== null);
 
   return (
     <div className="animate-fade-in">

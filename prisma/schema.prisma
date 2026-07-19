@@ -70,7 +70,10 @@ model Topic {
 model Question {
   id              Int              @id @default(autoincrement())
   text            String
-  type            String           // MULTIPLE_CHOICE | FREE_TEXT | REFLECTION
+  type            String           // MULTIPLE_CHOICE | FREE_TEXT | REFLECTION | SORTING
+  subskill        String?          // delfärdighet för förmågeträning: kategorisera | kedjor | forgrena | vikta | kritisera
+  config          Json?            // typspecifik konfiguration; SORTING: { categories, items: [{ text, category }] }
+  exemplars       Json?            // exempelsvar i nivåer: [{ level: "E"|"C"|"A", text, kommentar }] - visas först efter elevens försök
   topicId         Int
   topic           Topic            @relation(fields: [topicId], references: [id])
   options         QuestionOption[]
@@ -183,6 +186,7 @@ model PracticeAttempt {
   value      String
   isCorrect  Boolean?
   grade      Int?     @db.SmallInt // FSRS Rating 1-4; null = före FSRS (härleds ur isCorrect)
+  aiFeedback String?  // AI-genererad återkoppling (en styrka + en förbättring) för fritextövningar
   createdAt  DateTime @default(now())
 
   @@index([studentId, questionId])

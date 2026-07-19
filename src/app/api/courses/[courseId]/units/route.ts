@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { parseCsvContent } from "@/lib/csv";
+import { parseCsvContent, questionCreateData, validateCsvRows } from "@/lib/csv";
 import { importMomentSchema } from "@/lib/validators";
 import { handleApiError } from "@/lib/api-helpers";
 import { requireAdmin } from "@/lib/require-auth";
@@ -35,6 +35,15 @@ export async function POST(
     if (empty) {
       return NextResponse.json(
         { error: `Uppgiften "${empty.title}" innehöll inga giltiga frågor (text saknas).` },
+        { status: 400 }
+      );
+    }
+    const rowErrors = prepared.flatMap((p) =>
+      validateCsvRows(p.rows).map((e) => `${p.title}: ${e}`)
+    );
+    if (rowErrors.length > 0) {
+      return NextResponse.json(
+        { error: `Importen avvisades:\n${rowErrors.join("\n")}` },
         { status: 400 }
       );
     }
@@ -73,18 +82,8 @@ export async function POST(
 
             const question = await tx.question.create({
               data: {
-                text: row.text,
-                type: row.type,
+                ...questionCreateData(row),
                 topicId: topic.id,
-                options:
-                  row.type === "MULTIPLE_CHOICE" && row.options.length > 0
-                    ? {
-                        create: row.options.map((o) => ({
-                          text: o,
-                          isCorrect: row.correctAnswer ? o === row.correctAnswer : false,
-                        })),
-                      }
-                    : undefined,
               },
             });
             questionIds.push(question.id);

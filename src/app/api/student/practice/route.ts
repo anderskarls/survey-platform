@@ -9,6 +9,15 @@ import {
   buildQuestionState,
   previewIntervals,
 } from "@/lib/relearning";
+import {
+  Subskill,
+  exemplarsSchema,
+  gradeSorting,
+  sortingConfigSchema,
+  sortingPlacementsSchema,
+  type SortingResult,
+} from "@/lib/formaga";
+import { generateAiFeedback } from "@/lib/ai-feedback";
 import { Rating } from "ts-fsrs";
 
 /** Hela försökshistoriken för en fråga hos ett elevkonto (quiz + övning) */
@@ -47,10 +56,18 @@ async function loadQuestionHistory(
   ];
 }
 
-// Fas 1: svara. Servern rättar, sparar försöket med defaultbetyg
-// (rätt -> Bra, fel/osäker -> Om igen) och returnerar intervallförhands-
-// visningar för självskattningsknapparna. Väljer eleven "Bra" behövs
-// inget mer anrop; Svårt/Lätt justeras via PATCH.
+/** Fritextövning i förmågeträningen: fri text + delfärdighet = AI-feedback */
+function isFormagaFritext(question: {
+  type: string;
+  subskill: string | null;
+}): boolean {
+  return question.type === "FREE_TEXT" && question.subskill !== null;
+}
+
+// Fas 1: svara. Servern rättar (flerval, sortering) eller tar emot fritext,
+// sparar försöket med defaultbetyg och returnerar intervallförhandsvisningar
+// för självskattningsknapparna. Exempelsvar och AI-feedback returneras
+// EFTER försöket - aldrig före; det är hela poängen med timingen.
 export async function POST(request: NextRequest) {
   try {
     const session = await getStudentSession();
@@ -81,19 +98,53 @@ export async function POST(request: NextRequest) {
       );
     }
     const ownerStudentId = owner.studentId;
-    if (question.type !== "MULTIPLE_CHOICE") {
+
+    const fritext = isFormagaFritext(question);
+    if (
+      question.type !== "MULTIPLE_CHOICE" &&
+      question.type !== "SORTING" &&
+      !fritext
+    ) {
       return NextResponse.json(
-        { error: "Bara flervalsfrågor kan övas" },
+        { error: "Den här frågetypen kan inte övas" },
         { status: 400 }
       );
     }
 
-    // Samma rättningslogik som /api/surveys/[id]/respond
+    // Rättning per typ
     let isCorrect: boolean | null = null;
-    const correctOption = question.options.find((o) => o.isCorrect);
-    if (value !== "__UNSURE__") {
-      isCorrect = correctOption ? value === correctOption.text : null;
+    let correctAnswer: string | null = null;
+    let sorting: SortingResult | null = null;
+
+    if (question.type === "MULTIPLE_CHOICE") {
+      // Samma rättningslogik som /api/surveys/[id]/respond
+      const correctOption = question.options.find((o) => o.isCorrect);
+      correctAnswer = correctOption?.text ?? null;
+      if (value !== "__UNSURE__") {
+        isCorrect = correctOption ? value === correctOption.text : null;
+      }
+    } else if (question.type === "SORTING") {
+      const config = sortingConfigSchema.safeParse(question.config);
+      if (!config.success) {
+        return NextResponse.json(
+          { error: "Frågan saknar giltig sorteringskonfiguration" },
+          { status: 400 }
+        );
+      }
+      let placements;
+      try {
+        placements = sortingPlacementsSchema.parse(JSON.parse(value));
+      } catch {
+        return NextResponse.json(
+          { error: "Ogiltigt svarsformat för sorteringsfråga" },
+          { status: 400 }
+        );
+      }
+      sorting = gradeSorting(config.data, placements);
+      isCorrect = sorting.allCorrect;
     }
+    // Fritext: isCorrect förblir null - kvaliteten bedöms av eleven själv
+    // mot exempelsvaren (fas 2), inte av servern.
 
     // Förhandsvisa intervallen ur historiken FÖRE det nya försöket -
     // knapparna ska visa vad respektive betyg ger för just detta svar.
@@ -101,7 +152,21 @@ export async function POST(request: NextRequest) {
     const history = await loadQuestionHistory(questionId, ownerStudentId);
     const intervals = previewIntervals(history, now);
 
-    const appliedGrade = isCorrect === true ? Rating.Good : Rating.Again;
+    // AI-feedback i realtid för fritextövningar. Ingen elevidentitet i
+    // anropet. Misslyckas det fortsätter övningen utan feedback.
+    let aiFeedback: string | null = null;
+    if (fritext && value !== "__UNSURE__") {
+      aiFeedback = await generateAiFeedback({
+        questionText: question.text,
+        subskill: question.subskill as Subskill,
+        answer: value,
+      });
+    }
+
+    // Defaultbetyg: rätt -> Bra, fel/osäker -> Om igen. Fritext -> Bra som
+    // neutral default tills elevens självskattning justerar via PATCH.
+    const appliedGrade =
+      isCorrect === true || fritext ? Rating.Good : Rating.Again;
     const attempt = await prisma.practiceAttempt.create({
       data: {
         studentId: ownerStudentId,
@@ -109,6 +174,7 @@ export async function POST(request: NextRequest) {
         value,
         isCorrect,
         grade: appliedGrade,
+        aiFeedback,
       },
     });
 
@@ -127,15 +193,23 @@ export async function POST(request: NextRequest) {
       now
     );
 
+    // Exempelsvar skickas först nu - efter att elevens eget försök är sparat
+    const exemplars = exemplarsSchema.safeParse(question.exemplars);
+
     return NextResponse.json(
       {
         attemptId: attempt.id,
         isCorrect,
-        correctAnswer: correctOption?.text ?? null,
+        correctAnswer,
+        sorting,
+        aiFeedback,
+        exemplars: exemplars.success ? exemplars.data : null,
+        selfAssess: fritext,
         appliedGrade,
         nextDueDays: state?.daysUntilDue ?? null,
         mastered: state?.mastered ?? false,
         intervals: {
+          again: intervals.again,
           hard: intervals.hard,
           good: intervals.good,
           easy: intervals.easy,
@@ -151,8 +225,9 @@ export async function POST(request: NextRequest) {
 /** Självskattningsfönster: så länge får ett försök omgraderas */
 const GRADE_WINDOW_MS = 10 * 60 * 1000;
 
-// Fas 2: självskattning efter rätt svar. Uppdaterar bara grade-kolumnen
-// på elevens eget, färska, korrekta försök. Idempotent inom fönstret.
+// Fas 2: självskattning. För rätta svar (flerval/sortering) justeras
+// Svårt/Lätt; för fritextövningar sätter eleven hela betyget 1-4 själv
+// efter jämförelse med exempelsvaren. Idempotent inom fönstret.
 export async function PATCH(request: NextRequest) {
   try {
     const session = await getStudentSession();
@@ -168,6 +243,7 @@ export async function PATCH(request: NextRequest) {
 
     const attempt = await prisma.practiceAttempt.findUnique({
       where: { id: attemptId },
+      include: { question: { select: { type: true, subskill: true } } },
     });
     const accounts = await resolveLinkedAccounts(session.studentId);
     const owned =
@@ -179,9 +255,18 @@ export async function PATCH(request: NextRequest) {
         { status: 404 }
       );
     }
-    if (attempt.isCorrect !== true) {
+
+    const fritext =
+      attempt.isCorrect === null && isFormagaFritext(attempt.question);
+    if (attempt.isCorrect !== true && !fritext) {
       return NextResponse.json(
         { error: "Bara rätta svar kan självskattas" },
+        { status: 400 }
+      );
+    }
+    if (attempt.isCorrect === true && grade === 1) {
+      return NextResponse.json(
+        { error: "Om igen kan inte väljas för rätta svar" },
         { status: 400 }
       );
     }

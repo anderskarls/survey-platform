@@ -246,7 +246,9 @@ export default function QuestionsManager({ apiBase, showCorrectAnswers = false }
         <div className="card p-5 mb-6 animate-scale-in">
           <h3 className="font-semibold mb-2 tracking-tight">Importera frågor från CSV</h3>
           <p className="text-sm text-muted mb-3">
-            Format: topic, type, text, option1, option2, option3, option4
+            Format: topic, type, text, option1, option2, option3, option4.
+            Förmågeövningar: kolumnerna subskill, config (JSON) och exemplars
+            (JSON) för typerna SORTING och FREE_TEXT.
           </p>
           {needsCourseSelect && (
             <select
@@ -447,7 +449,13 @@ export default function QuestionsManager({ apiBase, showCorrectAnswers = false }
                             : "bg-accent-light text-accent"
                         }`}
                       >
-                        {q.type === "MULTIPLE_CHOICE" ? "Flerval" : "Fritext"}
+                        {q.type === "MULTIPLE_CHOICE"
+                          ? "Flerval"
+                          : q.type === "SORTING"
+                            ? "Sortering"
+                            : q.type === "REFLECTION"
+                              ? "Reflektion"
+                              : "Fritext"}
                       </span>
                     </td>
                     <td className="p-4 text-muted">{q.topic.name}</td>

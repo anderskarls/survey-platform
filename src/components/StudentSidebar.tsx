@@ -13,6 +13,7 @@ export default function StudentSidebar({ courseName, studentNumber, unreadFeedba
   const links = [
     { href: "/student", label: "Hem", exact: true },
     { href: "/student/practice", label: "Att öva på", badge: practiceDue || undefined },
+    { href: "/student/formagor", label: "Förmågeträning" },
     { href: "/student/results", label: "Mina resultat" },
     { href: "/student/feedback", label: "Feedback", badge: unreadFeedback || undefined },
   ];

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { SUBSKILLS, exemplarsSchema, sortingConfigSchema } from "@/lib/formaga";
 
 export const respondSchema = z.object({
   answers: z
@@ -14,14 +15,15 @@ export const respondSchema = z.object({
 
 export const practiceAttemptSchema = z.object({
   questionId: z.number().int().positive(),
-  value: z.string().min(1, "Svar krävs").max(2000, "Svaret är för långt"),
+  value: z.string().min(1, "Svar krävs").max(6000, "Svaret är för långt"),
 });
 
-// Självskattning efter rätt svar: 2=Svårt, 3=Bra, 4=Lätt (ts-fsrs Rating).
-// "Om igen" (1) sätts alltid av servern vid fel/osäker och kan inte väljas.
+// Självskattning: 2=Svårt, 3=Bra, 4=Lätt (ts-fsrs Rating). För rätta svar
+// sätts "Om igen" (1) alltid av servern och kan inte väljas; för fritext-
+// övningar (självbedömning mot exempelsvar) är alla fyra betygen tillåtna.
 export const practiceGradeSchema = z.object({
   attemptId: z.number().int().positive(),
-  grade: z.union([z.literal(2), z.literal(3), z.literal(4)]),
+  grade: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4)]),
 });
 
 export const createCourseSchema = z.object({
@@ -66,10 +68,13 @@ export const createQuestionSchema = z.object({
     .min(1, "Frågetext krävs")
     .max(1000)
     .transform((s) => s.trim()),
-  type: z.enum(["MULTIPLE_CHOICE", "FREE_TEXT", "REFLECTION"]),
+  type: z.enum(["MULTIPLE_CHOICE", "FREE_TEXT", "REFLECTION", "SORTING"]),
   topicId: z.number().int().positive(),
   options: z.array(z.string()).optional(),
   correctOptionIndex: z.number().int().min(0).optional(),
+  subskill: z.enum(SUBSKILLS).optional(),
+  config: sortingConfigSchema.optional(),
+  exemplars: exemplarsSchema.optional(),
 });
 
 export const importCsvSchema = z.object({

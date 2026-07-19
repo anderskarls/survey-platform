@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { parseCsvContent } from "@/lib/csv";
+import { parseCsvContent, questionCreateData, validateCsvRows } from "@/lib/csv";
 import { handleApiError } from "@/lib/api-helpers";
 import { requireAdmin } from "@/lib/require-auth";
 import { z } from "zod";
@@ -26,6 +26,13 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
+    const rowErrors = validateCsvRows(rows);
+    if (rowErrors.length > 0) {
+      return NextResponse.json(
+        { error: `Importen avvisades:\n${rowErrors.join("\n")}` },
+        { status: 400 }
+      );
+    }
 
     let imported = 0;
 
@@ -46,20 +53,8 @@ export async function POST(request: Request) {
       for (const row of rows) {
         await tx.question.create({
           data: {
-            text: row.text,
-            type: row.type,
+            ...questionCreateData(row),
             topicId: topicMap.get(row.topic)!,
-            options:
-              row.type === "MULTIPLE_CHOICE" && row.options.length > 0
-                ? {
-                    create: row.options.map((o) => ({
-                      text: o,
-                      isCorrect: row.correctAnswer
-                        ? o === row.correctAnswer
-                        : false,
-                    })),
-                  }
-                : undefined,
           },
         });
         imported++;
