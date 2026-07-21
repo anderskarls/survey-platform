@@ -176,4 +176,5 @@ export const FEEDBACK_REGLER = [
   "Förbättringen pekar mot det tidigaste kvalitetssprång som inte tagits (se kvalitetssprang).",
   "Kommentera resonemangets struktur, inte stavning eller stil.",
   "Rikta förbättringen mot den TIDIGASTE typiska svagheten du hittar (se svagheter, i prioritetsordning).",
+  "Om svaret inte innehåller något resonemang (t.ex. 'vet inte'): hitta inte på en styrka som inte finns i texten. Styrkan får då vara ärlig (t.ex. att eleven markerade var det tog stopp) och Nästa steg ger en konkret väg in i uppgiften: startpunkt + slutpunkt + ett mellanled att fylla i.",
 ] as const;
