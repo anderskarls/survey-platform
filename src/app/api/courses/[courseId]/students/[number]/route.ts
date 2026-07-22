@@ -57,5 +57,50 @@ export async function GET(
     };
   });
 
-  return NextResponse.json({ studentNumber, surveys });
+  // Förmågeträning: aggregerad övningsaktivitet (för Elevlägesbildens brygga).
+  // Sammanfattning per delfärdighet + per ISO-vecka - aldrig svarstexterna.
+  const attempts = await prisma.practiceAttempt.findMany({
+    where: { studentId: student.id },
+    select: {
+      isCorrect: true,
+      value: true,
+      createdAt: true,
+      question: { select: { subskill: true, topic: { select: { name: true } } } },
+    },
+    orderBy: { createdAt: "asc" },
+  });
+
+  const isoWeek = (d: Date) => {
+    const t = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+    t.setUTCDate(t.getUTCDate() + 4 - (t.getUTCDay() || 7));
+    const week = Math.ceil(((t.getTime() - Date.UTC(t.getUTCFullYear(), 0, 1)) / 86400000 + 1) / 7);
+    return `${t.getUTCFullYear()}-v${String(week).padStart(2, "0")}`;
+  };
+
+  const bySubskill: Record<
+    string,
+    { attempts: number; correct: number; incorrect: number; unsure: number; lastAttemptAt: string }
+  > = {};
+  const byWeek: Record<string, { attempts: number; correct: number }> = {};
+  for (const a of attempts) {
+    const key = a.question.subskill ?? a.question.topic.name;
+    const s = (bySubskill[key] ??= { attempts: 0, correct: 0, incorrect: 0, unsure: 0, lastAttemptAt: "" });
+    s.attempts++;
+    if (a.value === "__UNSURE__") s.unsure++;
+    else if (a.isCorrect === true) s.correct++;
+    else if (a.isCorrect === false) s.incorrect++;
+    s.lastAttemptAt = a.createdAt.toISOString();
+    const w = (byWeek[isoWeek(a.createdAt)] ??= { attempts: 0, correct: 0 });
+    w.attempts++;
+    if (a.isCorrect === true) w.correct++;
+  }
+
+  const practice = {
+    totalAttempts: attempts.length,
+    lastAttemptAt: attempts.length ? attempts[attempts.length - 1].createdAt.toISOString() : null,
+    bySubskill,
+    byWeek,
+  };
+
+  return NextResponse.json({ studentNumber, username: student.username, surveys, practice });
 }
