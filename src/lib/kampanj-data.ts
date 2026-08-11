@@ -1,9 +1,10 @@
 import { prisma } from "@/lib/prisma";
-import type { AttemptRecord } from "@/lib/relearning";
+import { dayKey, type AttemptRecord } from "@/lib/relearning";
 import {
   beraknaFront,
   byggSektorer,
   type CampaignPayload,
+  valjBaslinje,
   type FrontReport,
   type TopicInfo,
 } from "@/lib/kampanj";
@@ -12,14 +13,20 @@ import type { Prisma } from "@prisma/client";
 export interface KampanjViewData {
   courseName: string;
   report: FrontReport;
-  /** När fronten senast visades (dagsrapportens jämförelsepunkt); null första gången */
+  /** Dygnet dagsrapporten jämför mot; null första gången kampanjen visas */
   senastVisad: Date | null;
 }
 
 /**
- * Laddar kursens försökshistorik, beräknar frontläget, diffar mot senast
- * visade snapshot och persisterar det nya läget. Anropas när kampanjvyn
- * öppnas - dagsrapporten berättar rörelsen sedan förra visningen.
+ * Laddar kursens försökshistorik, beräknar frontläget och diffar mot
+ * dagsrapportens jämförelsepunkt. Anropas när kampanjvyn öppnas.
+ *
+ * Jämförelsepunkten flyttas **en gång per dygn**, inte vid varje anrop. Innan
+ * dess var varje sidladdning en ny dagsrapport: sex omladdningar på sex
+ * sekunder tog fronten från 100 till 33 utan att en enda elev gjort något, och
+ * den lärare som öppnade vyn på morgonen hade förbrukat dagens rörelse när
+ * klassen kom. MAX_STEG dokumenteras som max rörelse *per dagsrapport* - den
+ * här funktionen är stället där "per dagsrapport" faktiskt betyder något.
  */
 export async function loadKampanjView(
   courseId: number,
@@ -103,25 +110,37 @@ export async function loadKampanjView(
     });
   }
 
-  const previous = (snapshot?.payload as unknown as CampaignPayload) ?? null;
-  const report = beraknaFront(attemptsByStudent, sectors, previous, now);
+  const lagrat = (snapshot?.payload as unknown as CampaignPayload) ?? null;
+  const idag = dayKey(now);
+  const { baslinje, nyDagsrapport } = valjBaslinje(lagrat, idag);
+
+  const report = beraknaFront(attemptsByStudent, sectors, baslinje, now);
+
+  const nyPayload: CampaignPayload = {
+    sectors: baslinje?.sectors ?? report.lage,
+    senaste: report.lage,
+    baslinjeDatum: idag,
+  };
+  const baslinjeSatt = nyDagsrapport ? now : (snapshot?.shownAt ?? now);
 
   await prisma.campaignSnapshot.upsert({
     where: { courseId },
     update: {
-      payload: report.payload as unknown as Prisma.InputJsonValue,
-      shownAt: now,
+      payload: nyPayload as unknown as Prisma.InputJsonValue,
+      shownAt: baslinjeSatt,
     },
     create: {
       courseId,
-      payload: report.payload as unknown as Prisma.InputJsonValue,
-      shownAt: now,
+      payload: nyPayload as unknown as Prisma.InputJsonValue,
+      shownAt: baslinjeSatt,
     },
   });
 
   return {
     courseName: course.name,
     report,
-    senastVisad: snapshot?.shownAt ?? null,
+    // Första gången finns ingen jämförelsepunkt - rapporten säger "etablerar
+    // ställningar", och då ska headern inte påstå att den jämför med något.
+    senastVisad: lagrat === null ? null : (snapshot?.shownAt ?? null),
   };
 }

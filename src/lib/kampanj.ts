@@ -10,6 +10,16 @@ import {
 
 /** Andel av klassens aktiva elever som måste ha kort i sektorn - under detta: krigsdimma */
 export const TACKNINGSTROSKEL = 0.6;
+/**
+ * Absolut golv: så här många elever måste ha kort i sektorn för att den ska
+ * visas i klartext, oavsett andel. Utan golvet räckte det med en enda aktiv
+ * elev för att täckningen skulle bli 1/1 = 100 % - och då stod den elevens
+ * minnesläge utskrivet på projektorn inför klassen ("aktiva soldater: 1 ·
+ * kort i schema: 1 · förfallna: 1"). Det är läget i början av varje termin
+ * och i varje nyöppnad sektor. ADR 0001: dimman finns för att en sektor
+ * aldrig ska spegla ett litet urval.
+ */
+export const MIN_ELEVER_UTAN_DIMMA = 5;
 /** Topic-sektorer upp till så här många topics i kursen, därefter momentsektorer */
 export const SEKTORGRANS = 8;
 /** Max frontrörelse (positionsenheter) per dagsrapport - dämpar enskilda dåliga dagar */
@@ -27,6 +37,10 @@ export interface SectorDef {
   key: string;
   name: string;
   questionIds: number[];
+  /** Topics sektorn täcker - brygga när nyckelrymden byter vid SEKTORGRANS */
+  topicIds: number[];
+  /** Momentet sektorn hör till, om något - samma brygga åt andra hållet */
+  unitId: number | null;
 }
 
 /**
@@ -40,6 +54,8 @@ export function byggSektorer(topics: TopicInfo[]): SectorDef[] {
       key: `topic-${t.id}`,
       name: t.name,
       questionIds: [...t.questionIds],
+      topicIds: [t.id],
+      unitId: t.unitId,
     }));
   }
 
@@ -51,17 +67,22 @@ export function byggSektorer(topics: TopicInfo[]): SectorDef[] {
         key: `topic-${t.id}`,
         name: t.name,
         questionIds: [...t.questionIds],
+        topicIds: [t.id],
+        unitId: null,
       });
       continue;
     }
     const existing = byUnit.get(t.unitId);
     if (existing) {
       existing.questionIds.push(...t.questionIds);
+      existing.topicIds.push(t.id);
     } else {
       const sector: SectorDef = {
         key: `unit-${t.unitId}`,
         name: t.unitTitle ?? t.name,
         questionIds: [...t.questionIds],
+        topicIds: [t.id],
+        unitId: t.unitId,
       };
       byUnit.set(t.unitId, sector);
       sectors.push(sector);
@@ -70,15 +91,102 @@ export function byggSektorer(topics: TopicInfo[]): SectorDef[] {
   return sectors;
 }
 
+/**
+ * Sektorns läge i föregående snapshot.
+ *
+ * Nyckelrymden byter form när kursen passerar SEKTORGRANS: samma innehåll
+ * heter `topic-<id>` under gränsen och `unit-<unitId>` över den. Snapshoten är
+ * nycklad på strängarna, så en direkt uppslagning missar vid omgrupperingen -
+ * och utan `prev` hoppas MAX_STEG-dämpningen över helt. Att lägga till ett nytt
+ * område mitt i terminen räckte för att fronten skulle falla 62 enheter i ett
+ * steg och rapporten säga "etablerar ställningar" som om kampanjen börjat om.
+ *
+ * Bryggan slår därför upp på sektorns beståndsdelar när nyckeln saknas, och
+ * väger ihop dem efter antal kort så att en stor topic väger tyngre.
+ */
+export function tidigareLage(
+  previous: CampaignPayload | null,
+  sector: SectorDef
+): SectorSnapshot | null {
+  if (!previous) return null;
+
+  const direkt = previous.sectors[sector.key];
+  if (direkt) return direkt;
+
+  // Momentsektor byggd av topics som tidigare var egna sektorer
+  const delar = sector.topicIds
+    .map((id) => previous.sectors[`topic-${id}`])
+    .filter((s): s is SectorSnapshot => s != null);
+  if (delar.length > 0) return vagSamman(delar);
+
+  // Åt andra hållet: topicsektorn ingick tidigare i en momentsektor
+  if (sector.unitId != null) {
+    return previous.sectors[`unit-${sector.unitId}`] ?? null;
+  }
+  return null;
+}
+
+function vagSamman(delar: SectorSnapshot[]): SectorSnapshot {
+  const kort = delar.map((d) => d.iSchema + d.forfallna);
+  const totaltKort = kort.reduce((s, k) => s + k, 0);
+  const position =
+    totaltKort === 0
+      ? Math.round(delar.reduce((s, d) => s + d.position, 0) / delar.length)
+      : Math.round(
+          delar.reduce((s, d, i) => s + d.position * kort[i], 0) / totaltKort
+        );
+  return {
+    position,
+    iSchema: delar.reduce((s, d) => s + d.iSchema, 0),
+    forfallna: delar.reduce((s, d) => s + d.forfallna, 0),
+  };
+}
+
 export interface SectorSnapshot {
   position: number;
   iSchema: number;
   forfallna: number;
 }
 
-/** Persisterat frontläge (CampaignSnapshot.payload) - endast sektorer utom dimma */
+/**
+ * Persisterat frontläge (`CampaignSnapshot.payload`) - endast sektorer utom dimma.
+ *
+ * `sectors` är **dagsrapportens jämförelsepunkt**, inte det aktuella läget. Den
+ * står stilla hela dagen så att en omladdning inte flyttar fronten och inte
+ * förbrukar rapporten: MAX_STEG ska dämpa per dagsrapport, inte per request.
+ * `senaste` är fronten som den faktiskt visades vid senaste anropet och rullas
+ * fram till jämförelsepunkt vid dygnsskifte. `baslinjeDatum` är dygnet
+ * jämförelsepunkten sattes (Europe/Stockholm).
+ *
+ * Fälten är valfria för bakåtkompatibilitet med snapshots skrivna före
+ * kadensfixen - en payload med bara `sectors` läses som en jämförelsepunkt utan
+ * känd dag, vilket ger en ny dagsrapport vid nästa visning.
+ */
 export interface CampaignPayload {
   sectors: Record<string, SectorSnapshot>;
+  senaste?: Record<string, SectorSnapshot>;
+  baslinjeDatum?: string;
+}
+
+/**
+ * Väljer dagsrapportens jämförelsepunkt ur det persisterade snapshotet.
+ *
+ * Punkten flyttas en gång per dygn: vid dygnsskifte rullas gårdagens sista
+ * visade läge (`senaste`) fram till baslinje, resten av dagen står den still.
+ * Det är den här regeln som gör MAX_STEG till "per dagsrapport" i stället för
+ * "per sidladdning", och som låter läraren öppna vyn på morgonen utan att
+ * förbruka rörelsen innan klassen kommer.
+ */
+export function valjBaslinje(
+  lagrat: CampaignPayload | null,
+  idag: string
+): { baslinje: CampaignPayload | null; nyDagsrapport: boolean } {
+  if (!lagrat) return { baslinje: null, nyDagsrapport: true };
+  const nyDagsrapport = lagrat.baslinjeDatum !== idag;
+  // Snapshots skrivna före kadensfixen saknar `senaste` - då är `sectors` det
+  // enda kända läget och duger som jämförelsepunkt.
+  const sectors = (nyDagsrapport && lagrat.senaste) || lagrat.sectors;
+  return { baslinje: { sectors }, nyDagsrapport };
 }
 
 export interface SectorState {
@@ -103,8 +211,11 @@ export interface FrontReport {
   sectors: SectorState[];
   /** Antal aktiva elever (>= 1 försök) - nämnaren i täckningen */
   aktivaElever: number;
-  /** Nästa snapshot att persistera */
-  payload: CampaignPayload;
+  /**
+   * Fronten som den visas nu, per sektornyckel. Blir dagsrapportens
+   * jämförelsepunkt först vid nästa dygnsskifte - se `CampaignPayload`.
+   */
+  lage: Record<string, SectorSnapshot>;
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -155,14 +266,17 @@ export function beraknaFront(
   }
 
   const resultSectors: SectorState[] = [];
-  const payload: CampaignPayload = { sectors: {} };
+  const lage: Record<string, SectorSnapshot> = {};
 
   for (const s of sectors) {
     const a = agg.get(s.key)!;
     const kort = a.iSchema + a.forfallna;
     const tackning = aktivaElever === 0 ? 0 : a.studenter.size / aktivaElever;
-    const dimma = tackning < TACKNINGSTROSKEL || kort === 0;
-    const prev = previous?.sectors[s.key] ?? null;
+    const dimma =
+      tackning < TACKNINGSTROSKEL ||
+      kort === 0 ||
+      a.studenter.size < MIN_ELEVER_UTAN_DIMMA;
+    const prev = tidigareLage(previous, s);
 
     if (dimma) {
       // Sektorn står still: behåll senast kända läge, rapportera ingen rörelse
@@ -177,7 +291,7 @@ export function beraknaFront(
         deltaPosition: null,
         deltaForfallna: null,
       });
-      if (prev) payload.sectors[s.key] = prev;
+      if (prev) lage[s.key] = prev;
       continue;
     }
 
@@ -198,12 +312,12 @@ export function beraknaFront(
       deltaPosition: prev === null ? null : position - prev.position,
       deltaForfallna: prev === null ? null : a.forfallna - prev.forfallna,
     });
-    payload.sectors[s.key] = {
+    lage[s.key] = {
       position,
       iSchema: a.iSchema,
       forfallna: a.forfallna,
     };
   }
 
-  return { sectors: resultSectors, aktivaElever, payload };
+  return { sectors: resultSectors, aktivaElever, lage };
 }

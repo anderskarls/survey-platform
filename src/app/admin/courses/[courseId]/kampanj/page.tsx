@@ -170,9 +170,19 @@ export default async function KampanjPage({
           textTransform: "uppercase",
         }}
       >
-        № aktiva soldater: {report.aktivaElever} · kort i schema:{" "}
-        {report.sectors.reduce((n, s) => n + s.iSchema, 0)} · förfallna:{" "}
-        {report.sectors.reduce((n, s) => n + s.forfallna, 0)}
+        № aktiva soldater: {report.aktivaElever}
+        {(() => {
+          // Kortsiffrorna summeras bara över sektorer utanför dimman. Annars
+          // läcker footern förbi krigsdimman: med en enda aktiv elev stod
+          // hens hela minnesläge utskrivet här ("kort i schema: 1 ·
+          // förfallna: 1"), på projektorn, inför klassen.
+          const synliga = report.sectors.filter((s) => !s.dimma);
+          if (synliga.length === 0) return " · hela fronten i dimma";
+          return (
+            ` · kort i schema: ${synliga.reduce((n, s) => n + s.iSchema, 0)}` +
+            ` · förfallna: ${synliga.reduce((n, s) => n + s.forfallna, 0)}`
+          );
+        })()}
       </footer>
     </div>
   );
