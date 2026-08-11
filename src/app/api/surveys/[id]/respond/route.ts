@@ -115,16 +115,9 @@ export async function POST(
       survey.questions.map((sq) => [sq.questionId, sq])
     );
 
-    // Validate that every answer references a question in this survey AND
-    // that there are no duplicate answers for the same question.
+    // Samma fråga får bara besvaras en gång.
     const seen = new Set<number>();
     for (const a of answers) {
-      if (!questionMap.has(a.questionId)) {
-        return NextResponse.json(
-          { error: "Vissa svar refererar till frågor som inte ingår i enkäten" },
-          { status: 400 }
-        );
-      }
       if (seen.has(a.questionId)) {
         return NextResponse.json(
           { error: "Samma fråga besvaras flera gånger" },
@@ -134,12 +127,31 @@ export async function POST(
       seen.add(a.questionId);
     }
 
+    // Svar på frågor som inte längre ingår i enkäten ignoreras i stället för
+    // att fälla hela inlämningen. Läraren som rättar en felstavad fråga mitt
+    // under lektionen gjorde annars varje redan öppen flik obrukbar: eleven
+    // tryckte "Skicka svar", fick ett fel hen inte kunde göra något åt, och
+    // förlorade allt hen skrivit. En öppen flik är normaltillståndet under en
+    // lektion, och eleven har ingen anledning att gissa att en omladdning
+    // löser det.
+    const giltigaSvar = answers.filter((a) => questionMap.has(a.questionId));
+    const ignorerade = answers.length - giltigaSvar.length;
+    if (giltigaSvar.length === 0) {
+      return NextResponse.json(
+        {
+          error:
+            "Inget av dina svar hör till den här enkäten längre - ladda om sidan.",
+        },
+        { status: 400 }
+      );
+    }
+
     // Build answer data, computing isCorrect for multiple choice questions in all modes
     const isQuiz = survey.mode === "QUIZ";
     // Luckfrågornas domar sparas vid sidan av: nära-miss är återkoppling till
     // eleven, inte ett resultat, och har därför ingen kolumn i Answer.
     const clozeVerdicts = new Map<number, ClozeVerdict>();
-    const answerData = answers.flatMap((a) => {
+    const answerData = giltigaSvar.flatMap((a) => {
       let isCorrect: boolean | null = null;
       let grade: number | null = null;
       const sq = questionMap.get(a.questionId);
@@ -287,6 +299,8 @@ export async function POST(
         success: true,
         responseId: response.id,
         duplicate,
+        // Antal svar som gällde frågor läraren tagit bort under tiden
+        ignoredAnswers: ignorerade,
         score,
         quizResults: isQuiz ? results : null,
         surveyResults: !isQuiz ? results : null,

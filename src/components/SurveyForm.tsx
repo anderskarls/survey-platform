@@ -43,6 +43,12 @@ export default function SurveyForm({ survey }: { survey: SurveyData }) {
   // inte visste fanns - och fick "Valideringsfel" först vid inlämning.
   const [draftError, setDraftError] = useState("");
   const [draftLoaded, setDraftLoaded] = useState(false);
+  // Avvikelser i låst läge. StudentQuizForm (dashboardvägen) rapporterade dem
+  // redan; den här vägen - delningslänken läraren faktiskt kopierar - gjorde
+  // det inte, så kolumnen "Avvikelser" i exporten stod alltid på 0. Eleven
+  // fick varningen "Avvikelser registreras och visas för läraren" medan
+  // läraren såg noll, och en tom kolumn läses som "ingen fuskade".
+  const [lockViolations, setLockViolations] = useState(0);
   const [currentStep, setCurrentStep] = useState(0);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -148,7 +154,10 @@ export default function SurveyForm({ survey }: { survey: SurveyData }) {
       const res = await fetch(`/api/surveys/${survey.id}/respond`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ answers: answerList }),
+        body: JSON.stringify({
+          answers: answerList,
+          lockModeViolations: survey.lockMode ? lockViolations : undefined,
+        }),
       });
 
       const data = await res.json();
@@ -181,6 +190,22 @@ export default function SurveyForm({ survey }: { survey: SurveyData }) {
   }
 
   const answeredCount = survey.questions.filter((q) => answers[q.id]?.trim()).length;
+  // En enkät utan frågor gav "Fråga 1 av 0", en Nästa-knapp som inte gjorde
+  // något och ingen inlämningsknapp - eleven satt i en återvändsgränd utan
+  // sätt att komma vidare eller rapportera det. Inträffar precis när läraren
+  // delat länken innan frågorna lagts till.
+  if (totalQuestions === 0) {
+    return (
+      <div className="card p-8 text-center">
+        <h1 className="text-xl font-bold tracking-tight mb-2">{survey.title}</h1>
+        <p className="text-muted">
+          Den här enkäten har inga frågor än. Din lärare har delat länken innan
+          frågorna lagts till - försök igen senare.
+        </p>
+      </div>
+    );
+  }
+
   const currentQuestion = survey.questions[currentStep];
 
   function goPrev() {
@@ -218,7 +243,10 @@ export default function SurveyForm({ survey }: { survey: SurveyData }) {
 
   return (
     <form onSubmit={handleSubmit} onKeyDown={handleFormKeyDown}>
-      <LockOverlay enabled={survey.lockMode && !submitted} />
+      <LockOverlay
+        enabled={survey.lockMode && !submitted}
+        onViolationChange={setLockViolations}
+      />
       <div className="card p-6 mb-6">
         <h1 className="text-2xl font-bold tracking-tight">{survey.title}</h1>
         {survey.description && (

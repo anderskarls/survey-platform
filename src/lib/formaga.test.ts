@@ -233,4 +233,29 @@ describe("CSV med förmågefält", () => {
     expect(data.type).toBe("MULTIPLE_CHOICE");
     expect(data.subskill).toBeUndefined();
   });
+
+  it("avvisar okänd frågetyp i stället för att tyst göra den till flerval", () => {
+    // Fyndet: ESSAY blev MULTIPLE_CHOICE utan alternativ. Läraren fick
+    // {"imported": 1} och eleven en uppsatsfråga vars enda valbara svar var
+    // "Jag är inte säker".
+    const csv = `topic,type,text\nHistoria,ESSAY,Skriv en uppsats`;
+    const errors = validateCsvRows(parseCsvContent(csv));
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors[0]).toContain("Okänd frågetyp");
+    expect(errors[0]).toContain("ESSAY");
+  });
+
+  it("avvisar flervalsfråga utan svarsalternativ", () => {
+    const csv = `topic,text\nHistoria,Skriv en längre text`;
+    const errors = validateCsvRows(parseCsvContent(csv));
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors[0]).toContain("saknar svarsalternativ");
+  });
+
+  it("tom type-kolumn betyder fortfarande flerval", () => {
+    const csv = `topic,type,text,option1,option2,correctAnswer\nHistoria,,Vad är 2+2?,3,4,4`;
+    const rows = parseCsvContent(csv);
+    expect(rows[0].type).toBe("MULTIPLE_CHOICE");
+    expect(validateCsvRows(rows)).toEqual([]);
+  });
 });

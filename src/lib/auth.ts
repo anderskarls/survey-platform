@@ -2,22 +2,21 @@ import NextAuth, { CredentialsSignin } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { prisma } from "./prisma";
-import { rateLimit } from "./rate-limit";
+import { checkRateLimit, recordFailure, resetRateLimit } from "./rate-limit";
 import { getClientIp } from "./client-ip";
 
 const BCRYPT_ROUNDS = 12;
+/** Felaktiga lösenord per lärarkonto innan spärr */
+const LOGIN_MAX_FEL = 10;
+const LOGIN_FONSTER_MS = 15 * 60_000;
 
-/**
- * Adminkontot är ett enda konto med ett lösenord - utan bromsning kan det
- * gissas obegränsat. Tio försök per tio minuter räcker gott för en lärare
- * som slarvar med lösenordet, men gör uttömmande gissning meningslös.
- */
-const ADMIN_LOGIN_FORSOK = 10;
-const ADMIN_LOGIN_FONSTER_MS = 10 * 60_000;
-
-/** Signalerar 429 till inloggningsformuläret via `result.code`. */
-class ForManyInloggningsforsok extends CredentialsSignin {
-  code = "rate_limit";
+/** Signalerar spärr till inloggningssidan via `?code=` i omdirigeringen */
+class ForManga extends CredentialsSignin {
+  code: string;
+  constructor(minuterKvar: number) {
+    super();
+    this.code = `for_manga_forsok:${minuterKvar}`;
+  }
 }
 
 export async function hashPassword(password: string): Promise<string> {
@@ -59,15 +58,24 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         if (!credentials?.email || !credentials?.password) return null;
 
         // Två axlar: IP kan spoofas, e-postadressen kan den som gissar inte
-        // byta bort - båda måste ha kvot kvar.
+        // byta bort - båda måste ha kvot kvar. Bara misslyckade försök kostar
+        // kvot: en lärare som loggar in rätt ska aldrig räknas mot taket.
         const ip = getClientIp(request.headers);
-        const email = (credentials.email as string).toLowerCase();
-        for (const key of [`admin-login-ip:${ip}`, `admin-login-user:${email}`]) {
-          const { allowed } = await rateLimit(key, {
-            maxRequests: ADMIN_LOGIN_FORSOK,
-            windowMs: ADMIN_LOGIN_FONSTER_MS,
-          });
-          if (!allowed) throw new ForManyInloggningsforsok();
+        const email = String(credentials.email).toLowerCase();
+        const limitKeys = [`admin-login-ip:${ip}`, `admin-login-user:${email}`];
+        for (const key of limitKeys) {
+          const sparr = await checkRateLimit(key, { maxRequests: LOGIN_MAX_FEL });
+          if (!sparr.allowed) {
+            console.warn(
+              `[auth] Lärarinloggning spärrad efter ${LOGIN_MAX_FEL} felaktiga försök: ${email}`
+            );
+            // Egen kod så inloggningssidan kan säga att kontot är spärrat och
+            // hur länge. Utan den ser den utelåsta läraren "fel lösenord" fast
+            // lösenordet är rätt, mitt i en lektion, utan väg framåt.
+            throw new ForManga(
+              Math.max(1, Math.ceil(sparr.retryAfterMs / 60_000))
+            );
+          }
         }
 
         const admin = await prisma.admin.findUnique({
@@ -81,8 +89,16 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             admin.passwordHash
           ))
         ) {
+          // Bara misslyckade försök kostar kvot
+          for (const key of limitKeys) {
+            await recordFailure(key, { windowMs: LOGIN_FONSTER_MS });
+          }
           return null;
         }
+
+        // Rätt lösenord rensar kontots egen spärr; IP-axeln lämnas orörd så att
+        // en angripare inte kan nolla den med ett konto hen redan kan.
+        await resetRateLimit(`admin-login-user:${email}`);
 
         // Upgrade legacy SHA-256 hashes to bcrypt on successful login
         if (isLegacySha256(admin.passwordHash)) {

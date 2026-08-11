@@ -205,6 +205,22 @@ export default function StudentQuizForm({
   ).length;
   const totalQuestions = survey.questions.length;
   const isLastQuestion = currentStep === totalQuestions - 1;
+  // En enkät utan frågor gav "Fråga 1 av 0", en Nästa-knapp som inte gjorde
+  // något och ingen inlämningsknapp - eleven satt i en återvändsgränd utan
+  // sätt att komma vidare eller rapportera det. Inträffar precis när läraren
+  // delat länken innan frågorna lagts till.
+  if (totalQuestions === 0) {
+    return (
+      <div className="card p-8 text-center">
+        <h1 className="text-xl font-bold tracking-tight mb-2">{survey.title}</h1>
+        <p className="text-muted">
+          Den här enkäten har inga frågor än. Din lärare har delat länken innan
+          frågorna lagts till - försök igen senare.
+        </p>
+      </div>
+    );
+  }
+
   const currentQuestion = survey.questions[currentStep];
 
   function goPrev() {

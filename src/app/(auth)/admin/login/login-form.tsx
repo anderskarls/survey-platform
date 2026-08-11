@@ -28,9 +28,13 @@ export default function LoginForm() {
       });
 
       if (result?.error) {
+        // Spärren skickar `for_manga_forsok:<minuter>` som kod. Utan det
+        // beskedet ser den utelåsta läraren "fel lösenord" fast lösenordet är
+        // rätt, mitt i en lektion, utan att veta att det går över av sig självt.
+        const minuter = result.code?.match(/^for_manga_forsok:(\d+)$/)?.[1];
         setError(
-          result.code === "rate_limit"
-            ? "För många inloggningsförsök. Vänta tio minuter och försök igen."
+          minuter
+            ? `För många felaktiga försök. Kontot är spärrat i ${minuter} minut${minuter === "1" ? "" : "er"}.`
             : "Fel e-post eller lösenord."
         );
       } else {

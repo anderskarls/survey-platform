@@ -18,6 +18,8 @@ export interface CsvQuestionRow {
   exemplars?: unknown;
   /** JSON-syntaxfel i config/exemplars - raden ska avvisas, inte tappas tyst */
   jsonError?: string;
+  /** Värdet i type-kolumnen när det inte är en typ appen känner igen */
+  unknownType?: string;
 }
 
 const KNOWN_TYPES = [
@@ -28,6 +30,11 @@ const KNOWN_TYPES = [
   "CLOZE",
   "CLOZE_CARD",
 ] as const;
+/**
+ * Tillåtna värden i type-kolumnen. MULTIPLE_CHOICE är default när kolumnen
+ * saknas eller är tom, men måste också gå att skriva ut.
+ */
+const TILLATNA_TYPER = [...KNOWN_TYPES, "MULTIPLE_CHOICE"] as const;
 
 export function parseCsvContent(csvContent: string): CsvQuestionRow[] {
   const result = Papa.parse(csvContent, {
@@ -44,10 +51,14 @@ export function parseCsvContent(csvContent: string): CsvQuestionRow[] {
       }
     }
 
-    const rawType = row.type?.trim().toUpperCase();
-    const type = (KNOWN_TYPES as readonly string[]).includes(rawType)
-      ? rawType
-      : "MULTIPLE_CHOICE";
+    // Tom type-kolumn betyder MULTIPLE_CHOICE. Ett OKÄNT värde är däremot ett
+    // fel och ska rapporteras: läraren som skrev ESSAY eller Free_text fick
+    // förut {"imported": 1} och en fråga vars enda svarsalternativ för eleven
+    // var "Jag är inte säker".
+    const rawType = row.type?.trim().toUpperCase() || "";
+    const kandType = (TILLATNA_TYPER as readonly string[]).includes(rawType);
+    const type = rawType === "" || !kandType ? "MULTIPLE_CHOICE" : rawType;
+    const unknownType = rawType !== "" && !kandType ? rawType : undefined;
 
     let config: unknown;
     let exemplars: unknown;
@@ -74,6 +85,7 @@ export function parseCsvContent(csvContent: string): CsvQuestionRow[] {
       options,
       correctAnswer: row.correctAnswer?.trim() || undefined,
       subskill: row.subskill?.trim().toLowerCase() || undefined,
+      unknownType,
       config,
       exemplars,
       jsonError,
@@ -92,6 +104,19 @@ export function validateCsvRows(rows: CsvQuestionRow[]): string[] {
     if (row.jsonError) {
       errors.push(row.jsonError);
       continue;
+    }
+    if (row.unknownType) {
+      errors.push(
+        `Okänd frågetyp "${row.unknownType}" för "${row.text}" ` +
+          `(tillåtna: ${TILLATNA_TYPER.join(", ")})`
+      );
+      continue;
+    }
+    if (row.type === "MULTIPLE_CHOICE" && row.options.length === 0) {
+      errors.push(
+        `Flervalsfrågan "${row.text}" saknar svarsalternativ ` +
+          `(fyll i option1, option2, ... eller ange type=FREE_TEXT)`
+      );
     }
     if (row.subskill && !(SUBSKILLS as readonly string[]).includes(row.subskill)) {
       errors.push(
