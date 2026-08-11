@@ -31,7 +31,8 @@ export async function GET(
         include: { question: { include: { options: true } } },
         orderBy: { order: "asc" },
       },
-      _count: { select: { responses: true } },
+      // Lärarens provkonto räknas inte i klassens siffror (isTest)
+      _count: { select: { responses: { where: { student: { isTest: false } } } } },
     },
   });
 

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import FeedbackDisplay from "@/components/FeedbackButton";
 import { flashcardLabel } from "@/lib/flashcard";
+import { arOsaker } from "@/lib/svarsvarden";
 
 export default async function ResultDetailPage({
   params,
@@ -82,7 +83,7 @@ export default async function ResultDetailPage({
           );
           const isCorrect = answer.isCorrect === true;
           const isWrong = answer.isCorrect === false;
-          const isUnsure = answer.value === "__UNSURE__";
+          const isUnsure = arOsaker(answer.value);
           const isFreeText = answer.question.type === "FREE_TEXT";
           // Flashcard: värdet är elevens egen skattning, inte ett valt svar
           const rating = flashcardLabel(answer.value);

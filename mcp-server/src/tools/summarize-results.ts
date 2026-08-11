@@ -1,4 +1,6 @@
 import { prisma } from "../prisma.js";
+import { senasteSvarPerElev } from "../svarsurval.js";
+import { arOsaker, raknaSvarsalternativ } from "../svarsvarden.js";
 
 export async function summarizeResults(surveyId: number): Promise<string> {
   const survey = await prisma.survey.findUnique({
@@ -8,27 +10,33 @@ export async function summarizeResults(surveyId: number): Promise<string> {
         include: { question: { include: { options: true } } },
         orderBy: { order: "asc" },
       },
-      responses: { include: { student: true, answers: true } },
+      // Lärarens provkonto räknas inte i klassens siffror (isTest)
+      responses: {
+        where: { student: { isTest: false } },
+        include: { student: true, answers: true },
+      },
     },
   });
 
   if (!survey) return "Enkät hittades inte.";
 
   const isQuiz = survey.mode === "QUIZ";
+  // Omtag: varje elev väger en gång, precis som i webbappens resultatvyer
+  const responses = senasteSvarPerElev(survey.responses);
   const lines: string[] = [];
   lines.push(`# Sammanfattning: ${survey.title}`);
   lines.push(`Läge: ${isQuiz ? "Quiz" : "Enkät"}`);
-  lines.push(`Totalt antal svar: ${survey.responses.length}`);
+  lines.push(`Totalt antal svar: ${responses.length}`);
   lines.push("");
 
-  const studentNumbers = [...new Set(survey.responses.map((r) => r.student.number))].sort((a, b) => a - b);
+  const studentNumbers = [...new Set(responses.map((r) => r.student.number))].sort((a, b) => a - b);
   lines.push(`Antal unika elever: ${studentNumbers.length}`);
   lines.push(`Elevnummer: ${studentNumbers.map((n) => `#${n}`).join(", ")}`);
   lines.push("");
 
   if (isQuiz) {
     lines.push("## Poäng per elev");
-    for (const r of survey.responses.sort((a, b) => a.student.number - b.student.number)) {
+    for (const r of [...responses].sort((a, b) => a.student.number - b.student.number)) {
       const correct = r.answers.filter((a) => a.isCorrect === true).length;
       const total = r.answers.filter((a) => a.isCorrect !== null).length;
       const pct = total > 0 ? Math.round((correct / total) * 100) : 0;
@@ -40,7 +48,7 @@ export async function summarizeResults(surveyId: number): Promise<string> {
   for (const sq of survey.questions) {
     const q = sq.question;
     const correctOption = q.options.find((o) => o.isCorrect);
-    const answersWithStudent = survey.responses.flatMap((r) =>
+    const answersWithStudent = responses.flatMap((r) =>
       r.answers
         .filter((a) => a.questionId === q.id)
         .map((a) => ({ value: a.value, studentNumber: r.student.number, isCorrect: a.isCorrect }))
@@ -52,24 +60,34 @@ export async function summarizeResults(surveyId: number): Promise<string> {
     }
 
     if (q.type === "MULTIPLE_CHOICE") {
-      const counts: Record<string, number> = {};
-      q.options.forEach((o) => (counts[o.text] = 0));
-      answersWithStudent.forEach((a) => {
-        counts[a.value] = (counts[a.value] || 0) + 1;
-      });
+      const { optionCounts, osakra, avgivna } = raknaSvarsalternativ(
+        q.options.map((o) => o.text),
+        answersWithStudent.map((a) => a.value)
+      );
 
-      const total = answersWithStudent.length || 1;
-      for (const [option, count] of Object.entries(counts)) {
-        const pct = Math.round((count / total) * 100);
+      const namnare = avgivna || 1;
+      for (const [option, count] of Object.entries(optionCounts)) {
+        const pct = Math.round((count / namnare) * 100);
         const marker = isQuiz && correctOption?.text === option ? " ✓" : "";
         lines.push(`- ${option}: ${count} svar (${pct}%)${marker}`);
+      }
+      if (osakra > 0) {
+        lines.push(
+          `_Utöver fördelningen: ${osakra} elev${osakra === 1 ? "" : "er"} markerade ` +
+            `"Jag är osäker" i stället för att svara. Det är inte ett fel svar och ingår ` +
+            `inte i procenten ovan._`
+        );
       }
 
       lines.push("");
       lines.push("Per elev:");
-      answersWithStudent
+      [...answersWithStudent]
         .sort((a, b) => a.studentNumber - b.studentNumber)
         .forEach((a) => {
+          if (arOsaker(a.value)) {
+            lines.push(`- Elev #${a.studentNumber}: osäker (inget svar avgivet)`);
+            return;
+          }
           const marker = isQuiz ? (a.isCorrect ? " ✓" : " ✗") : "";
           lines.push(`- Elev #${a.studentNumber}: ${a.value}${marker}`);
         });

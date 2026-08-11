@@ -13,6 +13,7 @@ import {
   type TimelineAnswer,
   type TimelineResult,
 } from "@/lib/tidslinje";
+import { OSAKER, arOsaker } from "@/lib/svarsvarden";
 
 export interface PracticeQuestion {
   id: number;
@@ -544,7 +545,7 @@ export default function PracticeRunner({
                 <div className="border-t border-border-light my-1" />
                 <label
                   className={`flex items-center gap-3 cursor-pointer p-3 border border-dashed rounded-xl transition-all duration-150 ${
-                    selected === "__UNSURE__"
+                    arOsaker(selected ?? "")
                       ? "border-accent bg-accent-light shadow-sm"
                       : "border-border-light hover:border-border hover:bg-surface-muted/50"
                   }`}
@@ -552,9 +553,9 @@ export default function PracticeRunner({
                   <input
                     type="radio"
                     name={`practice-q-${question.id}`}
-                    value="__UNSURE__"
-                    checked={selected === "__UNSURE__"}
-                    onChange={() => setSelected("__UNSURE__")}
+                    value={OSAKER}
+                    checked={arOsaker(selected ?? "")}
+                    onChange={() => setSelected(OSAKER)}
                     className="accent-accent"
                   />
                   <span className="text-base text-muted">Jag är inte säker</span>
@@ -598,7 +599,7 @@ export default function PracticeRunner({
               </p>
             ) : (
               <p className="font-semibold">
-                {selected === "__UNSURE__" ? "Du var osäker." : "Inte rätt."}{" "}
+                {arOsaker(selected ?? "") ? "Du var osäker." : "Inte rätt."}{" "}
                 Läs det rätta svaret ovan - frågan återkommer senare i passet.
               </p>
             )}

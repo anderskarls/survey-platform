@@ -5,6 +5,7 @@ import FlagButton from "@/components/FlagButton";
 import ClozeCardFace from "@/components/ClozeCardFace";
 import { FLASHCARD_RATINGS, rendersAsCard } from "@/lib/flashcard";
 import { splitAtGap, type ClientClozeConfig } from "@/lib/cloze";
+import { OSAKER, arOsaker } from "@/lib/svarsvarden";
 
 interface Question {
   id: number;
@@ -284,7 +285,7 @@ export default function QuestionRenderer({
               <div className="border-t border-border-light my-1" />
               <label
                 className={`flex items-center gap-3 cursor-pointer p-3 border border-dashed rounded-xl transition-all duration-150 ${
-                  answers[q.id] === "__UNSURE__"
+                  arOsaker(answers[q.id] ?? "")
                     ? "border-accent bg-accent-light shadow-sm"
                     : "border-border-light hover:border-border hover:bg-surface-muted/50"
                 }`}
@@ -292,9 +293,9 @@ export default function QuestionRenderer({
                 <input
                   type="radio"
                   name={`q-${q.id}`}
-                  value="__UNSURE__"
-                  checked={answers[q.id] === "__UNSURE__"}
-                  onChange={() => onAnswer(q.id, "__UNSURE__")}
+                  value={OSAKER}
+                  checked={arOsaker(answers[q.id] ?? "")}
+                  onChange={() => onAnswer(q.id, OSAKER)}
                   className="accent-accent focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
                 />
                 <span className="text-base text-muted">Jag är inte säker</span>

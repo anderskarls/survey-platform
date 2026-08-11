@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import FlagButton from "@/components/FlagButton";
 import { flashcardLabel } from "@/lib/flashcard";
+import { arOsaker } from "@/lib/svarsvarden";
 
 interface Score {
   correct: number;
@@ -67,7 +68,7 @@ export default function QuizResultsDisplay({
       {quizResults && (
         <div className="space-y-3 mb-6">
           {quizResults.map((r, i) => {
-            const isUnsure = r.yourAnswer === "__UNSURE__";
+            const isUnsure = arOsaker(r.yourAnswer);
             // Obesvarad fråga sparas som tom rad med isCorrect=false. Utan
             // det här fallet stod det bara "Ditt svar:" och sedan ingenting.
             const isBlank = r.yourAnswer.trim() === "";

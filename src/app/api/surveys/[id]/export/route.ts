@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireSurveyAccess } from "@/lib/require-auth";
 import { CSV_BOM, toCsv } from "@/lib/csv-export";
+import { arOsaker } from "@/lib/svarsvarden";
 
 export async function GET(
   _request: NextRequest,
@@ -25,6 +26,7 @@ export async function GET(
         orderBy: { order: "asc" },
       },
       responses: {
+        where: { student: { isTest: false } },
         include: { student: true, answers: true },
         orderBy: { createdAt: "asc" },
       },
@@ -48,7 +50,9 @@ export async function GET(
   // CSV rows
   const rows = survey.responses.map((r) => {
     const answerMap = new Map(
-      r.answers.map((a) => [a.questionId, a.value])
+      // Sentinelvärdet för "Jag är osäker" är intern kod - skriv ut det som text
+      // i den fil läraren öppnar i kalkylark
+      r.answers.map((a) => [a.questionId, arOsaker(a.value) ? "osäker" : a.value])
     );
     return [
       r.student.number,

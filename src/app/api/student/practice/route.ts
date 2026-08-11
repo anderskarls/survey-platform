@@ -25,6 +25,7 @@ import {
   type TimelineResult,
 } from "@/lib/tidslinje";
 import { FLASHCARD_RATINGS, FLASHCARD_REVEAL, isCardType } from "@/lib/flashcard";
+import { arOsaker } from "@/lib/svarsvarden";
 
 /** Hela försökshistoriken för en fråga hos ett elevkonto (quiz + övning) */
 async function loadQuestionHistory(
@@ -139,7 +140,7 @@ export async function POST(request: NextRequest) {
       // Flashcard: eleven vände kortet i stället för att välja alternativ.
       // Servern rättar ingenting - baksidan skickas tillbaka och eleven
       // skattar sig själv i fas 2.
-      if (value !== "__UNSURE__" && !flashcardReveal) {
+      if (!arOsaker(value) && !flashcardReveal) {
         isCorrect = correctOption ? value === correctOption.text : null;
       }
     } else if (question.type === "SORTING") {

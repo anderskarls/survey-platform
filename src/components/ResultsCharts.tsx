@@ -10,24 +10,27 @@ import {
   ResponsiveContainer,
   Cell,
 } from "recharts";
+import { arOsaker } from "@/lib/svarsvarden";
 
-interface StudentAnswer {
+export interface StudentAnswer {
   studentNumber: number;
   value: string;
   isCorrect?: boolean | null;
 }
 
-interface MCQuestion {
+export interface MCQuestion {
   id: number;
   text: string;
   type: "MULTIPLE_CHOICE";
   optionCounts: Record<string, number>;
+  /** "Jag är osäker" räknas bredvid fördelningen, aldrig som ett alternativ i den */
+  osakra?: number;
   correctAnswer?: string | null;
   studentAnswers?: StudentAnswer[];
   answeredBy: number;
 }
 
-interface FTQuestion {
+export interface FTQuestion {
   id: number;
   text: string;
   type: "FREE_TEXT";
@@ -36,7 +39,7 @@ interface FTQuestion {
   answeredBy: number;
 }
 
-type ResultQuestion = MCQuestion | FTQuestion;
+export type ResultQuestion = MCQuestion | FTQuestion;
 
 export default function ResultsCharts({
   questions,
@@ -89,31 +92,46 @@ export default function ResultsCharts({
                   Rätt svar: <span className="font-semibold">{q.correctAnswer}</span>
                 </p>
               )}
+              {!!q.osakra && q.osakra > 0 && (
+                <p className="text-sm text-muted mt-2">
+                  <span className="font-semibold">{q.osakra}</span>{" "}
+                  {q.osakra === 1 ? "elev" : "elever"} markerade &quot;Jag är osäker&quot; i
+                  stället för att svara - inte ett fel svar, och ingår inte i fördelningen ovan.
+                </p>
+              )}
               {q.studentAnswers && q.studentAnswers.length > 0 && (
                 <details className="mt-3">
                   <summary className="text-sm text-muted cursor-pointer hover:text-foreground transition-colors">
                     Visa per elev ({q.studentAnswers.length} svar)
                   </summary>
                   <div className="mt-2 grid grid-cols-2 md:grid-cols-4 gap-2">
-                    {q.studentAnswers
+                    {[...q.studentAnswers]
                       .sort((a, b) => a.studentNumber - b.studentNumber)
-                      .map((sa) => (
-                        <div
-                          key={sa.studentNumber}
-                          className={`rounded-lg p-2 text-xs ${
-                            isQuiz
-                              ? sa.isCorrect
-                                ? "bg-success-light border border-success/20"
-                                : "bg-error-light border border-error/20"
-                              : "bg-surface-muted"
-                          }`}
-                        >
-                          <span className="font-semibold">#{sa.studentNumber}</span>{" "}
-                          <span className={isQuiz && !sa.isCorrect ? "text-error" : "text-muted"}>
-                            {sa.value}
-                          </span>
-                        </div>
-                      ))}
+                      .map((sa) => {
+                        // "Jag är osäker" är varken rätt eller fel - måla den inte röd
+                        const osaker = arOsaker(sa.value);
+                        return (
+                          <div
+                            key={sa.studentNumber}
+                            className={`rounded-lg p-2 text-xs ${
+                              !isQuiz || osaker
+                                ? "bg-surface-muted"
+                                : sa.isCorrect
+                                  ? "bg-success-light border border-success/20"
+                                  : "bg-error-light border border-error/20"
+                            }`}
+                          >
+                            <span className="font-semibold">#{sa.studentNumber}</span>{" "}
+                            <span
+                              className={
+                                isQuiz && !osaker && !sa.isCorrect ? "text-error" : "text-muted"
+                              }
+                            >
+                              {osaker ? "osäker" : sa.value}
+                            </span>
+                          </div>
+                        );
+                      })}
                   </div>
                 </details>
               )}

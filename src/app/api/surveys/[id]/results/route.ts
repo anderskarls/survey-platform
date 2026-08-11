@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { answerLabel } from "@/lib/blank-answer";
 import { requireSurveyAccess } from "@/lib/require-auth";
 import { senasteSvarPerElev } from "@/lib/svarsurval";
+import { raknaSvarsalternativ } from "@/lib/svarsvarden";
 
 export async function GET(
   request: NextRequest,
@@ -54,12 +55,11 @@ async function getSummary(surveyId: number) {
     const answeredBy = questionAnswers.length;
 
     if (q.type === "MULTIPLE_CHOICE") {
-      const optionCounts: Record<string, number> = {};
-      q.options.forEach((o) => (optionCounts[o.text] = 0));
-      questionAnswers.forEach((a) => {
-        optionCounts[a.value] = (optionCounts[a.value] || 0) + 1;
-      });
-      return { id: q.id, text: q.text, type: q.type, optionCounts, answeredBy };
+      const { optionCounts, osakra } = raknaSvarsalternativ(
+        q.options.map((o) => o.text),
+        questionAnswers.map((a) => a.value)
+      );
+      return { id: q.id, text: q.text, type: q.type, optionCounts, osakra, answeredBy };
     }
 
     return {
@@ -124,16 +124,16 @@ async function getDetailed(surveyId: number) {
     const answeredBy = answersWithStudent.length;
 
     if (q.type === "MULTIPLE_CHOICE") {
-      const optionCounts: Record<string, number> = {};
-      q.options.forEach((o) => (optionCounts[o.text] = 0));
-      answersWithStudent.forEach((a) => {
-        optionCounts[a.value] = (optionCounts[a.value] || 0) + 1;
-      });
+      const { optionCounts, osakra } = raknaSvarsalternativ(
+        q.options.map((o) => o.text),
+        answersWithStudent.map((a) => a.value)
+      );
       return {
         id: q.id,
         text: q.text,
         type: q.type,
         optionCounts,
+        osakra,
         correctAnswer: isQuiz ? correctOption?.text ?? null : null,
         answeredBy,
         studentAnswers: answersWithStudent.map((a) => ({

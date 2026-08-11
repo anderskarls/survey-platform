@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { answerLabel } from "@/lib/blank-answer";
 import { requireCourseAccess } from "@/lib/require-auth";
 import { senasteSvarPerElev } from "@/lib/svarsurval";
+import { raknaSvarsalternativ } from "@/lib/svarsvarden";
 
 export async function GET(
   _request: NextRequest,
@@ -70,16 +71,16 @@ export async function GET(
     const answeredBy = answersWithStudent.length;
 
     if (q.type === "MULTIPLE_CHOICE") {
-      const optionCounts: Record<string, number> = {};
-      q.options.forEach((o) => (optionCounts[o.text] = 0));
-      answersWithStudent.forEach((a) => {
-        optionCounts[a.value] = (optionCounts[a.value] || 0) + 1;
-      });
+      const { optionCounts, osakra } = raknaSvarsalternativ(
+        q.options.map((o) => o.text),
+        answersWithStudent.map((a) => a.value)
+      );
       return {
         id: q.id,
         text: q.text,
         type: q.type,
         optionCounts,
+        osakra,
         correctAnswer: isQuiz ? correctOption?.text || null : null,
         studentAnswers: answersWithStudent,
         answeredBy,

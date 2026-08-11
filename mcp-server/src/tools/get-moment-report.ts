@@ -1,10 +1,13 @@
 import { prisma } from "../prisma.js";
+import { senasteSvarPerElev } from "../svarsurval.js";
+import { raknaSvarsalternativ } from "../svarsvarden.js";
 
 export async function getMomentReport(unitId: number): Promise<string> {
   const unit = await prisma.unit.findUnique({
     where: { id: unitId },
     include: {
-      course: { include: { students: true } },
+      // Lärarens provkonto räknas inte i klassens siffror (isTest)
+      course: { include: { students: { where: { isTest: false } } } },
       surveys: {
         orderBy: { createdAt: "asc" },
         include: {
@@ -12,13 +15,21 @@ export async function getMomentReport(unitId: number): Promise<string> {
             include: { question: { include: { options: true } } },
             orderBy: { order: "asc" },
           },
-          responses: { include: { student: true, answers: true } },
+          responses: {
+            where: { student: { isTest: false } },
+            include: { student: true, answers: true },
+          },
         },
       },
     },
   });
 
   if (!unit) return "Moment hittades inte.";
+
+  // Omtag: en elev väger en gång per uppgift, senaste inlämningen gäller
+  for (const s of unit.surveys) {
+    s.responses = senasteSvarPerElev(s.responses);
+  }
 
   const lines: string[] = [];
   lines.push(`# Momentrapport: ${unit.title}`);
@@ -73,14 +84,21 @@ export async function getMomentReport(unitId: number): Promise<string> {
       );
       lines.push(`### ${q.text}`);
       if (q.type === "MULTIPLE_CHOICE") {
-        const counts: Record<string, number> = {};
-        q.options.forEach((o) => (counts[o.text] = 0));
-        ans.forEach((a) => (counts[a.value] = (counts[a.value] || 0) + 1));
+        const { optionCounts, osakra, avgivna } = raknaSvarsalternativ(
+          q.options.map((o) => o.text),
+          ans.map((a) => a.value)
+        );
         const correct = q.options.find((o) => o.isCorrect)?.text;
-        const total = ans.length || 1;
-        for (const [opt, c] of Object.entries(counts)) {
+        const namnare = avgivna || 1;
+        for (const [opt, c] of Object.entries(optionCounts)) {
           const mark = isQuiz && opt === correct ? " ✓" : "";
-          lines.push(`- ${opt}: ${c} (${Math.round((c / total) * 100)}%)${mark}`);
+          lines.push(`- ${opt}: ${c} (${Math.round((c / namnare) * 100)}%)${mark}`);
+        }
+        if (osakra > 0) {
+          lines.push(
+            `_Utöver fördelningen: ${osakra} elev${osakra === 1 ? "" : "er"} markerade ` +
+              `"Jag är osäker". Det är inte ett fel svar och ingår inte i procenten ovan._`
+          );
         }
       } else {
         lines.push(`Fritextsvar (${ans.length}):`);

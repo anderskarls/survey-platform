@@ -16,13 +16,23 @@ export default async function CourseDashboard({
       prisma.course.findUnique({ where: { id: cId } }),
       prisma.question.count({ where: { topic: { courseId: cId } } }),
       prisma.survey.count({ where: { courseId: cId } }),
-      prisma.response.count({ where: { survey: { courseId: cId } } }),
-      prisma.student.count({ where: { courseId: cId } }),
+      // Lärarens provkonto räknas inte i klassens siffror (isTest)
+      prisma.response.count({
+        where: { survey: { courseId: cId }, student: { isTest: false } },
+      }),
+      prisma.student.count({ where: { courseId: cId, isTest: false } }),
       prisma.survey.findMany({
         where: { courseId: cId },
         take: 5,
         orderBy: { createdAt: "desc" },
-        include: { _count: { select: { responses: true, questions: true } } },
+        include: {
+          _count: {
+            select: {
+              responses: { where: { student: { isTest: false } } },
+              questions: true,
+            },
+          },
+        },
       }),
     ]);
 

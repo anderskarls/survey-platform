@@ -10,6 +10,7 @@ import {
   SUBSKILL_CRITERIA,
   Subskill,
 } from "@/lib/formaga";
+import { arOsaker } from "@/lib/svarsvarden";
 
 const TRIVIAL_VALUES = new Set(["?", ".", "!", "1", "-", ".."]);
 
@@ -72,7 +73,7 @@ export async function GET(request: NextRequest) {
 
     const substantial = attempts.filter(
       (a) =>
-        a.value !== "__UNSURE__" &&
+        !arOsaker(a.value) &&
         a.value.trim().length > 2 &&
         !TRIVIAL_VALUES.has(a.value.trim())
     );

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { answerLabel } from "@/lib/blank-answer";
 import { requireCourseAccess } from "@/lib/require-auth";
+import { arOsaker } from "@/lib/svarsvarden";
 
 export async function GET(
   _request: NextRequest,
@@ -88,7 +89,7 @@ export async function GET(
     const key = a.question.subskill ?? a.question.topic.name;
     const s = (bySubskill[key] ??= { attempts: 0, correct: 0, incorrect: 0, unsure: 0, lastAttemptAt: "" });
     s.attempts++;
-    if (a.value === "__UNSURE__") s.unsure++;
+    if (arOsaker(a.value)) s.unsure++;
     else if (a.isCorrect === true) s.correct++;
     else if (a.isCorrect === false) s.incorrect++;
     s.lastAttemptAt = a.createdAt.toISOString();

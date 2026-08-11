@@ -1,4 +1,6 @@
 import { prisma } from "../prisma.js";
+import { senasteSvarPerElev } from "../svarsurval.js";
+import { raknaSvarsalternativ } from "../svarsvarden.js";
 
 export async function getResults(surveyId: number): Promise<string> {
   const survey = await prisma.survey.findUnique({
@@ -8,31 +10,36 @@ export async function getResults(surveyId: number): Promise<string> {
         include: { question: { include: { options: true } } },
         orderBy: { order: "asc" },
       },
-      responses: { include: { student: true, answers: true } },
+      // Lärarens provkonto räknas inte i klassens siffror (isTest)
+      responses: {
+        where: { student: { isTest: false } },
+        include: { student: true, answers: true },
+      },
     },
   });
 
   if (!survey) return JSON.stringify({ error: "Enkät hittades inte" });
 
   const isQuiz = survey.mode === "QUIZ";
+  // Omtag: varje elev väger en gång, precis som i webbappens resultatvyer
+  const responses = senasteSvarPerElev(survey.responses);
 
   const questions = survey.questions.map((sq) => {
     const q = sq.question;
     const correctOption = q.options.find((o) => o.isCorrect);
-    const answersWithStudent = survey.responses.flatMap((r) =>
+    const answersWithStudent = responses.flatMap((r) =>
       r.answers
         .filter((a) => a.questionId === q.id)
         .map((a) => ({ value: a.value, studentNumber: r.student.number, isCorrect: a.isCorrect }))
     );
 
     if (q.type === "MULTIPLE_CHOICE") {
-      const optionCounts: Record<string, number> = {};
-      q.options.forEach((o) => (optionCounts[o.text] = 0));
-      answersWithStudent.forEach((a) => {
-        optionCounts[a.value] = (optionCounts[a.value] || 0) + 1;
-      });
+      const { optionCounts, osakra } = raknaSvarsalternativ(
+        q.options.map((o) => o.text),
+        answersWithStudent.map((a) => a.value)
+      );
       return {
-        id: q.id, text: q.text, type: q.type, optionCounts,
+        id: q.id, text: q.text, type: q.type, optionCounts, osakra,
         correctAnswer: isQuiz ? correctOption?.text || null : null,
         studentAnswers: answersWithStudent.map((a) => ({
           studentNumber: a.studentNumber, value: a.value, isCorrect: a.isCorrect,
@@ -56,7 +63,7 @@ export async function getResults(surveyId: number): Promise<string> {
       id: survey.id,
       title: survey.title,
       mode: survey.mode,
-      responseCount: survey.responses.length,
+      responseCount: responses.length,
     },
     questions,
   }, null, 2);

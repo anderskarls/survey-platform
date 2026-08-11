@@ -14,7 +14,10 @@ export default async function CoursesPage() {
     include: {
       _count: { select: { topics: true, surveys: true } },
       surveys: {
-        include: { _count: { select: { responses: true } } },
+        // Lärarens provkonto räknas inte i klassens siffror (isTest)
+        include: {
+          _count: { select: { responses: { where: { student: { isTest: false } } } } },
+        },
       },
     },
     orderBy: { createdAt: "desc" },

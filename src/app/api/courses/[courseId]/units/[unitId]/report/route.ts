@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { answerLabel } from "@/lib/blank-answer";
 import { requireCourseAccess } from "@/lib/require-auth";
 import { senasteSvarPerElev } from "@/lib/svarsurval";
+import { raknaSvarsalternativ } from "@/lib/svarsvarden";
 
 // Markdown teacher-report for a whole moment: completion per assignment,
 // per-question breakdown (option counts with the correct one marked for
@@ -86,14 +87,21 @@ export async function GET(
       );
       lines.push(`### ${q.text}`);
       if (q.type === "MULTIPLE_CHOICE") {
-        const counts: Record<string, number> = {};
-        q.options.forEach((o) => (counts[o.text] = 0));
-        ans.forEach((a) => (counts[a.value] = (counts[a.value] || 0) + 1));
+        const { optionCounts, osakra, avgivna } = raknaSvarsalternativ(
+          q.options.map((o) => o.text),
+          ans.map((a) => a.value)
+        );
         const correct = q.options.find((o) => o.isCorrect)?.text;
-        const total = ans.length || 1;
-        for (const [opt, c] of Object.entries(counts)) {
+        const namnare = avgivna || 1;
+        for (const [opt, c] of Object.entries(optionCounts)) {
           const mark = isQuiz && opt === correct ? " ✓" : "";
-          lines.push(`- ${opt}: ${c} (${Math.round((c / total) * 100)}%)${mark}`);
+          lines.push(`- ${opt}: ${c} (${Math.round((c / namnare) * 100)}%)${mark}`);
+        }
+        if (osakra > 0) {
+          lines.push(
+            `_Utöver fördelningen: ${osakra} elev${osakra === 1 ? "" : "er"} markerade ` +
+              `"Jag är osäker". Det är inte ett fel svar och ingår inte i procenten ovan._`
+          );
         }
       } else {
         lines.push(`Fritextsvar (${ans.length}):`);

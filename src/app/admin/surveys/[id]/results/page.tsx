@@ -2,26 +2,9 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
-import ResultsCharts from "@/components/ResultsCharts";
+import ResultsCharts, { type ResultQuestion } from "@/components/ResultsCharts";
 import { useToast } from "@/components/Toast";
 
-interface MCQuestion {
-  id: number;
-  text: string;
-  type: "MULTIPLE_CHOICE";
-  optionCounts: Record<string, number>;
-  answeredBy: number;
-}
-
-interface FTQuestion {
-  id: number;
-  text: string;
-  type: "FREE_TEXT";
-  textResponses: string[];
-  answeredBy: number;
-}
-
-type ResultQuestion = MCQuestion | FTQuestion;
 
 interface ResultsData {
   survey: { id: number; title: string; responseCount: number; totalQuestions: number };

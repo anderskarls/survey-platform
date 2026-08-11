@@ -22,7 +22,13 @@ export async function GET(
   const surveys = await prisma.survey.findMany({
     where: { courseId: cId },
     include: {
-      _count: { select: { questions: true, responses: true } },
+      // Lärarens provkonto räknas inte i klassens siffror (isTest)
+      _count: {
+        select: {
+          questions: true,
+          responses: { where: { student: { isTest: false } } },
+        },
+      },
     },
     orderBy: { createdAt: "desc" },
   });

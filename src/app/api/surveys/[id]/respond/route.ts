@@ -31,6 +31,7 @@ function sameAnswers(
   const savedMap = new Map(saved.map((a) => [a.questionId, a.value]));
   return incoming.every((a) => savedMap.get(a.questionId) === a.value);
 }
+import { arOsaker } from "@/lib/svarsvarden";
 
 export async function POST(
   request: NextRequest,
@@ -155,7 +156,7 @@ export async function POST(
           // nyansen till FSRS, isCorrect håller poäng och statistik igång.
           isCorrect = flashcardIsCorrect(a.value);
           grade = flashcardGrade(a.value);
-        } else if (a.value === "__UNSURE__") {
+        } else if (arOsaker(a.value)) {
           isCorrect = null; // Metacognitive "I'm not sure" - neither correct nor incorrect
         } else {
           const correctOption = sq.question.options.find((o) => o.isCorrect);

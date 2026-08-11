@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireSurveyAccess } from "@/lib/require-auth";
 import { answerLabel } from "@/lib/blank-answer";
 import { senasteSvarPerElev } from "@/lib/svarsurval";
+import { arOsaker, raknaSvarsalternativ } from "@/lib/svarsvarden";
 
 export async function GET(
   _request: NextRequest,
@@ -87,17 +88,23 @@ export async function GET(
     }
 
     if (q.type === "MULTIPLE_CHOICE") {
-      const counts: Record<string, number> = {};
-      q.options.forEach((o) => (counts[o.text] = 0));
-      answersWithStudent.forEach((a) => {
-        counts[a.value] = (counts[a.value] || 0) + 1;
-      });
+      const { optionCounts, osakra, avgivna } = raknaSvarsalternativ(
+        q.options.map((o) => o.text),
+        answersWithStudent.map((a) => a.value)
+      );
 
-      const total = answersWithStudent.length || 1;
-      for (const [option, count] of Object.entries(counts)) {
-        const pct = Math.round((count / total) * 100);
+      const namnare = avgivna || 1;
+      for (const [option, count] of Object.entries(optionCounts)) {
+        const pct = Math.round((count / namnare) * 100);
         const marker = isQuiz && correctOption?.text === option ? " ✓" : "";
         lines.push(`- ${option}: ${count} svar (${pct}%)${marker}`);
+      }
+      if (osakra > 0) {
+        lines.push(
+          `_Utöver fördelningen: ${osakra} elev${osakra === 1 ? "" : "er"} markerade ` +
+            `"Jag är osäker" i stället för att svara. Det är inte ett fel svar och ingår ` +
+            `inte i procenten ovan._`
+        );
       }
 
       lines.push("");
@@ -105,6 +112,10 @@ export async function GET(
       [...answersWithStudent]
         .sort((a, b) => a.studentNumber - b.studentNumber)
         .forEach((a) => {
+          if (arOsaker(a.value)) {
+            lines.push(`- Elev #${a.studentNumber}: osäker (inget svar avgivet)`);
+            return;
+          }
           const marker = isQuiz ? (a.isCorrect ? " ✓" : " ✗") : "";
           lines.push(`- Elev #${a.studentNumber}: ${a.value}${marker}`);
         });
