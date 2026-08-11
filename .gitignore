@@ -57,3 +57,6 @@ reports/
 
 # Elevdata och lösenordsfiler ska aldrig till GitHub (granskningen 2026-07-03)
 .secrets/
+
+# QA-arbetsmaterial
+.qa/

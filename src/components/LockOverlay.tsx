@@ -143,6 +143,7 @@ export default function LockOverlay({ enabled, onViolationChange }: LockOverlayP
             Avvikelser registreras och visas för läraren.
           </p>
           <button
+            type="button"
             onClick={enterFullscreen}
             className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700"
           >
@@ -173,6 +174,7 @@ export default function LockOverlay({ enabled, onViolationChange }: LockOverlayP
             Antal avvikelser: {violations}
           </p>
           <button
+            type="button"
             onClick={
               warningType === "fullscreen" ? reenterFullscreen : () => setShowWarning(false)
             }

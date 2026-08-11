@@ -23,6 +23,17 @@ const questionConfigSchema = z.union([
   clozeConfigSchema,
 ]);
 
+// Postgres kan inte lagra NUL (0x00) i en textkolumn - hela inlämningen dör
+// med felkod 22021 och elevens svar går förlorat. Tecknet följer med osynligt
+// vid inklistring från vissa PDF-läsare, så det strippas i stället för att
+// avvisas: eleven kan inte hitta ett tecken hen inte kan se.
+const utanNul = (s: string) => s.replace(/\u0000/g, "");
+const elevtext = (max: number, forLangt: string) =>
+  z
+    .string()
+    .transform(utanNul)
+    .pipe(z.string().min(1, "Svar krävs").max(max, forLangt));
+
 export const respondSchema = z.object({
   answers: z
     .array(
@@ -31,7 +42,11 @@ export const respondSchema = z.object({
         // Tomt värde tillåts: formuläret skickar varje visad fråga, även de
         // obesvarade, så att servern kan rätta det tomma som fel i ett prov.
         // Se blank-answer.ts - vad som faktiskt sparas avgörs där, inte här.
-        value: z.string().max(20000, "Svaret är för långt"),
+        // NUL strippas ändå (se elevtext) - tomt är tillåtet, 0x00 är det inte.
+        value: z
+          .string()
+          .transform(utanNul)
+          .pipe(z.string().max(20000, "Svaret är för långt")),
       })
     )
     .min(1, "Minst ett svar krävs"),
@@ -44,7 +59,7 @@ export const courseSettingsSchema = z.object({
 
 export const practiceAttemptSchema = z.object({
   questionId: z.number().int().positive(),
-  value: z.string().min(1, "Svar krävs").max(6000, "Svaret är för långt"),
+  value: elevtext(6000, "Svaret är för långt"),
 });
 
 // Självskattning: 2=Svårt, 3=Bra, 4=Lätt (ts-fsrs Rating). För rätta svar
@@ -273,6 +288,10 @@ export const createStudentsSchema = z
     z.object({
       // Länka nya konton till samma elevnummer i en annan kurs (samma fysiska elev)
       linkCourseId: z.number().int().positive().optional(),
+      // Godkänner uttryckligen att länkningen drar in kurser utöver de två
+      // valda (personKey är en gruppidentitet). Utan den avvisas en sådan
+      // länkning med 409 och en lista över vilka kurser det gäller.
+      confirmLinkedCourses: z.boolean().optional(),
       // Lärarens provkonto: skapas som elev men räknas inte i klassaggregaten
       isTest: z.boolean().optional(),
     })

@@ -68,15 +68,25 @@ export default async function StudentDashboard() {
     }))
   );
 
-  const flaggedData = flaggedQuestions.map((fq) => ({
-    questionId: fq.questionId,
-    text: fq.question.text,
-    type: fq.question.type,
-    topicName: fq.question.topic.name,
-    options: fq.question.options.map((o) => o.text),
-    correctAnswer:
-      fq.question.options.find((o) => o.isCorrect)?.text ?? null,
-  }));
+  // Facit hör till frågor eleven redan svarat på. Flaggning kan ske under
+  // pågående enkät ("Markera som svår"), och POST /api/student/flagged kräver
+  // bara att frågan hör till kursen - utan den här gränsen kan en elev flagga
+  // en fråga i ett låst quiz hen inte skrivit och läsa rätt svar i förväg.
+  const besvaradeFragor = new Set(allRecords.map((r) => r.questionId));
+
+  const flaggedData = flaggedQuestions.map((fq) => {
+    const besvarad = besvaradeFragor.has(fq.questionId);
+    return {
+      questionId: fq.questionId,
+      text: fq.question.text,
+      type: fq.question.type,
+      topicName: fq.question.topic.name,
+      options: besvarad ? fq.question.options.map((o) => o.text) : [],
+      correctAnswer: besvarad
+        ? fq.question.options.find((o) => o.isCorrect)?.text ?? null
+        : null,
+    };
+  });
 
   // Successiv ominlärning: repetitioner som är due plus nya ord som får
   // introduceras idag. Laddningen delas med layouten via React-cachen.

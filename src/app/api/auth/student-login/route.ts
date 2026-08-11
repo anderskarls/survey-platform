@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { createStudentSession, COOKIE_NAME } from "@/lib/student-session";
 import { studentLoginSchema } from "@/lib/validators";
 import { handleApiError } from "@/lib/api-helpers";
-import { rateLimit } from "@/lib/rate-limit";
+import { checkRateLimit, recordFailure, resetRateLimit } from "@/lib/rate-limit";
 import { getClientIp } from "@/lib/client-ip";
 import bcrypt from "bcryptjs";
 
@@ -12,15 +12,19 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { username, password } = studentLoginSchema.parse(body);
 
-    // Rate limit by IP AND by username - 10 attempts per minute on each axis.
-    // Two axes so that IP spoofing doesn't let an attacker brute-force a
-    // single username, and a compromised shared IP can't lock out everyone.
+    // Rate limit by IP AND by username - 10 *misslyckade* försök per minut på
+    // varje axel. Två axlar så att IP-spoofing inte låter en angripare
+    // brute-force:a ett enskilt användarnamn, och en delad IP inte låser ute
+    // alla. Bara misslyckade försök kostar kvot: en hel klass loggar in från
+    // skolans enda utgående IP vid lektionsstart, och de eleverna har gjort
+    // rätt.
     const ip = getClientIp(request.headers);
-    for (const key of [`student-login-ip:${ip}`, `student-login-user:${username}`]) {
-      const { allowed, retryAfterMs } = await rateLimit(key, {
-        maxRequests: 10,
-        windowMs: 60_000,
-      });
+    const limitKeys = [
+      `student-login-ip:${ip}`,
+      `student-login-user:${username}`,
+    ];
+    for (const key of limitKeys) {
+      const { allowed, retryAfterMs } = await checkRateLimit(key, { maxRequests: 10 });
       if (!allowed) {
         return NextResponse.json(
           { error: "För många inloggningsförsök. Försök igen senare." },
@@ -38,11 +42,18 @@ export async function POST(request: NextRequest) {
     });
 
     if (!student || !(await bcrypt.compare(password, student.passwordHash))) {
+      for (const key of limitKeys) {
+        await recordFailure(key, { windowMs: 60_000 });
+      }
       return NextResponse.json(
         { error: "Ogiltigt användarnamn eller lösenord" },
         { status: 401 }
       );
     }
+
+    // Rätt lösenord rensar kontots egen spärr; IP-axeln lämnas orörd så att
+    // en angripare inte kan nolla den med ett konto hen redan kan.
+    await resetRateLimit(`student-login-user:${username}`);
 
     const token = await createStudentSession({
       studentId: student.id,

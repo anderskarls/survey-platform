@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { answerLabel } from "@/lib/blank-answer";
 import { requireCourseAccess } from "@/lib/require-auth";
+import { senasteSvarPerElev } from "@/lib/svarsurval";
 
 // Markdown teacher-report for a whole moment: completion per assignment,
 // per-question breakdown (option counts with the correct one marked for
@@ -44,6 +45,13 @@ export async function GET(
 
   if (!unit || unit.courseId !== cId) {
     return NextResponse.json({ error: "Momentet hittades inte" }, { status: 404 });
+  }
+
+  // Omtag: en elev väger en gång per uppgift, senaste inlämningen gäller.
+  // Utan det här sa rapporten "7 elever har lämnat in" och redovisade
+  // samtidigt en fördelning byggd på nio svarsrader.
+  for (const s of unit.surveys) {
+    s.responses = senasteSvarPerElev(s.responses);
   }
 
   const lines: string[] = [];

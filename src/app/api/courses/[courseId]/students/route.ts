@@ -156,7 +156,15 @@ export async function POST(
       }
     }
 
-    // Länkning: para nya konton med samma elevnummer i länk-kursen via personKey
+    // Länkning: para nya konton med samma elevnummer i länk-kursen via personKey.
+    //
+    // personKey är en gruppidentitet, inte en parkoppling. Att bara återanvända
+    // målkontots nyckel drar därför in varje kurs som redan delar den - även
+    // kurser läraren aldrig valde. Sedan kursväxlaren finns är följden av en
+    // sådan oavsiktlig länkning inte längre blandade övningsfrågor utan full
+    // sessionsåtkomst till den andra elevens konto. Länkningen begränsas därför
+    // till de två kurser läraren pekat ut, och en bredare grupp kräver att
+    // läraren ser vilka kurser det gäller och säger ja.
     const personKeyByNumber = new Map<number, string>();
     const linkUpdates: { id: number; personKey: string }[] = [];
     if (linkCourseId !== undefined) {
@@ -164,6 +172,41 @@ export async function POST(
         where: { courseId: linkCourseId, number: { in: toCreate } },
         select: { id: true, number: true, personKey: true },
       });
+
+      const befintligaNycklar = linkStudents
+        .map((ls) => ls.personKey)
+        .filter((k): k is string => k !== null);
+
+      if (befintligaNycklar.length > 0 && !parsed.confirmLinkedCourses) {
+        // Vilka kurser utanför de två valda skulle dras in på köpet?
+        const utanfor = await prisma.student.findMany({
+          where: {
+            personKey: { in: befintligaNycklar },
+            courseId: { notIn: [cId, linkCourseId] },
+          },
+          select: { number: true, course: { select: { id: true, name: true } } },
+        });
+
+        if (utanfor.length > 0) {
+          const kurser = [
+            ...new Map(utanfor.map((s) => [s.course.id, s.course.name])).values(),
+          ];
+          return NextResponse.json(
+            {
+              error:
+                "Länkningen skulle koppla eleverna till konton i fler kurser än den du valde. " +
+                "Eleverna kan då växla in i de kurserna och se den andra elevens uppgiftsfeedback " +
+                "och resultat. Bekräfta med confirmLinkedCourses om det är avsikten.",
+              extraCourses: kurser,
+              affectedNumbers: [...new Set(utanfor.map((s) => s.number))].sort(
+                (a, b) => a - b
+              ),
+            },
+            { status: 409 }
+          );
+        }
+      }
+
       for (const ls of linkStudents) {
         const key = ls.personKey ?? nanoid(12);
         personKeyByNumber.set(ls.number, key);

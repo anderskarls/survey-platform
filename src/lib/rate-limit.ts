@@ -92,3 +92,49 @@ async function stadaUtgangna(): Promise<void> {
     // Städning är opportunistisk - ett misslyckande ska aldrig störa anropet.
   }
 }
+
+/**
+ * Läser av spärren utan att räkna upp. Används tillsammans med
+ * `recordFailure()` när bara *misslyckade* försök ska kosta kvot - annars
+ * äter en hel klass som loggar in vid lektionsstart upp taket för skolans
+ * enda utgående IP, och de sista eleverna möter 429 fast de gjort rätt.
+ */
+export async function checkRateLimit(
+  key: string,
+  { maxRequests = 10 }: Pick<RateLimitOptions, "maxRequests"> = {}
+): Promise<RateLimitResult> {
+  try {
+    const rows = await prisma.$queryRaw<RateLimitRow[]>`
+      SELECT "count", "resetAt" FROM "RateLimit"
+      WHERE "key" = ${key} AND "resetAt" > (NOW() AT TIME ZONE 'utc')
+    `;
+    const row = rows[0];
+    if (!row || Number(row.count) < maxRequests) {
+      return { allowed: true, retryAfterMs: 0 };
+    }
+    return {
+      allowed: false,
+      retryAfterMs: Math.max(0, row.resetAt.getTime() - Date.now()),
+    };
+  } catch (error) {
+    console.error("[rate-limit] kunde inte läsa spärren, släpper igenom", error);
+    return { allowed: true, retryAfterMs: 0 };
+  }
+}
+
+/** Räknar upp spärren för ett misslyckat försök - samma räknare som rateLimit(). */
+export async function recordFailure(
+  key: string,
+  options: RateLimitOptions = {}
+): Promise<void> {
+  await rateLimit(key, options);
+}
+
+/** Nollställer spärren, t.ex. efter en lyckad inloggning. */
+export async function resetRateLimit(key: string): Promise<void> {
+  try {
+    await prisma.$executeRaw`DELETE FROM "RateLimit" WHERE "key" = ${key}`;
+  } catch (error) {
+    console.error("[rate-limit] kunde inte nollställa spärren", error);
+  }
+}

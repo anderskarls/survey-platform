@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { answerLabel } from "@/lib/blank-answer";
 import { requireSurveyAccess } from "@/lib/require-auth";
+import { senasteSvarPerElev } from "@/lib/svarsurval";
 
 export async function GET(
   request: NextRequest,
@@ -40,6 +41,9 @@ async function getSummary(surveyId: number) {
   if (!survey) {
     return NextResponse.json({ error: "Enkät hittades inte" }, { status: 404 });
   }
+
+  // Omtag: en elev väger en gång, senaste inlämningen gäller
+  survey.responses = senasteSvarPerElev(survey.responses);
 
   const questions = survey.questions.map((sq) => {
     const q = sq.question;
@@ -96,6 +100,9 @@ async function getDetailed(surveyId: number) {
   if (!survey) {
     return NextResponse.json({ error: "Enkät hittades inte" }, { status: 404 });
   }
+
+  // Omtag: en elev väger en gång, senaste inlämningen gäller
+  survey.responses = senasteSvarPerElev(survey.responses);
 
   const isQuiz = survey.mode === "QUIZ";
 

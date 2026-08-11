@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { answerLabel } from "@/lib/blank-answer";
 import { requireCourseAccess } from "@/lib/require-auth";
+import { senasteSvarPerElev } from "@/lib/svarsurval";
 
 export async function GET(
   _request: NextRequest,
@@ -26,7 +27,9 @@ export async function GET(
         },
         orderBy: { order: "asc" },
       },
+      // Lärarens provkonto hör inte till klassens siffror
       responses: {
+        where: { student: { isTest: false } },
         include: {
           student: true,
           answers: true,
@@ -43,6 +46,9 @@ export async function GET(
   if (survey.courseId !== cId) {
     return NextResponse.json({ error: "Enkäten tillhör inte denna kurs" }, { status: 403 });
   }
+
+  // Omtag: en elev väger en gång, senaste inlämningen gäller
+  survey.responses = senasteSvarPerElev(survey.responses);
 
   const isQuiz = survey.mode === "QUIZ";
 

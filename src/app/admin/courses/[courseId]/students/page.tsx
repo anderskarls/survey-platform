@@ -213,7 +213,10 @@ export default function StudentsPage() {
             {linkCourseId && (
               <>
                 {" "}Elevnummer som finns i den länkade kursen kopplas ihop som
-                samma elev - då blandas övningsfrågor från båda kurserna.
+                samma elev. Då delas övningsfrågorna mellan kurserna, och eleven
+                kan växla mellan sina konton utan att logga in igen - alltså se
+                den länkade kursens resultat och uppgiftsfeedback. Kontrollera
+                att elevnumren verkligen är samma personer.
               </>
             )}
           </span>
