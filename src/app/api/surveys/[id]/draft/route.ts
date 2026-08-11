@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getStudentSession } from "@/lib/student-session";
 import { handleApiError } from "@/lib/api-helpers";
 import { isReleased, releaseNotice } from "@/lib/survey-release";
+import { draftSchema } from "@/lib/validators";
 
 export async function GET(
   _request: NextRequest,
@@ -67,12 +68,7 @@ export async function PUT(
       return NextResponse.json({ error: "Ej inloggad" }, { status: 401 });
     }
 
-    const body = await request.json();
-    const answers: Record<string, string> = body.answers;
-
-    if (!answers || typeof answers !== "object") {
-      return NextResponse.json({ error: "Ogiltigt format" }, { status: 400 });
-    }
+    const { answers } = draftSchema.parse(await request.json());
 
     // Verify survey exists and student has access
     const survey = await prisma.survey.findUnique({

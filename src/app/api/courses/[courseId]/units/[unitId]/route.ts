@@ -51,19 +51,63 @@ export async function PATCH(
     return NextResponse.json({ error: "Ogiltig JSON" }, { status: 400 });
   }
 
-  const period =
-    typeof body.period === "string" && body.period.trim() ? body.period.trim() : null;
-  const goals = Array.isArray(body.goals)
-    ? body.goals.map((g) => String(g).trim()).filter(Boolean)
-    : [];
-  const lessons = Array.isArray(body.lessons)
-    ? body.lessons.map(cleanLesson).filter((l): l is LessonPatch => l !== null).sort((a, b) => a.n - b.n)
-    : [];
+  // PATCH är partiell: bara fält som faktiskt finns i kroppen rörs.
+  //
+  // Tidigare byggdes alltid alla tre fälten, med tom lista som default. En
+  // klient som följde openapi.yaml - där inget fält är obligatoriskt - och
+  // bara skickade `period` raderade därmed momentets mål och hela
+  // lektionsplanen, och fick `{"ok":true}` tillbaka. Webb-UI:t skickar alltid
+  // alla tre och drabbades aldrig; risken satt hos CLI:t och MCP:n.
+  const data: {
+    period?: string | null;
+    goals?: string[];
+    lessons?: Prisma.InputJsonValue;
+  } = {};
 
-  await prisma.unit.update({
-    where: { id: uId },
-    data: { period, goals, lessons: lessons as unknown as Prisma.InputJsonValue },
-  });
+  if ("period" in body) {
+    if (body.period !== null && typeof body.period !== "string") {
+      return NextResponse.json(
+        { error: "period måste vara en sträng eller null" },
+        { status: 400 }
+      );
+    }
+    const trimmad = typeof body.period === "string" ? body.period.trim() : "";
+    data.period = trimmad || null;
+  }
 
-  return NextResponse.json({ ok: true });
+  if ("goals" in body) {
+    if (!Array.isArray(body.goals)) {
+      return NextResponse.json(
+        { error: "goals måste vara en lista" },
+        { status: 400 }
+      );
+    }
+    data.goals = body.goals.map((g) => String(g).trim()).filter(Boolean);
+  }
+
+  if ("lessons" in body) {
+    if (!Array.isArray(body.lessons)) {
+      return NextResponse.json(
+        { error: "lessons måste vara en lista" },
+        { status: 400 }
+      );
+    }
+    data.lessons = body.lessons
+      .map(cleanLesson)
+      .filter((l): l is LessonPatch => l !== null)
+      .sort((a, b) => a.n - b.n) as unknown as Prisma.InputJsonValue;
+  }
+
+  const andrade = Object.keys(data);
+  if (andrade.length === 0) {
+    return NextResponse.json(
+      { error: "Inget att uppdatera - ange period, goals eller lessons" },
+      { status: 400 }
+    );
+  }
+
+  await prisma.unit.update({ where: { id: uId }, data });
+
+  // Namnge fälten som faktiskt skrevs, så en klient ser om den tömde något
+  return NextResponse.json({ ok: true, updated: andrade });
 }

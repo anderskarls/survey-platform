@@ -14,6 +14,7 @@ const FILER = [
   ["../../prisma/schema.prisma", "../prisma/schema.prisma"],
   ["../../src/lib/svarsurval.ts", "../src/svarsurval.ts"],
   ["../../src/lib/svarsvarden.ts", "../src/svarsvarden.ts"],
+  ["../../src/lib/kursgrans.ts", "../src/kursgrans.ts"],
 ];
 
 let kopierade = 0;

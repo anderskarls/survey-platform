@@ -34,6 +34,10 @@ const elevtext = (max: number, forLangt: string) =>
     .transform(utanNul)
     .pipe(z.string().min(1, "Svar krävs").max(max, forLangt));
 
+/** Längsta enskilda elevsvar. Utkast och inlämning måste dela tak - se draftSchema. */
+export const SVARSTAK = 20000;
+const FOR_LANGT = `Svaret är för långt (max ${SVARSTAK} tecken)`;
+
 export const respondSchema = z.object({
   answers: z
     .array(
@@ -46,15 +50,40 @@ export const respondSchema = z.object({
         value: z
           .string()
           .transform(utanNul)
-          .pipe(z.string().max(20000, "Svaret är för långt")),
+          .pipe(z.string().max(SVARSTAK, FOR_LANGT)),
       })
     )
-    .min(1, "Minst ett svar krävs"),
+    .min(1, "Minst ett svar krävs")
+    .max(500, "För många svar"),
   lockModeViolations: z.number().int().min(0).max(1000).optional(),
 });
 
 export const courseSettingsSchema = z.object({
   flashcardMode: z.boolean(),
+});
+
+/**
+ * Utkastsparningen körde tidigare ingen validering alls: 8 MB gick rakt in i
+ * databasen och tillbaka in i quizsidan vid laddning. Samtidigt kapade
+ * inlämningen vid SVARSTAK, så eleven som skrivit förbi taket fick
+ * "Valideringsfel" först vid inlämning - utan att förstå vilket svar som var
+ * problemet. Asymmetrin var luckan; taket är därför detsamma.
+ *
+ * Till skillnad från inlämningen får ett utkastsvar vara tomt: eleven har
+ * rensat fältet och ska kunna spara det läget.
+ */
+export const draftSchema = z.object({
+  answers: z
+    .record(
+      z.string().regex(/^\d+$/, "Fråge-id måste vara ett heltal"),
+      z
+        .string()
+        .transform(utanNul)
+        .pipe(z.string().max(SVARSTAK, FOR_LANGT))
+    )
+    .refine((a) => Object.keys(a).length <= 500, {
+      message: "För många svar i utkastet",
+    }),
 });
 
 export const practiceAttemptSchema = z.object({

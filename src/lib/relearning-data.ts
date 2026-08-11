@@ -187,12 +187,17 @@ export async function loadRelearningData(
     register(p.questionId, p.question.topicId, p.question.topic.courseId);
 
   const states = buildRelearningStates(attempts, now);
-  const candidates: PracticeCandidate[] = Array.from(states.keys()).map(
-    (questionId) => ({
+  // Bara frågor ur kurser eleven faktiskt läser. Har en fråga ur en annan kurs
+  // hamnat i en enkät (se src/lib/kursgrans.ts) finns den i FSRS-poolen men
+  // `POST /api/student/practice` 404:ar på den - och eftersom passet läggs med
+  // förfallna kort först fastnade hela passet på den frågan, permanent och
+  // tyst. Kursgränsen stoppar nya fall; det här läker de som redan finns.
+  const candidates: PracticeCandidate[] = Array.from(states.keys())
+    .filter((questionId) => questionInfo.has(questionId))
+    .map((questionId) => ({
       questionId,
       topicId: topicByQuestion.get(questionId) ?? 0,
-    })
-  );
+    }));
 
   // Nya kort: korttypade frågor ur öppnade topics som eleven aldrig mött.
   // Ordningen är topicets namn ("Vecka 01" före "Vecka 02") och därefter
@@ -308,27 +313,29 @@ export async function loadCourseRelearningOverview(
     }),
   ]);
 
-  // Frågemetadata för luck-listan. Måste hämtas från BÅDA hållen: sedan
-  // öppnade topics kan ett ord nå eleven direkt i övningen utan att någonsin
-  // ha besvarats i ett quiz, och i en kurs där veckotesten är luckfrågor
-  // gäller det varje kort. Utan raden nedan stod hela listan som "Fråga 4711".
-  const questionMeta = new Map<number, { text: string; topicName: string }>();
-  for (const a of answers) {
-    if (!questionMeta.has(a.questionId)) {
-      questionMeta.set(a.questionId, {
-        text: a.question.text,
-        topicName: a.question.topic.name,
-      });
-    }
-  }
-  for (const p of practice) {
-    if (!questionMeta.has(p.questionId)) {
-      questionMeta.set(p.questionId, {
-        text: p.question.text,
-        topicName: p.question.topic.name,
-      });
-    }
-  }
+  // Frågemetadata för luck-listan.
+  //
+  // Antagandet "alla poolfrågor har minst ett quiz-svar" håller inte: en
+  // förmågeövning kan ha försök utan att någonsin ha legat i en enkät, och då
+  // stod det "Fråga 3" med tom topic i lärarens topplista - dessutom högt upp,
+  // eftersom listan sorterar på text. Hämtas i stället för hela poolen.
+  //
+  // Kurstillhörigheten följer med av ett andra skäl: har en fråga ur en annan
+  // kurs hamnat i en enkät (se src/lib/kursgrans.ts) dök den upp bland
+  // "Klassens luckor" i fel kurs, med den andra kursens topicnamn.
+  const poolIds = [
+    ...new Set([
+      ...answers.map((a) => a.questionId),
+      ...practice.map((p) => p.questionId),
+    ]),
+  ];
+  const questionRows = await prisma.question.findMany({
+    where: { id: { in: poolIds }, topic: { courseId } },
+    select: { id: true, text: true, topic: { select: { name: true } } },
+  });
+  const questionMeta = new Map(
+    questionRows.map((q) => [q.id, { text: q.text, topicName: q.topic.name }])
+  );
 
   // Försökshistorik per elev
   const attemptsByStudent = new Map<number, AttemptRecord[]>();
@@ -422,13 +429,18 @@ export async function loadCourseRelearningOverview(
   }
 
   const questionGaps: QuestionGapOverview[] = Array.from(gapCounters.entries())
-    .map(([questionId, c]) => ({
-      questionId,
-      text: questionMeta.get(questionId)?.text ?? `Fråga ${questionId}`,
-      topicName: questionMeta.get(questionId)?.topicName ?? "",
-      studentsInLearning: c.studentsInLearning,
-      studentsDue: c.studentsDue,
-    }))
+    // Frågor utanför kursen har ingen metadata och hör inte hemma i listan
+    .filter(([questionId]) => questionMeta.has(questionId))
+    .map(([questionId, c]) => {
+      const meta = questionMeta.get(questionId)!;
+      return {
+        questionId,
+        text: meta.text,
+        topicName: meta.topicName,
+        studentsInLearning: c.studentsInLearning,
+        studentsDue: c.studentsDue,
+      };
+    })
     .sort(
       (a, b) =>
         b.studentsInLearning - a.studentsInLearning ||

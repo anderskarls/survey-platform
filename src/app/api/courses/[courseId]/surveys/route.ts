@@ -5,6 +5,7 @@ import { createSurveySchema } from "@/lib/validators";
 import { handleApiError } from "@/lib/api-helpers";
 import { requireCourseAccess } from "@/lib/require-auth";
 import { z } from "zod";
+import { fragorUtanforKursen } from "@/lib/kursgrans";
 
 export async function GET(
   _request: NextRequest,
@@ -53,16 +54,7 @@ export async function POST(
     const { title, description, mode, lockMode, questionIds } =
       createSurveySchema.parse(body);
 
-    // Validate that all questionIds belong to this course
-    const validQuestions = await prisma.question.findMany({
-      where: {
-        id: { in: questionIds },
-        topic: { courseId: cId },
-      },
-      select: { id: true },
-    });
-    const validIds = new Set(validQuestions.map((q) => q.id));
-    const invalidIds = questionIds.filter((id) => !validIds.has(id));
+    const invalidIds = await fragorUtanforKursen(prisma, cId, questionIds);
     if (invalidIds.length > 0) {
       return NextResponse.json(
         { error: "Vissa frågor tillhör inte denna kurs", invalidIds },

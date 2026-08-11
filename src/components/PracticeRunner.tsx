@@ -571,9 +571,23 @@ export default function PracticeRunner({
         )}
 
         {error && (
-          <p className="text-error text-sm font-medium mt-3" role="alert">
-            {error}
-          </p>
+          <div className="mt-3" role="alert">
+            <p className="text-error text-sm font-medium">{error}</p>
+            {/* Utan den här knappen låser en fråga servern vägrar ta emot hela
+                passet: frågan ligger först i kön och kommer tillbaka vid varje
+                besök. Att hoppa över den kostar inget - kortet står kvar i
+                FSRS-poolen och kommer igen nästa gång. */}
+            <button
+              type="button"
+              onClick={() => {
+                setError("");
+                advance(false);
+              }}
+              className="btn-secondary mt-2 text-sm"
+            >
+              Hoppa över den här frågan
+            </button>
+          </div>
         )}
       </div>
 

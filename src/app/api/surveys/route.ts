@@ -4,6 +4,7 @@ import { generateShareCode } from "@/lib/share-code";
 import { handleApiError } from "@/lib/api-helpers";
 import { requireAdmin, requireAdminScope } from "@/lib/require-auth";
 import { courseScopeWhere } from "@/lib/authz";
+import { fragorUtanforKursen } from "@/lib/kursgrans";
 import { z } from "zod";
 
 const createSurveyWithCourseSchema = z.object({
@@ -42,15 +43,11 @@ export async function POST(request: Request) {
     const authError = await requireAdmin(courseId);
     if (authError) return authError;
 
-    // SurveyQuestion hindrar inte i sig att en fråga ur en annan kurs hamnar
-    // i enkäten. Utan den här kontrollen vore enkäten en väg att läsa frågor
-    // ur kurser man inte når - behörigheten på enkäten skulle inte hjälpa.
-    const frammande = await prisma.question.count({
-      where: { id: { in: questionIds }, topic: { courseId: { not: courseId } } },
-    });
-    if (frammande > 0) {
+    // Samma kursgräns som kursvägen redan hade - se src/lib/kursgrans.ts
+    const invalidIds = await fragorUtanforKursen(prisma, courseId, questionIds);
+    if (invalidIds.length > 0) {
       return NextResponse.json(
-        { error: "Enkäten innehåller frågor som inte tillhör kursen" },
+        { error: "Vissa frågor tillhör inte denna kurs", invalidIds },
         { status: 400 }
       );
     }

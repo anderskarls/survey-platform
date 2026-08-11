@@ -474,7 +474,13 @@ paths:
       operationId: updateUnit
       description: |
         Updates period, learning goals and the lesson outline (titles, notes,
-        recommended dates, week labels). Replaces the lessons array wholesale.
+        recommended dates, week labels).
+
+        Partial: only the fields present in the body are written; omitted
+        fields are left untouched. A field that IS present replaces its value
+        wholesale, so sending `goals: []` clears the goals and sending
+        `lessons` replaces the whole outline. At least one of period, goals or
+        lessons is required. The response names the fields that were written.
       parameters:
         - $ref: "#/components/parameters/CourseId"
         - $ref: "#/components/parameters/UnitId"
@@ -1863,6 +1869,10 @@ components:
 
     UpdateUnitRequest:
       type: object
+      minProperties: 1
+      description: |
+        Only the properties present are written. Omit a property to leave it
+        unchanged; include it to replace its value wholesale.
       properties:
         period:
           type: [string, "null"]

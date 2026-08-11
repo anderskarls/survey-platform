@@ -45,6 +45,10 @@ export default function StudentQuizForm({
   const [quizResults, setQuizResults] = useState<QuizResult[] | null>(null);
   const [flaggedIds, setFlaggedIds] = useState<Set<number>>(new Set());
   const [draftStatus, setDraftStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  // Serverns förklaring när utkastet inte gick att spara. Utan den stod det
+  // bara "Kunde inte spara utkast" medan eleven skrev vidare mot ett tak hen
+  // inte visste fanns - och fick "Valideringsfel" först vid inlämning.
+  const [draftError, setDraftError] = useState("");
   const [draftLoaded, setDraftLoaded] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [lockViolations, setLockViolations] = useState(0);
@@ -87,8 +91,20 @@ export default function StudentQuizForm({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ answers: currentAnswers }),
         });
-        setDraftStatus(res.ok ? "saved" : "error");
+        if (res.ok) {
+          setDraftStatus("saved");
+          setDraftError("");
+          return;
+        }
+        const data = await res.json().catch(() => null);
+        setDraftError(
+          data?.error === "Valideringsfel"
+            ? "Ett av dina svar är för långt för att sparas - korta ner det."
+            : data?.error || ""
+        );
+        setDraftStatus("error");
       } catch {
+        setDraftError("");
         setDraftStatus("error");
       }
     },
@@ -261,7 +277,9 @@ export default function StudentQuizForm({
             {draftStatus === "saving" && "Sparar utkast…"}
             {draftStatus === "saved" && "Utkast sparat"}
             {draftStatus === "error" && (
-              <span className="text-error">Kunde inte spara utkast</span>
+              <span className="text-error">
+                {draftError || "Kunde inte spara utkast"}
+              </span>
             )}
           </div>
         </div>
