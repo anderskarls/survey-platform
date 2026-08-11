@@ -63,6 +63,7 @@ export async function GET(
       id: s.id,
       number: s.number,
       username: s.username,
+      isTest: s.isTest,
       responseCount: s._count.responses,
       linkedCourses: s.personKey
         ? (linkedCoursesByKey.get(s.personKey) ?? [])
@@ -180,6 +181,7 @@ export async function POST(
         passwordHash: await bcrypt.hash(c.password, 12),
         courseId: cId,
         personKey: personKeyByNumber.get(c.number) ?? null,
+        isTest: parsed.isTest ?? false,
       }))
     );
 

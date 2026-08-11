@@ -39,6 +39,7 @@ model Student {
   username     String     @unique
   passwordHash String
   personKey    String?    // samma nyckel = samma fysiska elev i flera kurser
+  isTest       Boolean    @default(false) // lärarens provkonto: räknas inte i klassaggregaten
   courseId      Int
   course       Course     @relation(fields: [courseId], references: [id], onDelete: Cascade)
   createdAt    DateTime   @default(now())

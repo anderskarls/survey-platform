@@ -25,6 +25,17 @@ _Avoid_: Survey (i svensk text), quiz, prov
 Ett FSRS-kort per elev och fråga, härlett ur elevens hela försökshistorik (skarpa quizsvar och övningsförsök). Grunden för all ominlärning.
 _Avoid_: Card, flashcard
 
+**Elevkonto**:
+En elevs inloggning i **en** kurs. En elev som läser två kurser har två elevkonton, bundna till samma fysiska person av en delad personnyckel (`personKey`). Ominlärningen slår ihop kontona; sessionen gäller ett konto i taget.
+_Avoid_: Användare, konto (utan led)
+
+**Kursväxlare**:
+Elevens byte mellan sina egna elevkonton utan ny inloggning. Sessionscookien skrivs om till syskonkontot; kursscopade sidor gäller inte efter bytet, så växlingen landar alltid på elevstartsidan.
+
+**Provkonto**:
+Lärarens eget elevkonto (`isTest`), till för att se kursen med elevens ögon. Det finns i elevlistan men räknas aldrig i klassens aggregat - kampanjens klasstorlek, resultatsammanställningar, momentrapport och övningsöversikt filtrerar bort det. Individflöden (feedback, enskild elevs progress) filtrerar däremot inte, så provkontot kan användas för att testa hela kedjan.
+_Avoid_: Testelev, dummy-konto
+
 ### Klasskampanjen
 
 **Kampanj**:

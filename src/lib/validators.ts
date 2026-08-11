@@ -106,8 +106,14 @@ export const createStudentsSchema = z
     z.object({
       // Länka nya konton till samma elevnummer i en annan kurs (samma fysiska elev)
       linkCourseId: z.number().int().positive().optional(),
+      // Lärarens provkonto: skapas som elev men räknas inte i klassaggregaten
+      isTest: z.boolean().optional(),
     })
   );
+
+export const studentSwitchSchema = z.object({
+  courseId: z.number().int().positive(),
+});
 
 export const submitPracticeFeedbackSchema = z.object({
   feedbacks: z

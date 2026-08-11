@@ -23,7 +23,8 @@ export async function GET(
   const unit = await prisma.unit.findUnique({
     where: { id: uId },
     include: {
-      course: { include: { students: true } },
+      // Lärarens provkonto hör inte till klassens siffror
+      course: { include: { students: { where: { isTest: false } } } },
       surveys: {
         orderBy: { createdAt: "asc" },
         include: {
@@ -31,7 +32,10 @@ export async function GET(
             include: { question: { include: { options: true } } },
             orderBy: { order: "asc" },
           },
-          responses: { include: { student: true, answers: true } },
+          responses: {
+            where: { student: { isTest: false } },
+            include: { student: true, answers: true },
+          },
         },
       },
     },

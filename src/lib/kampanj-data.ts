@@ -48,7 +48,7 @@ export async function loadKampanjView(
     }),
     prisma.answer.findMany({
       where: {
-        response: { student: { courseId } },
+        response: { student: { courseId, isTest: false } },
         question: { type: "MULTIPLE_CHOICE" },
       },
       select: {
@@ -58,7 +58,7 @@ export async function loadKampanjView(
       },
     }),
     prisma.practiceAttempt.findMany({
-      where: { student: { courseId } },
+      where: { student: { courseId, isTest: false } },
       select: {
         studentId: true,
         questionId: true,

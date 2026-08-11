@@ -25,7 +25,8 @@ export default async function CourseProgressPage({
   const [course, students, surveys] = await Promise.all([
     prisma.course.findUnique({ where: { id: cId } }),
     prisma.student.findMany({
-      where: { courseId: cId },
+      // Lärarens provkonto hör inte till klassens siffror
+      where: { courseId: cId, isTest: false },
       orderBy: { number: "asc" },
       select: { id: true, number: true, username: true },
     }),

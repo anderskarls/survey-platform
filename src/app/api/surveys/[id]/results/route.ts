@@ -31,7 +31,8 @@ async function getSummary(surveyId: number) {
         include: { question: { include: { options: true } } },
         orderBy: { order: "asc" },
       },
-      responses: { include: { answers: true } },
+      // Lärarens provkonto hör inte till klassens siffror
+      responses: { where: { student: { isTest: false } }, include: { answers: true } },
     },
   });
 
@@ -84,7 +85,10 @@ async function getDetailed(surveyId: number) {
         include: { question: { include: { options: true } } },
         orderBy: { order: "asc" },
       },
-      responses: { include: { student: true, answers: true } },
+      responses: {
+        where: { student: { isTest: false } },
+        include: { student: true, answers: true },
+      },
     },
   });
 

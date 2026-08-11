@@ -12,7 +12,7 @@ export default async function StudentLayout({
   children: React.ReactNode;
 }) {
   const session = await getStudentSession();
-  const [unreadFeedback, course, practiceDue] = await Promise.all([
+  const [unreadFeedback, course, practice] = await Promise.all([
     session
       ? prisma.assignmentFeedback.count({ where: { studentId: session.studentId, readAt: null } })
       : Promise.resolve(0),
@@ -20,10 +20,13 @@ export default async function StudentLayout({
       ? prisma.course.findUnique({ where: { id: session.courseId }, select: { name: true } })
       : Promise.resolve(null),
     session
-      ? loadRelearningData(session.studentId).then(
-          (d) => summarizeStates(d.states).due
-        )
-      : Promise.resolve(0),
+      ? loadRelearningData(session.studentId).then((d) => ({
+          due: summarizeStates(d.states).due,
+          // Elevens övriga kurser (samma personKey) - underlag för kursväxlaren.
+          // Redan upplösta här, så växlaren kostar ingen extra fråga.
+          accounts: d.accounts,
+        }))
+      : Promise.resolve({ due: 0, accounts: [] }),
   ]);
 
   return (
@@ -38,7 +41,12 @@ export default async function StudentLayout({
         courseName={course?.name ?? "Min kurs"}
         studentNumber={session?.studentNumber}
         unreadFeedback={unreadFeedback}
-        practiceDue={practiceDue}
+        practiceDue={practice.due}
+        currentCourseId={session?.courseId}
+        courses={practice.accounts.map((a) => ({
+          courseId: a.courseId,
+          courseName: a.courseName,
+        }))}
       />
       <main id="main-content" className="flex-1 p-4 md:p-8">
         <div className="max-w-3xl mx-auto">{children}</div>

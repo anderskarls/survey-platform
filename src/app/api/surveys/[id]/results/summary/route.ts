@@ -22,7 +22,11 @@ export async function GET(
         include: { question: { include: { options: true } } },
         orderBy: { order: "asc" },
       },
-      responses: { include: { student: true, answers: true } },
+      // Lärarens provkonto hör inte till klassens siffror
+      responses: {
+        where: { student: { isTest: false } },
+        include: { student: true, answers: true },
+      },
     },
   });
 

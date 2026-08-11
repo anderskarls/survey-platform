@@ -198,7 +198,8 @@ export async function loadCourseRelearningOverview(
   const [answers, practice] = await Promise.all([
     prisma.answer.findMany({
       where: {
-        response: { student: { courseId } },
+        // Lärarens provkonto hör inte till klassens siffror
+        response: { student: { courseId, isTest: false } },
         question: { type: "MULTIPLE_CHOICE" },
       },
       select: {
@@ -211,7 +212,7 @@ export async function loadCourseRelearningOverview(
       },
     }),
     prisma.practiceAttempt.findMany({
-      where: { student: { courseId } },
+      where: { student: { courseId, isTest: false } },
       select: {
         studentId: true,
         questionId: true,

@@ -9,9 +9,13 @@ interface Student {
   id: number;
   number: number;
   username: string;
+  isTest: boolean;
   responseCount: number;
   linkedCourses: string[];
 }
+
+// Lärarens provkonto får ett nummer långt ovanför en verklig klasslista
+const TEST_STUDENT_NUMBER = 99;
 
 interface CourseOption {
   id: number;
@@ -34,6 +38,8 @@ export default function StudentsPage() {
   const [credentials, setCredentials] = useState<Credential[] | null>(null);
   const [otherCourses, setOtherCourses] = useState<CourseOption[]>([]);
   const [linkCourseId, setLinkCourseId] = useState("");
+  const [testLinkCourseId, setTestLinkCourseId] = useState("");
+  const [addingTest, setAddingTest] = useState(false);
 
   const loadStudents = useCallback(async () => {
     try {
@@ -100,6 +106,39 @@ export default function StudentsPage() {
       showToast("Kunde inte lägga till elever", "error");
     } finally {
       setAdding(false);
+    }
+  }
+
+  async function handleAddTestAccount() {
+    setAddingTest(true);
+    try {
+      const res = await fetch(`/api/courses/${courseId}/students`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          number: TEST_STUDENT_NUMBER,
+          isTest: true,
+          ...(testLinkCourseId ? { linkCourseId: Number(testLinkCourseId) } : {}),
+        }),
+      });
+      if (!res.ok) {
+        showToast("Kunde inte skapa provkontot", "error");
+        return;
+      }
+      const data = await res.json();
+      if (data.credentials?.length > 0) {
+        setCredentials(data.credentials);
+      } else {
+        showToast(`Elev #${TEST_STUDENT_NUMBER} finns redan i kursen`, "error");
+      }
+      if (data.linked > 0) {
+        showToast("Provkontot länkat - kursväxlaren når nu båda kurserna", "success");
+      }
+      loadStudents();
+    } catch {
+      showToast("Kunde inte skapa provkontot", "error");
+    } finally {
+      setAddingTest(false);
     }
   }
 
@@ -180,6 +219,47 @@ export default function StudentsPage() {
         </form>
       </div>
 
+      <div className="card p-4 mb-6">
+        <h2 className="font-semibold mb-1">Provkonto</h2>
+        <p className="text-xs text-muted mb-3 max-w-2xl">
+          Ett elevkonto åt dig själv (elev #{TEST_STUDENT_NUMBER}) som du loggar in på
+          för att se kursen med elevens ögon. Det räknas inte in i klassens siffror -
+          varken i kampanjen, resultatsammanställningarna eller övningsöversikten.
+          Länka det mot en kurs där du redan har ett provkonto, så kan du byta kurs
+          direkt i elevens sidomeny utan att logga ut.
+        </p>
+        <div className="flex flex-wrap items-end gap-3">
+          {otherCourses.length > 0 && (
+            <div>
+              <label htmlFor="test-link-course" className="block text-sm font-semibold mb-1">
+                Länka mot kurs
+              </label>
+              <select
+                id="test-link-course"
+                value={testLinkCourseId}
+                onChange={(e) => setTestLinkCourseId(e.target.value)}
+                className="input-field"
+              >
+                <option value="">Ingen länkning</option>
+                {otherCourses.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={handleAddTestAccount}
+            disabled={addingTest}
+            className="btn-secondary"
+          >
+            {addingTest ? "Skapar..." : `Skapa provkonto (elev #${TEST_STUDENT_NUMBER})`}
+          </button>
+        </div>
+      </div>
+
       {credentials && (
         <div className="bg-warning-light border border-warning/20 rounded-xl p-4 mb-6 animate-scale-in">
           <div className="flex items-center justify-between mb-3">
@@ -245,7 +325,14 @@ export default function StudentsPage() {
             <tbody>
               {students.map((s) => (
                 <tr key={s.id} className="border-b border-border-light last:border-0 hover:bg-surface-muted/50 transition-colors">
-                  <td className="p-4 font-semibold">#{s.number}</td>
+                  <td className="p-4 font-semibold">
+                    #{s.number}
+                    {s.isTest && (
+                      <span className="ml-2 align-middle rounded-full bg-accent-light text-accent-hover border border-accent/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider">
+                        Provkonto
+                      </span>
+                    )}
+                  </td>
                   <td className="p-4 font-mono text-muted text-sm">{s.username}</td>
                   <td className="p-4 text-muted">{s.responseCount}</td>
                   <td className="p-4 text-muted text-sm">
