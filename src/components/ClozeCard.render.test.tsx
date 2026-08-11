@@ -13,6 +13,7 @@ const card = {
   text: "Her ___ on the whole group was obvious.",
   type: "CLOZE_CARD",
   options: [],
+  sorting: null,
   answer: "influence",
   cloze: { hint: "Inflytande / Påverkan" },
 };

@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import FlagButton from "@/components/FlagButton";
 import { flashcardLabel } from "@/lib/flashcard";
 import { arOsaker } from "@/lib/svarsvarden";
+import type { SortingItemResult } from "@/lib/formaga";
 
 interface Score {
   correct: number;
@@ -11,7 +12,7 @@ interface Score {
   percentage: number;
 }
 
-interface QuizResult {
+export interface QuizResult {
   answerId?: number | null;
   questionId: number;
   questionText: string;
@@ -21,6 +22,8 @@ interface QuizResult {
   correctAnswer: string | null;
   /** Luckfråga: fel svar som bara var några bokstäver bort. */
   nearMiss?: boolean;
+  /** SORTING: rättning per item, satt i stället för yourAnswer/correctAnswer */
+  sorting?: SortingItemResult[] | null;
 }
 
 interface QuizResultsDisplayProps {
@@ -91,7 +94,30 @@ export default function QuizResultsDisplay({
                 <span className="font-semibold text-sm">{i + 1}.</span>
                 <div className="flex-1">
                   <p className="font-medium text-sm mb-1">{r.questionText}</p>
-                  {isUnsure ? (
+                  {r.sorting ? (
+                    <ul className="text-sm space-y-1 mt-1">
+                      {r.sorting.map((item) => (
+                        <li key={item.text}>
+                          <span className="text-muted">{item.text}:</span>{" "}
+                          <span
+                            className={
+                              item.isCorrect
+                                ? "text-success font-semibold"
+                                : "text-muted"
+                            }
+                          >
+                            {item.chosen ?? "inget val"}
+                          </span>
+                          {!item.isCorrect && (
+                            <span className="text-success">
+                              {" "}
+                              → {item.correct}
+                            </span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : isUnsure ? (
                     <p className="text-sm text-accent">
                       Du markerade att du var osäker - bra att du var ärlig!
                     </p>
@@ -127,7 +153,7 @@ export default function QuizResultsDisplay({
                       Nästan! Rätt ord - men kolla stavningen.
                     </p>
                   )}
-                  {(r.isCorrect === false || isUnsure) && r.correctAnswer && (
+                  {!r.sorting && (r.isCorrect === false || isUnsure) && r.correctAnswer && (
                     <p className="text-sm text-success">
                       Det rätta svaret: <span className="font-semibold">{r.correctAnswer}</span>
                     </p>

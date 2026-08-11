@@ -2,10 +2,9 @@ import { prisma } from "@/lib/prisma";
 import { notFound, redirect } from "next/navigation";
 import SurveyForm from "@/components/SurveyForm";
 import { getStudentSession } from "@/lib/student-session";
-import { toClientClozeConfig } from "@/lib/cloze";
-import { cardBack } from "@/lib/flashcard";
 import { isReleased, releaseNotice } from "@/lib/survey-release";
 import Link from "next/link";
+import { toEnkatFraga } from "@/lib/enkatfraga";
 
 export const dynamic = "force-dynamic";
 
@@ -64,17 +63,7 @@ export default async function PublicSurveyPage({
     mode: survey.mode,
     lockMode: survey.lockMode,
     flashcard,
-    questions: survey.questions.map((sq) => ({
-      id: sq.question.id,
-      text: sq.question.text,
-      type: sq.question.type,
-      options: sq.question.options.map((o) => o.text),
-      // Baksidan följer med för kort - i vanliga enkäter får facit aldrig
-      // nå klienten före svaret. Se cardBack.
-      answer: cardBack(sq.question, flashcard),
-      // Luckfrågans ledtråd. Facit stannar på servern - se toClientClozeConfig.
-      cloze: toClientClozeConfig(sq.question.type, sq.question.config),
-    })),
+    questions: survey.questions.map((sq) => toEnkatFraga(sq.question, flashcard)),
   };
 
   return (

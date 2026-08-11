@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { requireSurveyAccess } from "@/lib/require-auth";
 import { CSV_BOM, toCsv } from "@/lib/csv-export";
 import { arOsaker } from "@/lib/svarsvarden";
+import { formateraSorteringssvar } from "@/lib/formaga";
+import { senasteSvarPerElev } from "@/lib/svarsurval";
 
 export async function GET(
   _request: NextRequest,
@@ -37,6 +39,11 @@ export async function GET(
     return new Response("Enkät hittades inte", { status: 404 });
   }
 
+  // Omtag: en rad per elev, senaste inlämningen gäller. Utan det får CSV:n två
+  // rader för samma elevnummer och varje medelvärde läraren bygger i
+  // kalkylarket väger den eleven dubbelt - samma skada som provkontots rad.
+  survey.responses = senasteSvarPerElev(survey.responses);
+
   const questions = survey.questions.map((sq) => sq.question);
 
   // CSV header (Avvikelser-kolumnen endast för lockMode-quiz)
@@ -52,7 +59,12 @@ export async function GET(
     const answerMap = new Map(
       // Sentinelvärdet för "Jag är osäker" är intern kod - skriv ut det som text
       // i den fil läraren öppnar i kalkylark
-      r.answers.map((a) => [a.questionId, arOsaker(a.value) ? "osäker" : a.value])
+      r.answers.map((a) => [
+        a.questionId,
+        arOsaker(a.value)
+          ? "osäker"
+          : formateraSorteringssvar(a.value) ?? a.value,
+      ])
     );
     return [
       r.student.number,

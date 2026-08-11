@@ -4,6 +4,14 @@ import { answerLabel } from "@/lib/blank-answer";
 import { requireSurveyAccess } from "@/lib/require-auth";
 import { senasteSvarPerElev } from "@/lib/svarsurval";
 import { raknaSvarsalternativ } from "@/lib/svarsvarden";
+import { formateraSorteringssvar } from "@/lib/formaga";
+
+// Ett sorteringssvar är JSON i databasen. Läraren ska läsa "Ångmaskinen:
+// Teknik", inte datastrukturen.
+function lasbart(value: string): string {
+  return formateraSorteringssvar(value) ?? value;
+}
+
 
 export async function GET(
   request: NextRequest,
@@ -66,7 +74,7 @@ async function getSummary(surveyId: number) {
       id: q.id,
       text: q.text,
       type: q.type,
-      textResponses: questionAnswers.map((a) => a.value),
+      textResponses: questionAnswers.map((a) => lasbart(a.value)),
       answeredBy,
     };
   });
@@ -148,11 +156,11 @@ async function getDetailed(surveyId: number) {
       id: q.id,
       text: q.text,
       type: q.type,
-      textResponses: answersWithStudent.map((a) => a.value),
+      textResponses: answersWithStudent.map((a) => lasbart(a.value)),
       answeredBy,
       studentAnswers: answersWithStudent.map((a) => ({
         studentNumber: a.studentNumber,
-        value: a.value,
+        value: lasbart(a.value),
       })),
     };
   });

@@ -32,6 +32,27 @@ function sameAnswers(
   return incoming.every((a) => savedMap.get(a.questionId) === a.value);
 }
 import { arOsaker } from "@/lib/svarsvarden";
+import {
+  gradeSorting,
+  sortingConfigSchema,
+  sortingPlacementsSchema,
+  type SortingResult,
+} from "@/lib/formaga";
+
+/** Rättar ett sorteringssvar; null om frågan eller svaret inte går att tolka */
+function rattaSortering(config: unknown, value: string): SortingResult | null {
+  const parsedConfig = sortingConfigSchema.safeParse(config);
+  if (!parsedConfig.success) return null;
+  let rått: unknown;
+  try {
+    rått = JSON.parse(value);
+  } catch {
+    return null;
+  }
+  const placements = sortingPlacementsSchema.safeParse(rått);
+  if (!placements.success) return null;
+  return gradeSorting(parsedConfig.data, placements.data);
+}
 
 export async function POST(
   request: NextRequest,
@@ -162,6 +183,11 @@ export async function POST(
           const correctOption = sq.question.options.find((o) => o.isCorrect);
           isCorrect = correctOption ? a.value === correctOption.text : null;
         }
+      } else if (sq && sq.question.type === "SORTING") {
+        // Rättas som helhet: alla items rätt = rätt svar. Samma regel som
+        // förmågeträningen använder, så en sorteringsfråga inte betyder olika
+        // saker beroende på vilket flöde eleven mötte den i.
+        isCorrect = rattaSortering(sq.question.config, a.value)?.allCorrect ?? null;
       }
       return [{ questionId: a.questionId, value: a.value, isCorrect, grade }];
     });
@@ -247,6 +273,12 @@ export async function POST(
         // Fel svar som bara var några bokstäver bort - eleven kan ordet men
         // inte stavningen, och det är en annan sak att säga till hen.
         nearMiss: cloze?.nearMiss ?? false,
+        // Sorteringssvaret är JSON - utan rättningen per item skulle eleven få
+        // sin egen råa datastruktur uppläst som "ditt svar"
+        sorting:
+          sq?.question.type === "SORTING"
+            ? rattaSortering(sq.question.config, a.value)?.perItem ?? null
+            : null,
       };
     });
 

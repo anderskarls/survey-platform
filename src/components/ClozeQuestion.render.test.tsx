@@ -13,6 +13,7 @@ const question = {
   text: "Her ___ on the whole group was obvious.",
   type: "CLOZE",
   options: [],
+  sorting: null,
   cloze: { hint: "Inflytande / Påverkan" },
 };
 

@@ -74,6 +74,28 @@ export interface SortingResult {
   allCorrect: boolean;
 }
 
+/**
+ * Ett sparat sorteringssvar som läsbar text.
+ *
+ * `Answer.value` bär placeringarna som JSON. Överallt där ett elevsvar visas
+ * som text - elevens resultatsida, lärarens resultatvy, CSV-exporten - skulle
+ * det annars bli den råa datastrukturen på skärmen. Returnerar null om värdet
+ * inte är ett sorteringssvar, så anropsplatsen kan falla tillbaka på värdet.
+ */
+export function formateraSorteringssvar(value: string): string | null {
+  let rått: unknown;
+  try {
+    rått = JSON.parse(value);
+  } catch {
+    return null;
+  }
+  const placements = sortingPlacementsSchema.safeParse(rått);
+  if (!placements.success) return null;
+  const rader = Object.entries(placements.data);
+  if (rader.length === 0) return null;
+  return rader.map(([item, kategori]) => `${item}: ${kategori}`).join(" · ");
+}
+
 export function gradeSorting(
   config: SortingConfig,
   placements: SortingPlacements

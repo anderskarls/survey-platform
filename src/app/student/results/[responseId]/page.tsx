@@ -5,6 +5,7 @@ import Link from "next/link";
 import FeedbackDisplay from "@/components/FeedbackButton";
 import { flashcardLabel } from "@/lib/flashcard";
 import { arOsaker } from "@/lib/svarsvarden";
+import { formateraSorteringssvar } from "@/lib/formaga";
 
 export default async function ResultDetailPage({
   params,
@@ -87,6 +88,10 @@ export default async function ResultDetailPage({
           const isFreeText = answer.question.type === "FREE_TEXT";
           // Flashcard: värdet är elevens egen skattning, inte ett valt svar
           const rating = flashcardLabel(answer.value);
+          const sorteringssvar =
+            answer.question.type === "SORTING"
+              ? formateraSorteringssvar(answer.value)
+              : null;
 
           return (
             <div
@@ -131,7 +136,7 @@ export default async function ResultDetailPage({
                             : ""
                       }`}
                     >
-                      {answer.value}
+                      {sorteringssvar ?? answer.value}
                     </span>
                   </p>
                 )}

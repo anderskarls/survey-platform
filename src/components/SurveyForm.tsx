@@ -2,12 +2,12 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import QuestionRenderer from "@/components/QuestionRenderer";
-import QuizResultsDisplay from "@/components/QuizResultsDisplay";
+import QuizResultsDisplay, { type QuizResult } from "@/components/QuizResultsDisplay";
 import ProgressBar from "@/components/ProgressBar";
 import LockOverlay from "@/components/LockOverlay";
-import type { ClientClozeConfig } from "@/lib/cloze";
 import { enterKeyAction } from "@/lib/form-enter";
 import { submissionAnswers } from "@/lib/blank-answer";
+import type { EnkatFraga } from "@/lib/enkatfraga";
 
 interface SurveyData {
   id: number;
@@ -17,25 +17,7 @@ interface SurveyData {
   lockMode: boolean;
   /** Kursen kör flashcardläge: flervalsfrågor visas som Anki-kort */
   flashcard?: boolean;
-  questions: {
-    id: number;
-    text: string;
-    type: string;
-    options: string[];
-    answer?: string | null;
-    /** Luckfrågans ledtråd - facit ingår aldrig. */
-    cloze?: ClientClozeConfig | null;
-  }[];
-}
-
-interface QuizResult {
-  answerId?: number | null;
-  questionId: number;
-  questionText: string;
-  questionType?: string;
-  yourAnswer: string;
-  isCorrect: boolean | null;
-  correctAnswer: string | null;
+  questions: EnkatFraga[];
 }
 
 interface Score {

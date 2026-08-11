@@ -172,3 +172,24 @@ export function questionCreateData(
         : undefined,
   };
 }
+
+// --- CSV-export ---
+
+/**
+ * Tecken som gör att Excel och Google Kalkylark tolkar cellen som en formel.
+ * `+` och `-` täcker även telefonnummerlika svar; `\t` och `\r` är med för att
+ * de kan smyga in i början av ett inklistrat elevsvar.
+ */
+const FORMELSTART = /^[=+\-@\t\r]/;
+
+export function escCsv(val: unknown): string {
+  let s = String(val ?? "");
+  // Fritextsvar är elevtext, aldrig formler. Exporten öppnas i kalkylark -
+  // det är hela poängen med BOM:en - så ett svar som börjar med "=" kördes
+  // förut som formel när läraren öppnade filen. Ett inledande apostrof-tecken
+  // är kalkylarkens egen konvention för "det här är text".
+  if (FORMELSTART.test(s)) s = `'${s}`;
+  return s.includes(",") || s.includes('"') || s.includes("\n") || s.includes("\r")
+    ? `"${s.replace(/"/g, '""')}"`
+    : s;
+}

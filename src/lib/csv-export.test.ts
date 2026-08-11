@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { escapeCsvCell, toCsv } from "./csv-export";
+import { formateraSorteringssvar } from "./formaga";
 
 describe("escapeCsvCell", () => {
   it("lämnar vanlig text orörd", () => {
@@ -53,5 +54,21 @@ describe("toCsv", () => {
       [4, "ja, precis"],
     ]);
     expect(csv).toBe('Elevnummer,Svar\r\n3,\'=2+2\r\n4,"ja, precis"');
+  });
+});
+
+describe("formateraSorteringssvar", () => {
+  it("gör ett sparat sorteringssvar läsbart", () => {
+    expect(
+      formateraSorteringssvar('{"Skotten i Sarajevo":"Orsak","Versaillesfreden":"Konsekvens"}')
+    ).toBe("Skotten i Sarajevo: Orsak · Versaillesfreden: Konsekvens");
+  });
+
+  it("ger null för värden som inte är sorteringssvar", () => {
+    expect(formateraSorteringssvar("Ett vanligt fritextsvar")).toBeNull();
+    expect(formateraSorteringssvar("1815")).toBeNull();
+    expect(formateraSorteringssvar("{}")).toBeNull();
+    expect(formateraSorteringssvar('["a","b"]')).toBeNull();
+    expect(formateraSorteringssvar('{"a":1}')).toBeNull();
   });
 });

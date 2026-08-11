@@ -8,9 +8,8 @@ import {
 } from "@/lib/question-progress";
 import { getRelearningData } from "@/lib/relearning-data";
 import StudentQuizForm from "@/components/StudentQuizForm";
+import { toEnkatFraga } from "@/lib/enkatfraga";
 import Link from "next/link";
-import { toClientClozeConfig } from "@/lib/cloze";
-import { cardBack } from "@/lib/flashcard";
 import { isReleased } from "@/lib/survey-release";
 
 export default async function StudentQuizPage({
@@ -87,17 +86,7 @@ export default async function StudentQuizPage({
   const flashcard = survey.course.flashcardMode;
   const remainingQuestions = survey.questions
     .filter((sq) => remainingSet.has(sq.questionId))
-    .map((sq) => ({
-      id: sq.questionId,
-      text: sq.question.text,
-      type: sq.question.type,
-      options: sq.question.options.map((o) => o.text),
-      // Baksidan skickas bara för kort, där eleven ändå ska vända kortet.
-      // I vanliga quiz får facit aldrig lämna servern före svaret.
-      answer: cardBack(sq.question, flashcard),
-      // Luckfrågans ledtråd. Facit stannar på servern - se toClientClozeConfig.
-      cloze: toClientClozeConfig(sq.question.type, sq.question.config),
-    }));
+    .map((sq) => toEnkatFraga(sq.question, flashcard));
 
   if (remainingQuestions.length === 0) {
     redirect("/student");

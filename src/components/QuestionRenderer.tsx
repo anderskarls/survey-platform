@@ -4,22 +4,12 @@ import { useState } from "react";
 import FlagButton from "@/components/FlagButton";
 import ClozeCardFace from "@/components/ClozeCardFace";
 import { FLASHCARD_RATINGS, rendersAsCard } from "@/lib/flashcard";
-import { splitAtGap, type ClientClozeConfig } from "@/lib/cloze";
+import { splitAtGap } from "@/lib/cloze";
+import SortingBoard from "@/components/SortingBoard";
 import { OSAKER, arOsaker } from "@/lib/svarsvarden";
+import type { EnkatFraga } from "@/lib/enkatfraga";
 
-interface Question {
-  id: number;
-  text: string;
-  type: string;
-  options: string[];
-  /**
-   * Kortets baksida: det rätta alternativet i flashcardläge, ordet som
-   * fyller luckan för CLOZE_CARD. Null för allt som inte är ett kort.
-   */
-  answer?: string | null;
-  /** Luckfrågans ledtråd. Facit ingår aldrig - det stannar på servern. */
-  cloze?: ClientClozeConfig | null;
-}
+type Question = EnkatFraga;
 
 interface QuestionRendererProps {
   questions: Question[];
@@ -215,6 +205,22 @@ function ClozeQuestion({
   );
 }
 
+/**
+ * Sorteringssvaret bärs som JSON i samma `answers`-map som övriga svar, så att
+ * utkastsparning, inlämning och validering inte behöver en egen väg för typen.
+ */
+function lasPlaceringar(value: string | undefined): Record<string, string> {
+  if (!value) return {};
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? (parsed as Record<string, string>)
+      : {};
+  } catch {
+    return {};
+  }
+}
+
 export default function QuestionRenderer({
   questions,
   answers,
@@ -308,6 +314,28 @@ export default function QuestionRenderer({
             <p className="text-sm text-muted">
               Den här frågan övas i förmågeträningen och kan inte besvaras här.
             </p>
+          ) : q.type === "SORTING" ? (
+            q.sorting ? (
+              <SortingBoard
+                items={q.sorting.items}
+                categories={q.sorting.categories}
+                placements={lasPlaceringar(answers[q.id])}
+                onPlace={(item, cat) =>
+                  onAnswer(
+                    q.id,
+                    JSON.stringify({
+                      ...lasPlaceringar(answers[q.id]),
+                      [item]: cat,
+                    })
+                  )
+                }
+              />
+            ) : (
+              <p className="text-sm text-error">
+                Den här sorteringsuppgiften är felaktigt uppsatt och går inte att
+                visa. Säg till din lärare - du kan hoppa över den.
+              </p>
+            )
           ) : q.type === "REFLECTION" ? (
             <div>
               <p className="text-sm text-muted mb-2">

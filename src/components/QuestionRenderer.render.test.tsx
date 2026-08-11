@@ -18,6 +18,7 @@ const question = {
     "Konflikt / Motsättning",
   ],
   answer: "Attityd / Inställning",
+  sorting: null,
 };
 
 function render(props: Partial<Parameters<typeof QuestionRenderer>[0]> = {}) {
