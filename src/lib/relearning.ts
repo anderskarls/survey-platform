@@ -76,15 +76,50 @@ function sortAttempts(attempts: AttemptRecord[]): AttemptRecord[] {
     .map((x) => x.a);
 }
 
+/**
+ * Behåller dagens FÖRSTA försök per kalenderdag och släpper resten.
+ *
+ * Bara den första framplockningen en given dag är en äkta framplockning -
+ * därefter har eleven sett facit, och ett nytt svar mäter igenkänning, inte
+ * minne. Omkörningen i passet finns kvar som inlärning (och sparas i
+ * databasen), men den kan inte förlänga intervallet eller lyfta en missad
+ * fråga till "behärskad". Standardpraxis i spacing-litteraturen och samma
+ * princip som gör att skarpa quiz och övningspass samma dag inte kan
+ * dubbelräknas mot varandra.
+ *
+ * Förutsätter kronologiskt sorterad indata.
+ */
+function firstAttemptPerDay(sorted: AttemptRecord[]): AttemptRecord[] {
+  const seenDays = new Set<string>();
+  return sorted.filter((a) => {
+    const day = dayKey(a.createdAt);
+    if (seenDays.has(day)) return false;
+    seenDays.add(day);
+    return true;
+  });
+}
+
+/**
+ * Har frågan redan ett försök den här kalenderdagen? Då är dagen avräknad -
+ * nästa svar samma dag är en omkörning som inte påverkar schemat.
+ */
+export function hasAttemptOnDay(
+  attempts: AttemptRecord[],
+  day: Date = new Date()
+): boolean {
+  const target = dayKey(day);
+  return attempts.some((a) => dayKey(a.createdAt) === target);
+}
+
 export interface ReplayedCard {
   card: Card;
   lastGrade: Grade;
 }
 
-/** Foldar hela försökshistoriken genom FSRS till dagens kortstatus */
+/** Foldar försökshistoriken (dagens första försök per dag) genom FSRS */
 export function replayCard(attempts: AttemptRecord[]): ReplayedCard | null {
   if (attempts.length === 0) return null;
-  const sorted = sortAttempts(attempts);
+  const sorted = firstAttemptPerDay(sortAttempts(attempts));
   let card = createEmptyCard(sorted[0].createdAt);
   let lastGrade: Grade = Rating.Good;
   for (const a of sorted) {

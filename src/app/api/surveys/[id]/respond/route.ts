@@ -4,6 +4,25 @@ import { respondSchema } from "@/lib/validators";
 import { handleApiError } from "@/lib/api-helpers";
 import { getStudentSession } from "@/lib/student-session";
 
+/**
+ * Så länge räknas ett identiskt svarspaket som samma inlämning.
+ * Täcker dubbelklick och elevens retry efter en nätverkstimeout - båda
+ * skapade förr dubbla Response-rader som dubbelräknades i momentrapporter
+ * och i FSRS-replayen. Avsiktliga omkörningar ligger alltid långt utanför
+ * fönstret (och har i praktiken andra svar), så de påverkas inte.
+ */
+const IDEMPOTENCY_WINDOW_MS = 2 * 60 * 1000;
+
+/** Samma frågor med samma värden = samma inlämning (ordning spelar ingen roll) */
+function sameAnswers(
+  saved: { questionId: number; value: string }[],
+  incoming: { questionId: number; value: string }[]
+): boolean {
+  if (saved.length !== incoming.length) return false;
+  const savedMap = new Map(saved.map((a) => [a.questionId, a.value]));
+  return incoming.every((a) => savedMap.get(a.questionId) === a.value);
+}
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -90,14 +109,31 @@ export async function POST(
       return { questionId: a.questionId, value: a.value, isCorrect };
     });
 
-    const response = await prisma.response.create({
-      data: {
+    // Idempotensskydd: har eleven nyss lämnat in exakt samma svar på samma
+    // enkät, returnera den befintliga inlämningen i stället för att skapa en
+    // ny. Utan detta blev ett dubbelklick - eller elevens naturliga retry
+    // efter ett timeout-fel - två inlämningar i statistiken.
+    const recent = await prisma.response.findFirst({
+      where: {
         surveyId,
         studentId: session.studentId,
-        lockModeViolations: survey.lockMode ? lockModeViolations ?? 0 : 0,
-        answers: { create: answerData },
+        createdAt: { gte: new Date(Date.now() - IDEMPOTENCY_WINDOW_MS) },
       },
+      orderBy: { createdAt: "desc" },
+      include: { answers: { select: { questionId: true, value: true } } },
     });
+    const duplicate = recent !== null && sameAnswers(recent.answers, answerData);
+
+    const response = duplicate
+      ? recent
+      : await prisma.response.create({
+          data: {
+            surveyId,
+            studentId: session.studentId,
+            lockModeViolations: survey.lockMode ? lockModeViolations ?? 0 : 0,
+            answers: { create: answerData },
+          },
+        });
 
     // Delete any draft for this student+survey
     await prisma.draftResponse.deleteMany({
@@ -144,11 +180,12 @@ export async function POST(
       {
         success: true,
         responseId: response.id,
+        duplicate,
         score,
         quizResults: isQuiz ? results : null,
         surveyResults: !isQuiz ? results : null,
       },
-      { status: 201 }
+      { status: duplicate ? 200 : 201 }
     );
   } catch (error) {
     return handleApiError(error);

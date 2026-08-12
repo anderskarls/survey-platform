@@ -36,6 +36,13 @@ interface AttemptResult {
   /** Fritextövning: eleven sätter hela betyget själv efter exempelsvaren */
   selfAssess: boolean;
   appliedGrade: number;
+  /**
+   * Styr det här svaret schemat? False = frågan är redan avräknad idag
+   * (omkörning i passet, eller ett skarpt quiz tidigare på dagen). Svaret
+   * sparas och frågan kan läggas tillbaka i kön, men nästa repetition
+   * flyttas inte - därför visas inga dagsetiketter på knapparna.
+   */
+  schedulesToday: boolean;
   nextDueDays: number | null;
   mastered: boolean;
   intervals: { again: number; hard: number; good: number; easy: number };
@@ -47,6 +54,38 @@ interface Props {
 
 function inDays(days: number): string {
   return days <= 1 ? "imorgon" : `om ${days} dagar`;
+}
+
+/**
+ * Dagsetiketten under en betygsknapp. Visas bara när svaret faktiskt styr
+ * schemat - på en omkörning vore den ett löfte appen inte håller.
+ */
+function IntervalHint({
+  show,
+  days,
+  muted = true,
+}: {
+  show: boolean;
+  days: number;
+  muted?: boolean;
+}) {
+  if (!show) return null;
+  return (
+    <span className={muted ? "text-xs text-muted" : "text-xs opacity-80"}>
+      {inDays(days)}
+    </span>
+  );
+}
+
+/** Förklarar varför omkörningen inte flyttar fram nästa repetition */
+function RerunNote({ show }: { show: boolean }) {
+  if (!show) return null;
+  return (
+    <p className="text-xs text-muted mt-2 text-center">
+      Du har redan mött frågan idag - det här svaret hjälper dig att lära, men
+      det är första gången varje dag som avgör när frågan återkommer.
+    </p>
+  );
 }
 
 export default function PracticeRunner({ questions }: Props) {
@@ -404,7 +443,7 @@ export default function PracticeRunner({ questions }: Props) {
                 className="btn-secondary py-3 flex flex-col items-center"
               >
                 <span className="font-semibold">Svårt</span>
-                <span className="text-xs text-muted">{inDays(result.intervals.hard)}</span>
+                <IntervalHint show={result.schedulesToday} days={result.intervals.hard} />
               </button>
               <button
                 onClick={() => handleGrade(3)}
@@ -412,7 +451,11 @@ export default function PracticeRunner({ questions }: Props) {
                 className="btn-primary py-3 flex flex-col items-center"
               >
                 <span className="font-semibold">Bra</span>
-                <span className="text-xs opacity-80">{inDays(result.intervals.good)}</span>
+                <IntervalHint
+                  show={result.schedulesToday}
+                  days={result.intervals.good}
+                  muted={false}
+                />
               </button>
               <button
                 onClick={() => handleGrade(4)}
@@ -420,36 +463,44 @@ export default function PracticeRunner({ questions }: Props) {
                 className="btn-secondary py-3 flex flex-col items-center"
               >
                 <span className="font-semibold">Lätt</span>
-                <span className="text-xs text-muted">{inDays(result.intervals.easy)}</span>
+                <IntervalHint show={result.schedulesToday} days={result.intervals.easy} />
               </button>
             </div>
+            <RerunNote show={!result.schedulesToday} />
           </div>
         ) : result.isCorrect === true ? (
-          <div className="grid grid-cols-3 gap-2">
-            <button
-              onClick={() => handleGrade(2)}
-              disabled={grading}
-              className="btn-secondary py-3 flex flex-col items-center"
-            >
-              <span className="font-semibold">Svårt</span>
-              <span className="text-xs text-muted">{inDays(result.intervals.hard)}</span>
-            </button>
-            <button
-              onClick={() => handleGrade(3)}
-              disabled={grading}
-              className="btn-primary py-3 flex flex-col items-center"
-            >
-              <span className="font-semibold">Bra</span>
-              <span className="text-xs opacity-80">{inDays(result.intervals.good)}</span>
-            </button>
-            <button
-              onClick={() => handleGrade(4)}
-              disabled={grading}
-              className="btn-secondary py-3 flex flex-col items-center"
-            >
-              <span className="font-semibold">Lätt</span>
-              <span className="text-xs text-muted">{inDays(result.intervals.easy)}</span>
-            </button>
+          <div>
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                onClick={() => handleGrade(2)}
+                disabled={grading}
+                className="btn-secondary py-3 flex flex-col items-center"
+              >
+                <span className="font-semibold">Svårt</span>
+                <IntervalHint show={result.schedulesToday} days={result.intervals.hard} />
+              </button>
+              <button
+                onClick={() => handleGrade(3)}
+                disabled={grading}
+                className="btn-primary py-3 flex flex-col items-center"
+              >
+                <span className="font-semibold">Bra</span>
+                <IntervalHint
+                  show={result.schedulesToday}
+                  days={result.intervals.good}
+                  muted={false}
+                />
+              </button>
+              <button
+                onClick={() => handleGrade(4)}
+                disabled={grading}
+                className="btn-secondary py-3 flex flex-col items-center"
+              >
+                <span className="font-semibold">Lätt</span>
+                <IntervalHint show={result.schedulesToday} days={result.intervals.easy} />
+              </button>
+            </div>
+            <RerunNote show={!result.schedulesToday} />
           </div>
         ) : (
           <button onClick={() => advance(true)} className="btn-primary w-full py-3">

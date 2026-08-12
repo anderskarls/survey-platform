@@ -66,7 +66,9 @@ export default function SurveyForm({ survey }: { survey: SurveyData }) {
           for (const [key, value] of Object.entries(data.draft.answers)) {
             loaded[Number(key)] = value as string;
           }
-          setAnswers(loaded);
+          // Merga UNDER det eleven redan hunnit skriva. Ett rakt setAnswers
+          // raderade tidigare färska svar när fetchen löste sent (segt wifi).
+          setAnswers((prev) => ({ ...loaded, ...prev }));
           setDraftLoaded(true);
         }
       })

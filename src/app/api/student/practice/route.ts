@@ -7,6 +7,7 @@ import { resolveLinkedAccounts } from "@/lib/relearning-data";
 import {
   AttemptRecord,
   buildQuestionState,
+  hasAttemptOnDay,
   previewIntervals,
 } from "@/lib/relearning";
 import {
@@ -152,6 +153,13 @@ export async function POST(request: NextRequest) {
     const history = await loadQuestionHistory(questionId, ownerStudentId);
     const intervals = previewIntervals(history, now);
 
+    // Bara dagens första försök styr schemat (se firstAttemptPerDay i
+    // relearning.ts). Har frågan redan besvarats idag - i ett skarpt quiz
+    // eller tidigare i passet - är det här en omkörning: den sparas och
+    // lägger tillbaka frågan i kön, men flyttar inte fram nästa repetition.
+    // Klienten döljer intervallöftena när flaggan är false.
+    const schedulesToday = !hasAttemptOnDay(history, now);
+
     // Defaultbetyg: rätt -> Bra, fel/osäker -> Om igen. Fritext -> Bra som
     // neutral default tills elevens självskattning justerar via PATCH.
     const appliedGrade =
@@ -193,6 +201,7 @@ export async function POST(request: NextRequest) {
         exemplars: exemplars.success ? exemplars.data : null,
         selfAssess: fritext,
         appliedGrade,
+        schedulesToday,
         nextDueDays: state?.daysUntilDue ?? null,
         mastered: state?.mastered ?? false,
         intervals: {
