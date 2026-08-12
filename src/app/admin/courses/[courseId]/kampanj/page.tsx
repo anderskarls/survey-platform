@@ -1,25 +1,10 @@
 import { notFound } from "next/navigation";
 import { loadKampanjView } from "@/lib/kampanj-data";
 import type { SectorState } from "@/lib/kampanj";
+import { ARKIV, MONO, SANS, SERIF } from "@/lib/arkiv";
+import { FrontKarta } from "@/components/FrontKarta";
 
 export const dynamic = "force-dynamic";
-
-// Arkiv v2.1-tokens - vyn är elevriktad projektorgrafik och följer
-// designsystemet, inte adminappens tema
-const ARKIV = {
-  papper: "#F4EDE1",
-  papper2: "#EBE1CF",
-  black: "#1F1A15",
-  black2: "#4A3F33",
-  regel: "#2A221A",
-  bordeaux: "#7A2E2E",
-  marin: "#2C3E55",
-  oliv: "#5A6A3A",
-  ocker: "#B8862F",
-};
-const SERIF = '"Cormorant Garamond", Georgia, "Times New Roman", serif';
-const SANS = '"Inter Tight", "Inter", system-ui, sans-serif';
-const MONO = '"JetBrains Mono", ui-monospace, monospace';
 
 const dateFormatter = new Intl.DateTimeFormat("sv-SE", {
   timeZone: "Europe/Stockholm",
@@ -56,129 +41,6 @@ function riktning(s: SectorState): { tecken: string; farg: string } {
   return s.deltaPosition > 0
     ? { tecken: "▲", farg: ARKIV.oliv }
     : { tecken: "▼", farg: ARKIV.bordeaux };
-}
-
-// SVG-geometri: sektorer som kolumner, fronten som stegad linje
-const MAP_W = 1000;
-const MAP_H = 380;
-const MAP_TOP = 28;
-const MAP_BOTTOM = MAP_H - 44;
-
-function yForPosition(position: number): number {
-  return MAP_BOTTOM - ((MAP_BOTTOM - MAP_TOP) * position) / 100;
-}
-
-function FrontKarta({ sectors }: { sectors: SectorState[] }) {
-  const colW = MAP_W / sectors.length;
-
-  return (
-    <svg
-      viewBox={`0 0 ${MAP_W} ${MAP_H}`}
-      role="img"
-      aria-label="Frontkarta över sektorerna"
-      style={{ width: "100%", height: "auto", display: "block" }}
-    >
-      <defs>
-        <pattern
-          id="dimma"
-          width="10"
-          height="10"
-          patternTransform="rotate(45)"
-          patternUnits="userSpaceOnUse"
-        >
-          <rect width="10" height="10" fill={ARKIV.papper2} />
-          <line x1="0" y1="0" x2="0" y2="10" stroke={ARKIV.black2} strokeWidth="1.2" strokeOpacity="0.35" />
-        </pattern>
-      </defs>
-
-      <rect x="0" y="0" width={MAP_W} height={MAP_H} fill={ARKIV.papper} />
-
-      {sectors.map((s, i) => {
-        const x = i * colW;
-        if (s.dimma && s.position === null) {
-          return (
-            <g key={s.key}>
-              <rect x={x} y={MAP_TOP} width={colW} height={MAP_BOTTOM - MAP_TOP} fill="url(#dimma)" />
-            </g>
-          );
-        }
-        const y = yForPosition(s.position ?? 0);
-        return (
-          <g key={s.key}>
-            {/* Hållen terräng under fronten */}
-            <rect
-              x={x}
-              y={y}
-              width={colW}
-              height={MAP_BOTTOM - y}
-              fill={ARKIV.oliv}
-              fillOpacity={s.dimma ? 0.12 : 0.22}
-            />
-            {s.dimma && (
-              <rect x={x} y={MAP_TOP} width={colW} height={MAP_BOTTOM - MAP_TOP} fill="url(#dimma)" fillOpacity={0.7} />
-            )}
-            {/* Frontlinjen i sektorn */}
-            <line
-              x1={x + 4}
-              y1={y}
-              x2={x + colW - 4}
-              y2={y}
-              stroke={s.dimma ? ARKIV.black2 : ARKIV.bordeaux}
-              strokeWidth={s.dimma ? 3 : 6}
-              strokeDasharray={s.dimma ? "10 8" : undefined}
-              strokeLinecap="round"
-            />
-            <text
-              x={x + colW / 2}
-              y={y - 12}
-              textAnchor="middle"
-              fontFamily={MONO}
-              fontSize="20"
-              fontWeight="bold"
-              fill={ARKIV.black}
-            >
-              {s.position}
-            </text>
-          </g>
-        );
-      })}
-
-      {/* Sektorgränser och ram */}
-      {sectors.map((s, i) =>
-        i === 0 ? null : (
-          <line
-            key={`grans-${s.key}`}
-            x1={i * colW}
-            y1={MAP_TOP}
-            x2={i * colW}
-            y2={MAP_BOTTOM}
-            stroke={ARKIV.regel}
-            strokeWidth="1"
-            strokeOpacity="0.4"
-            strokeDasharray="2 6"
-          />
-        )
-      )}
-      <line x1="0" y1={MAP_TOP} x2={MAP_W} y2={MAP_TOP} stroke={ARKIV.regel} strokeWidth="1.5" />
-      <line x1="0" y1={MAP_BOTTOM} x2={MAP_W} y2={MAP_BOTTOM} stroke={ARKIV.regel} strokeWidth="1.5" />
-
-      {/* Sektornamn */}
-      {sectors.map((s, i) => (
-        <text
-          key={`namn-${s.key}`}
-          x={i * colW + colW / 2}
-          y={MAP_H - 16}
-          textAnchor="middle"
-          fontFamily={MONO}
-          fontSize="15"
-          letterSpacing="1.5"
-          fill={ARKIV.black2}
-        >
-          {s.name.toUpperCase().slice(0, Math.floor(colW / 9))}
-        </text>
-      ))}
-    </svg>
-  );
 }
 
 export default async function KampanjPage({
@@ -228,7 +90,41 @@ export default async function KampanjPage({
 
       <FrontKarta sectors={report.sectors} />
 
-      <section style={{ marginTop: "2rem" }}>
+      <ul
+        style={{
+          listStyle: "none",
+          display: "flex",
+          flexWrap: "wrap",
+          gap: "0.4rem 1.6rem",
+          margin: "0.9rem 0 0",
+          padding: 0,
+          fontFamily: MONO,
+          fontSize: "0.78rem",
+          letterSpacing: "1px",
+          textTransform: "uppercase",
+          color: ARKIV.black2,
+        }}
+      >
+        <li>
+          <span style={{ color: ARKIV.bordeaux, fontWeight: "bold" }}>▬</span> frontlinjen
+        </li>
+        <li>
+          <span style={{ color: ARKIV.oliv }}>▨</span> avtäckt karta = hållen terräng
+        </li>
+        <li>
+          <span style={{ color: ARKIV.black2 }}>┄</span> läget vid förra rapporten
+        </li>
+        <li>
+          <span style={{ color: ARKIV.oliv }}>▲</span> återtagen mark ·{" "}
+          <span style={{ color: ARKIV.bordeaux }}>▼</span> förlorad
+        </li>
+        <li>
+          <span style={{ color: ARKIV.black2 }}>▧</span> krigsdimma - för få rapporter
+        </li>
+        <li>0-100 = andel kort i schema</li>
+      </ul>
+
+      <section style={{ marginTop: "1.6rem" }}>
         <h2
           style={{
             fontFamily: MONO,
