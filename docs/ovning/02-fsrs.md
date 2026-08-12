@@ -30,7 +30,20 @@ Ingen kortstatus persisteras. Varje frågas FSRS-kort byggs vid läsning genom a
 - **Källor:** skarpa quiz-svar (`Answer` + `Response.createdAt`) och övningsförsök (`PracticeAttempt`). Skarpa quiz påverkar därmed schemat automatiskt utan synk-kod.
 - **Betygsmappning:** `PracticeAttempt.grade` (1-4, ts-fsrs `Rating`) om satt; annars härlett: rätt -> Bra (3), fel/"Jag är inte säker"/orättbar -> Om igen (1). Täcker både quiz-svar (har aldrig grade) och övningsförsök från streak-eran (grade NULL).
 - **Tie-break** vid identisk tidsstämpel: quiz-svar före övningsförsök, sedan insättningsordning. Deterministiskt.
+- **En avräkning per dag** (tillagt 2026-08-12): bara dagens FÖRSTA försök per fråga foldas genom schemaläggaren (`firstAttemptPerDay`). Övriga försök samma kalenderdag sparas i databasen och syns i lärarstatistiken, men de kan varken förlänga intervallet eller lyfta en missad fråga till behärskad.
 - Länkade konton (`Student.personKey`) fungerar oförändrat: varje fråga hör till exakt en kurs och försöket bokförs på kontot i frågans kurs.
+
+### Varför bara första försöket per dag
+
+Bara den första framplockningen en given dag mäter minne. Därefter har eleven sett facit, och ett nytt svar mäter igenkänning - att låta det förlänga intervallet vore att belöna omstudie som om den vore framplockning. Regeln stänger tre vägar samtidigt:
+
+1. Fel -> se facit -> svara rätt i omkörningen -> självskatta "Lätt" (den grövsta: en miss förvandlas till ett långt intervall).
+2. Skarpt quiz och övningspass samma dag som dubbelräknas mot varandra.
+3. Upprepade omkörningar i samma pass som staplar stabilitetslyft.
+
+Omkörningen i passet (ett av v2:s låsta designval) är oförändrad som *inlärningsmoment* - frågan läggs fortfarande tillbaka i kön tills den besvarats rätt. Det som togs bort är dess effekt på schemat. Klienten får flaggan `schedulesToday` i POST-svaret och döljer dagsetiketterna på betygsknapparna när den är false, så appen aldrig lovar ett intervall den inte tänker hålla; en kort rad förklarar för eleven varför.
+
+Regressionsskydd: `src/lib/relearning.test.ts` (9 tester, varav 4 failar om regeln tas bort).
 
 ## Tvåfas-API (`/api/student/practice`)
 
