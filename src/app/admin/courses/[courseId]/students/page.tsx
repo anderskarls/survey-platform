@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { useToast } from "@/components/Toast";
+import { CSV_BOM, toCsv } from "@/lib/csv-export";
 
 interface Student {
   id: number;
@@ -153,11 +154,11 @@ export default function StudentsPage() {
 
   function handleDownloadCsv() {
     if (!credentials) return;
-    const csv = [
-      "Elevnummer,Användarnamn,Lösenord",
-      ...credentials.map((c) => `${c.number},${c.username},${c.password}`),
-    ].join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const csv = toCsv([
+      ["Elevnummer", "Användarnamn", "Lösenord"],
+      ...credentials.map((c) => [c.number, c.username, c.password]),
+    ]);
+    const blob = new Blob([CSV_BOM + csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;

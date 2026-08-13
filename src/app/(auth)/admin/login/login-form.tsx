@@ -28,7 +28,11 @@ export default function LoginForm() {
       });
 
       if (result?.error) {
-        setError("Fel e-post eller lösenord.");
+        setError(
+          result.code === "rate_limit"
+            ? "För många inloggningsförsök. Vänta tio minuter och försök igen."
+            : "Fel e-post eller lösenord."
+        );
       } else {
         router.push(callbackUrl);
         router.refresh();

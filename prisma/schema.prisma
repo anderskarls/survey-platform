@@ -222,3 +222,14 @@ model AssignmentFeedback {
 
   @@index([studentId, createdAt])
 }
+
+// Delad rate limit-raknare. Ligger i databasen for att serverless-instanser
+// inte delar minne - se src/lib/rate-limit.ts. Raderna ar kortlivade och
+// stadas opportunistiskt.
+model RateLimit {
+  key     String   @id
+  count   Int
+  resetAt DateTime
+
+  @@index([resetAt])
+}

@@ -2,13 +2,7 @@ import { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/require-auth";
-
-function escCsv(val: unknown): string {
-  const s = String(val ?? "");
-  return s.includes(",") || s.includes('"') || s.includes("\n")
-    ? `"${s.replace(/"/g, '""')}"`
-    : s;
-}
+import { CSV_BOM, toCsv } from "@/lib/csv-export";
 
 export async function GET(
   _request: NextRequest,
@@ -64,15 +58,10 @@ export async function GET(
     ];
   });
 
-  const csvContent = [
-    headers.map(escCsv).join(","),
-    ...rows.map((row) => row.map(escCsv).join(",")),
-  ].join("\r\n");
+  // Elevsvaren kommer fran eleverna sjalva - toCsv neutraliserar formler
+  const csvContent = toCsv([headers, ...rows]);
 
-  // BOM for Excel UTF-8 compatibility
-  const bom = "\uFEFF";
-
-  return new Response(bom + csvContent, {
+  return new Response(CSV_BOM + csvContent, {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
       "Content-Disposition": `attachment; filename="enkat-${survey.id}-resultat.csv"`,
