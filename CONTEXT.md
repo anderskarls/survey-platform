@@ -36,6 +36,10 @@ Elevens byte mellan sina egna elevkonton utan ny inloggning. Sessionscookien skr
 Lärarens eget elevkonto (`isTest`), till för att se kursen med elevens ögon. Det finns i elevlistan men räknas aldrig i klassens aggregat - kampanjens klasstorlek, resultatsammanställningar, momentrapport och övningsöversikt filtrerar bort det. Individflöden (feedback, enskild elevs progress) filtrerar däremot inte, så provkontot kan användas för att testa hela kedjan.
 _Avoid_: Testelev, dummy-konto
 
+**Lärarvy**:
+Läraren inne i elevvyn via provkontot, öppnad från adminvyn utan elevlösenord. Adminsessionen ligger kvar parallellt, så vägen tillbaka är en länk. Bara provkonton går att öppna den här vägen - en riktig elevs konto är aldrig åtkomligt för läraren.
+_Avoid_: Impersonering, inloggning som elev
+
 ### Klasskampanjen
 
 **Kampanj**:

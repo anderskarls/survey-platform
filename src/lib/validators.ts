@@ -115,6 +115,11 @@ export const studentSwitchSchema = z.object({
   courseId: z.number().int().positive(),
 });
 
+// Lärarens väg in i elevvyn (adminvyns "Visa som elev")
+export const studentImpersonateSchema = z.object({
+  courseId: z.number().int().positive(),
+});
+
 export const submitPracticeFeedbackSchema = z.object({
   feedbacks: z
     .array(

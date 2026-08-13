@@ -47,6 +47,7 @@ export default async function StudentLayout({
           courseId: a.courseId,
           courseName: a.courseName,
         }))}
+        impersonated={session?.impersonated ?? false}
       />
       <main id="main-content" className="flex-1 p-4 md:p-8">
         <div className="max-w-3xl mx-auto">{children}</div>

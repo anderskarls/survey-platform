@@ -56,6 +56,9 @@ export async function POST(request: NextRequest) {
       studentId: target.id,
       studentNumber: target.number,
       courseId: target.courseId,
+      // Läraren som gled in från adminvyn ska fortsätta vara i lärarläge
+      // efter ett kursbyte - annars tappar hen vägen tillbaka till admin.
+      impersonated: session.impersonated,
     });
 
     const response = NextResponse.json({

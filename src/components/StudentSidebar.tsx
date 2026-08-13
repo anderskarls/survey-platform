@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import BaseSidebar from "@/components/BaseSidebar";
 
 interface CourseOption {
@@ -16,6 +17,8 @@ interface StudentSidebarProps {
   currentCourseId?: number;
   /** Elevens alla kurser (samma personKey). Växlaren visas först vid fler än en. */
   courses?: CourseOption[];
+  /** Läraren tittar via provkontot - visa vem hen är och vägen tillbaka. */
+  impersonated?: boolean;
 }
 
 function CourseSwitcher({
@@ -83,6 +86,7 @@ export default function StudentSidebar({
   practiceDue,
   currentCourseId,
   courses = [],
+  impersonated = false,
 }: StudentSidebarProps) {
   const links = [
     { href: "/student", label: "Hem", exact: true },
@@ -110,9 +114,24 @@ export default function StudentSidebar({
         <div className="border-t border-white/15 pt-4">
           {studentNumber != null && (
             <div className="px-3 mb-3">
-              <div className="text-[10px] uppercase tracking-wider text-white/50">Inloggad</div>
+              <div className="text-[10px] uppercase tracking-wider text-white/50">
+                {impersonated ? "Lärarvy" : "Inloggad"}
+              </div>
               <div className="text-sm font-medium">Elev #{studentNumber}</div>
+              {impersonated && (
+                <div className="text-[10px] leading-snug text-white/45 mt-0.5">
+                  Provkontot - det du gör här räknas inte i klassens siffror
+                </div>
+              )}
             </div>
+          )}
+          {impersonated && currentCourseId != null && (
+            <Link
+              href={`/admin/courses/${currentCourseId}`}
+              className="block px-3 py-2.5 rounded-lg text-sm text-white/75 hover:bg-sidebar-hover hover:text-white transition-all"
+            >
+              &larr; Tillbaka till adminvyn
+            </Link>
           )}
           <form action="/api/student/logout" method="POST">
             <button

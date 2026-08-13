@@ -15,6 +15,12 @@ interface StudentSession {
   studentId: number;
   studentNumber: number;
   courseId: number;
+  /**
+   * Satt när läraren gled in i elevvyn från adminvyn i stället för att logga
+   * in med elevlösenord. Styr bara vad elevvyn visar (banner + vägen tillbaka)
+   * - sessionen i övrigt är en vanlig elevsession, för det är hela poängen.
+   */
+  impersonated?: boolean;
 }
 
 export async function createStudentSession(session: StudentSession): Promise<string> {
@@ -36,6 +42,7 @@ export async function getStudentSession(): Promise<StudentSession | null> {
       studentId: payload.studentId as number,
       studentNumber: payload.studentNumber as number,
       courseId: payload.courseId as number,
+      impersonated: payload.impersonated === true,
     };
   } catch {
     return null;
