@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { createQuestionSchema } from "@/lib/validators";
 import { handleApiError } from "@/lib/api-helpers";
 import { requireAdmin } from "@/lib/require-auth";
+import { questionListInclude } from "@/lib/question-edit";
 
 export async function GET(request: NextRequest) {
   const authError = await requireAdmin();
@@ -24,7 +25,7 @@ export async function GET(request: NextRequest) {
 
   const questions = await prisma.question.findMany({
     where,
-    include: { options: true, topic: true },
+    include: questionListInclude,
     orderBy: { id: "desc" },
   });
   return NextResponse.json(questions);

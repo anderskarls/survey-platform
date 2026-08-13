@@ -77,6 +77,68 @@ export const createQuestionSchema = z.object({
   exemplars: exemplarsSchema.optional(),
 });
 
+// Alternativ som redan finns skickas med sitt id - då kan texten ändras utan
+// att kopplingen till elevernas lagrade svar tappas. Utan id skapas ett nytt.
+const questionOptionInputSchema = z.object({
+  id: z.number().int().positive().optional(),
+  text: z
+    .string()
+    .min(1, "Alternativtext krävs")
+    .max(500)
+    .transform((s) => s.trim()),
+  isCorrect: z.boolean().optional().default(false),
+});
+
+export const updateQuestionSchema = z
+  .object({
+    text: z
+      .string()
+      .min(1, "Frågetext krävs")
+      .max(1000)
+      .transform((s) => s.trim())
+      .optional(),
+    type: z.enum(["MULTIPLE_CHOICE", "FREE_TEXT", "REFLECTION", "SORTING"]).optional(),
+    topicId: z.number().int().positive().optional(),
+    options: z.array(questionOptionInputSchema).max(10).optional(),
+    subskill: z.enum(SUBSKILLS).nullable().optional(),
+    config: sortingConfigSchema.optional(),
+    exemplars: exemplarsSchema.optional(),
+    // Lärarens kvittering av att tidigare elevsvar rättas om.
+    confirmRegrade: z.boolean().optional().default(false),
+  })
+  .superRefine((data, ctx) => {
+    const changed = [
+      data.text,
+      data.type,
+      data.topicId,
+      data.options,
+      data.subskill,
+      data.config,
+      data.exemplars,
+    ].some((v) => v !== undefined);
+    if (!changed) {
+      ctx.addIssue({ code: "custom", message: "Inget att uppdatera" });
+    }
+    if (!data.options) return;
+    const texts = data.options.map((o) => o.text);
+    if (new Set(texts).size !== texts.length) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["options"],
+        message: "Alternativen måste ha olika text",
+      });
+    }
+    if (data.options.filter((o) => o.isCorrect).length > 1) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["options"],
+        message: "Bara ett alternativ kan vara rätt svar",
+      });
+    }
+  });
+
+export type UpdateQuestionInput = z.infer<typeof updateQuestionSchema>;
+
 export const importCsvSchema = z.object({
   csvContent: z.string().min(1, "CSV-innehåll krävs").max(1_000_000, "CSV-filen är för stor (max 1MB)"),
 });

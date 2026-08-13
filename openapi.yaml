@@ -604,6 +604,57 @@ paths:
           $ref: "#/components/responses/Unauthorized"
 
   /api/courses/{courseId}/questions/{questionId}:
+    patch:
+      tags: [questions]
+      summary: Update a question, migrating existing student answers
+      description: >
+        Answers store the option text, not an option id, so renaming an option
+        rewrites the stored answers in the same transaction. Moving the correct
+        answer, removing an option or changing the question type re-grades
+        earlier answers and therefore requires confirmRegrade when the question
+        already has answers or practice attempts; without it the endpoint
+        returns 409 with requiresConfirmation. FSRS scheduling (grade) is left
+        untouched.
+      operationId: updateQuestion
+      parameters:
+        - $ref: "#/components/parameters/CourseId"
+        - $ref: "#/components/parameters/QuestionId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateQuestionRequest"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UpdateQuestionResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Confirmation required before earlier answers are re-graded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                  requiresConfirmation:
+                    type: boolean
+                  answers:
+                    type: integer
+                  practiceAttempts:
+                    type: integer
     delete:
       tags: [questions]
       summary: Delete a question
@@ -1463,6 +1514,84 @@ components:
             $ref: "#/components/schemas/Option"
         topic:
           $ref: "#/components/schemas/Topic"
+
+    UpdateQuestionRequest:
+      type: object
+      description: At least one field besides confirmRegrade must be present
+      properties:
+        text:
+          type: string
+          minLength: 1
+          maxLength: 1000
+        type:
+          $ref: "#/components/schemas/QuestionType"
+        topicId:
+          type: integer
+          minimum: 1
+          description: Must be a topic in the same course
+        options:
+          type: array
+          maxItems: 10
+          description: >
+            Full option set for MULTIPLE_CHOICE. Keep an existing option by
+            sending its id; omit the id to add a new one; leave an option out to
+            remove it. Texts must be unique and at most one may be correct.
+          items:
+            type: object
+            required: [text]
+            properties:
+              id:
+                type: integer
+                minimum: 1
+              text:
+                type: string
+                minLength: 1
+                maxLength: 500
+              isCorrect:
+                type: boolean
+                default: false
+        subskill:
+          type: string
+          nullable: true
+        config:
+          type: object
+          description: SORTING configuration (categories and items)
+        exemplars:
+          type: array
+          items:
+            type: object
+        confirmRegrade:
+          type: boolean
+          default: false
+          description: Confirms that earlier answers may be re-graded
+
+    UpdateQuestionResponse:
+      type: object
+      required: [question, impact]
+      properties:
+        question:
+          $ref: "#/components/schemas/Question"
+        impact:
+          type: object
+          description: What the change did to stored answers
+          properties:
+            renamedOptions:
+              type: integer
+            removedOptions:
+              type: integer
+            addedOptions:
+              type: integer
+            migratedAnswers:
+              type: integer
+            migratedAttempts:
+              type: integer
+            orphanedAnswers:
+              type: integer
+              description: Answers whose option no longer exists
+            regradedAnswers:
+              type: integer
+            regradedAttempts:
+              type: integer
 
     CreateQuestionRequest:
       type: object

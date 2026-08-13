@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { Fragment, useState, useEffect, useCallback } from "react";
 import { useToast } from "@/components/Toast";
 
 interface Topic {
@@ -21,6 +21,46 @@ interface Question {
   type: string;
   topic: { id: number; name: string };
   options: QuestionOption[];
+  _count?: { answers: number; practiceAttempts: number };
+}
+
+interface EditDraft {
+  text: string;
+  type: string;
+  topicId: string;
+  options: { id?: number; text: string; isCorrect: boolean }[];
+}
+
+interface EditImpact {
+  migratedAnswers: number;
+  migratedAttempts: number;
+  orphanedAnswers: number;
+  regradedAnswers: number;
+  regradedAttempts: number;
+}
+
+/** Antal svar och övningsförsök som hänger på frågan. */
+function historyCount(q: Question): number {
+  return (q._count?.answers ?? 0) + (q._count?.practiceAttempts ?? 0);
+}
+
+function countPhrase(answers: number, attempts: number): string {
+  const parts: string[] = [];
+  if (answers > 0) parts.push(`${answers} elevsvar`);
+  if (attempts > 0) parts.push(`${attempts} övningsförsök`);
+  return parts.join(" och ");
+}
+
+function describeImpact(impact?: EditImpact): string {
+  if (!impact) return "Frågan sparad";
+  const parts: string[] = [];
+  const migrated = impact.migratedAnswers + impact.migratedAttempts;
+  const regraded = impact.regradedAnswers + impact.regradedAttempts;
+  if (migrated > 0) parts.push(`${migrated} tidigare svar följde med textändringen`);
+  if (regraded > 0) parts.push(`${regraded} svar rättades om`);
+  if (impact.orphanedAnswers > 0)
+    parts.push(`${impact.orphanedAnswers} svar saknar nu alternativ`);
+  return parts.length > 0 ? `Frågan sparad - ${parts.join(", ")}` : "Frågan sparad";
 }
 
 interface QuestionsManagerProps {
@@ -49,6 +89,9 @@ export default function QuestionsManager({ apiBase, showCorrectAnswers = false }
     correctOptionIndex: 0,
   });
   const [newTopicName, setNewTopicName] = useState("");
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editQ, setEditQ] = useState<EditDraft | null>(null);
+  const [savingEdit, setSavingEdit] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
@@ -163,8 +206,105 @@ export default function QuestionsManager({ apiBase, showCorrectAnswers = false }
     }
   }
 
-  async function handleDeleteQuestion(id: number) {
-    if (!confirm("Är du säker? Frågan och alla tillhörande svar raderas.")) return;
+  function startEdit(q: Question) {
+    setEditingId(q.id);
+    setEditQ({
+      text: q.text,
+      type: q.type,
+      topicId: String(q.topic.id),
+      options:
+        q.options.length > 0
+          ? q.options.map((o) => ({
+              id: o.id,
+              text: o.text,
+              isCorrect: o.isCorrect === true,
+            }))
+          : [
+              { text: "", isCorrect: true },
+              { text: "", isCorrect: false },
+            ],
+    });
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setEditQ(null);
+  }
+
+  async function saveEdit(q: Question, confirmRegrade = false) {
+    if (!editQ) return;
+    if (!editQ.text.trim() || !editQ.topicId) {
+      showToast("Frågetext och ämne krävs", "error");
+      return;
+    }
+    const payload: Record<string, unknown> = {
+      text: editQ.text.trim(),
+      type: editQ.type,
+      topicId: Number(editQ.topicId),
+      confirmRegrade,
+    };
+    if (editQ.type === "MULTIPLE_CHOICE") {
+      payload.options = editQ.options
+        .filter((o) => o.text.trim())
+        .map((o) => ({
+          ...(o.id !== undefined ? { id: o.id } : {}),
+          text: o.text.trim(),
+          isCorrect: o.isCorrect,
+        }));
+    }
+
+    setSavingEdit(true);
+    try {
+      const res = await fetch(`${apiBase}/questions/${q.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      let data: Record<string, unknown> = {};
+      try {
+        data = await res.json();
+      } catch {
+        data = {};
+      }
+
+      // Servern kräver kvittering innan tidigare elevsvar rättas om.
+      if (res.status === 409 && data.requiresConfirmation && !confirmRegrade) {
+        setSavingEdit(false);
+        if (confirm(`${data.error}\n\nVill du fortsätta?`)) {
+          await saveEdit(q, true);
+        }
+        return;
+      }
+
+      if (!res.ok) {
+        showToast(
+          typeof data.error === "string" ? data.error : "Kunde inte spara frågan",
+          "error"
+        );
+        return;
+      }
+
+      showToast(describeImpact(data.impact as EditImpact | undefined));
+      cancelEdit();
+      loadData();
+    } catch (err) {
+      console.error("Update question error:", err);
+      showToast("Kunde inte spara frågan - nätverksfel", "error");
+    } finally {
+      setSavingEdit(false);
+    }
+  }
+
+  async function handleDeleteQuestion(q: Question) {
+    const id = q.id;
+    const history = countPhrase(
+      q._count?.answers ?? 0,
+      q._count?.practiceAttempts ?? 0
+    );
+    const warning = history
+      ? `Radera frågan? ${history} raderas samtidigt och går inte att återskapa.`
+      : "Radera frågan? Den försvinner ur alla enkäter den ingår i.";
+    if (!confirm(warning)) return;
     setDeletingId(id);
     try {
       const res = await fetch(`${apiBase}/questions/${id}`, { method: "DELETE" });
@@ -191,7 +331,17 @@ export default function QuestionsManager({ apiBase, showCorrectAnswers = false }
 
   async function handleBulkDelete() {
     if (selectedIds.size === 0) return;
-    if (!confirm(`Radera ${selectedIds.size} frågor? Alla tillhörande svar raderas också.`)) return;
+    const selected = questions.filter((q) => selectedIds.has(q.id));
+    const answers = selected.reduce((sum, q) => sum + (q._count?.answers ?? 0), 0);
+    const attempts = selected.reduce(
+      (sum, q) => sum + (q._count?.practiceAttempts ?? 0),
+      0
+    );
+    const history = countPhrase(answers, attempts);
+    const warning = history
+      ? `Radera ${selectedIds.size} frågor? ${history} raderas samtidigt och går inte att återskapa.`
+      : `Radera ${selectedIds.size} frågor? De försvinner ur alla enkäter de ingår i.`;
+    if (!confirm(warning)) return;
     setBulkDeleting(true);
     let deleted = 0;
     let failed = 0;
@@ -314,6 +464,7 @@ export default function QuestionsManager({ apiBase, showCorrectAnswers = false }
           >
             <option value="MULTIPLE_CHOICE">Flerval</option>
             <option value="FREE_TEXT">Fritext</option>
+            <option value="REFLECTION">Reflektion</option>
           </select>
           <input
             value={newQ.text}
@@ -431,7 +582,8 @@ export default function QuestionsManager({ apiBase, showCorrectAnswers = false }
                 </tr>
               ) : (
                 questions.map((q) => (
-                  <tr key={q.id} className={`border-b border-border-light last:border-0 hover:bg-surface-muted/50 transition-colors ${selectedIds.has(q.id) ? "bg-primary-light/50" : ""}`}>
+                  <Fragment key={q.id}>
+                  <tr className={`border-b border-border-light last:border-0 hover:bg-surface-muted/50 transition-colors ${selectedIds.has(q.id) ? "bg-primary-light/50" : ""}`}>
                     <td className="p-4">
                       <input
                         type="checkbox"
@@ -477,9 +629,15 @@ export default function QuestionsManager({ apiBase, showCorrectAnswers = false }
                           : q.options.map((o) => o.text).join(", ")
                         : "\u2014"}
                     </td>
-                    <td className="p-4">
+                    <td className="p-4 whitespace-nowrap">
                       <button
-                        onClick={() => handleDeleteQuestion(q.id)}
+                        onClick={() => (editingId === q.id ? cancelEdit() : startEdit(q))}
+                        className="text-primary hover:underline text-sm font-medium mr-3"
+                      >
+                        {editingId === q.id ? "Stäng" : "Redigera"}
+                      </button>
+                      <button
+                        onClick={() => handleDeleteQuestion(q)}
                         disabled={deletingId === q.id}
                         className="text-error hover:underline text-sm font-medium disabled:opacity-50"
                       >
@@ -487,6 +645,136 @@ export default function QuestionsManager({ apiBase, showCorrectAnswers = false }
                       </button>
                     </td>
                   </tr>
+                  {editingId === q.id && editQ && (
+                    <tr className="border-b border-border-light bg-surface-muted/40">
+                      <td colSpan={6} className="p-4">
+                        <div className="animate-scale-in">
+                          <h4 className="font-semibold mb-3 tracking-tight">Redigera fråga</h4>
+                          {historyCount(q) > 0 && (
+                            <div className="bg-warning-light border border-warning/20 rounded-xl p-3 mb-3 text-sm">
+                              Frågan har{" "}
+                              {countPhrase(
+                                q._count?.answers ?? 0,
+                                q._count?.practiceAttempts ?? 0
+                              )}
+                              . Ändrad text på ett alternativ skrivs om även i tidigare
+                              svar. Flyttar du rätt svar rättas alla tidigare svar om -
+                              repetitionsschemat i övningen påverkas inte.
+                            </div>
+                          )}
+                          <div className="grid grid-cols-2 gap-3 mb-3">
+                            <select
+                              value={editQ.topicId}
+                              onChange={(e) => setEditQ({ ...editQ, topicId: e.target.value })}
+                              className="input-field"
+                            >
+                              {topics.map((t) => (
+                                <option key={t.id} value={t.id}>{t.name}</option>
+                              ))}
+                            </select>
+                            {q.type === "SORTING" ? (
+                              <p className="text-sm text-muted self-center">
+                                Sorteringsfråga - kategorier och kort redigeras via
+                                CSV-import.
+                              </p>
+                            ) : (
+                              <select
+                                value={editQ.type}
+                                onChange={(e) => setEditQ({ ...editQ, type: e.target.value })}
+                                className="input-field"
+                              >
+                                <option value="MULTIPLE_CHOICE">Flerval</option>
+                                <option value="FREE_TEXT">Fritext</option>
+                                <option value="REFLECTION">Reflektion</option>
+                              </select>
+                            )}
+                          </div>
+                          <textarea
+                            value={editQ.text}
+                            onChange={(e) => setEditQ({ ...editQ, text: e.target.value })}
+                            rows={2}
+                            placeholder="Frågetext..."
+                            className="input-field mb-3"
+                          />
+                          {editQ.type === "MULTIPLE_CHOICE" && (
+                            <div className="mb-3">
+                              <label className="block text-xs text-muted mb-1">
+                                Markera rätt svar med radioknappen
+                              </label>
+                              {editQ.options.map((opt, i) => (
+                                <div key={opt.id ?? `ny-${i}`} className="flex items-center gap-2 mb-1">
+                                  <input
+                                    type="radio"
+                                    name={`edit-correct-${q.id}`}
+                                    checked={opt.isCorrect}
+                                    onChange={() =>
+                                      setEditQ({
+                                        ...editQ,
+                                        options: editQ.options.map((o, j) => ({
+                                          ...o,
+                                          isCorrect: j === i,
+                                        })),
+                                      })
+                                    }
+                                    title="Rätt svar"
+                                    className="accent-primary"
+                                  />
+                                  <input
+                                    value={opt.text}
+                                    onChange={(e) =>
+                                      setEditQ({
+                                        ...editQ,
+                                        options: editQ.options.map((o, j) =>
+                                          j === i ? { ...o, text: e.target.value } : o
+                                        ),
+                                      })
+                                    }
+                                    placeholder={`Alternativ ${i + 1}`}
+                                    className="input-field flex-1"
+                                  />
+                                  <button
+                                    onClick={() =>
+                                      setEditQ({
+                                        ...editQ,
+                                        options: editQ.options.filter((_, j) => j !== i),
+                                      })
+                                    }
+                                    className="text-error text-sm font-medium px-2 hover:underline"
+                                  >
+                                    Ta bort
+                                  </button>
+                                </div>
+                              ))}
+                              <button
+                                onClick={() =>
+                                  setEditQ({
+                                    ...editQ,
+                                    options: [...editQ.options, { text: "", isCorrect: false }],
+                                  })
+                                }
+                                className="text-primary text-sm mt-1 font-medium hover:underline"
+                              >
+                                + Lägg till alternativ
+                              </button>
+                            </div>
+                          )}
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => saveEdit(q)}
+                              disabled={savingEdit}
+                              className="btn-primary"
+                            >
+                              {savingEdit ? "Sparar..." : "Spara ändringar"}
+                            </button>
+                            <button onClick={cancelEdit} className="btn-secondary">
+                              Avbryt
+                            </button>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                  </Fragment>
                 ))
               )}
             </tbody>
