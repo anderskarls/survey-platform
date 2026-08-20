@@ -18,6 +18,7 @@ import {
   type SortingResult,
 } from "@/lib/formaga";
 import { Rating } from "ts-fsrs";
+import { FLASHCARD_RATINGS, FLASHCARD_REVEAL } from "@/lib/flashcard";
 
 /** Hela försökshistoriken för en fråga hos ett elevkonto (quiz + övning) */
 async function loadQuestionHistory(
@@ -27,7 +28,11 @@ async function loadQuestionHistory(
   const [answers, practice] = await Promise.all([
     prisma.answer.findMany({
       where: { questionId, response: { studentId } },
-      select: { isCorrect: true, response: { select: { createdAt: true } } },
+      select: {
+        isCorrect: true,
+        grade: true,
+        response: { select: { createdAt: true } },
+      },
     }),
     prisma.practiceAttempt.findMany({
       where: { questionId, studentId },
@@ -39,6 +44,7 @@ async function loadQuestionHistory(
       (a): AttemptRecord => ({
         questionId,
         isCorrect: a.isCorrect,
+        grade: a.grade ?? undefined,
         createdAt: a.response.createdAt,
         source: "answer",
       })
@@ -101,6 +107,8 @@ export async function POST(request: NextRequest) {
     const ownerStudentId = owner.studentId;
 
     const fritext = isFormagaFritext(question);
+    const flashcardReveal =
+      question.type === "MULTIPLE_CHOICE" && value === FLASHCARD_REVEAL;
     if (
       question.type !== "MULTIPLE_CHOICE" &&
       question.type !== "SORTING" &&
@@ -121,7 +129,10 @@ export async function POST(request: NextRequest) {
       // Samma rättningslogik som /api/surveys/[id]/respond
       const correctOption = question.options.find((o) => o.isCorrect);
       correctAnswer = correctOption?.text ?? null;
-      if (value !== "__UNSURE__") {
+      // Flashcard: eleven vände kortet i stället för att välja alternativ.
+      // Servern rättar ingenting - baksidan skickas tillbaka och eleven
+      // skattar sig själv i fas 2.
+      if (value !== "__UNSURE__" && !flashcardReveal) {
         isCorrect = correctOption ? value === correctOption.text : null;
       }
     } else if (question.type === "SORTING") {
@@ -163,7 +174,9 @@ export async function POST(request: NextRequest) {
     // Defaultbetyg: rätt -> Bra, fel/osäker -> Om igen. Fritext -> Bra som
     // neutral default tills elevens självskattning justerar via PATCH.
     const appliedGrade =
-      isCorrect === true || fritext ? Rating.Good : Rating.Again;
+      isCorrect === true || fritext || flashcardReveal
+        ? Rating.Good
+        : Rating.Again;
     const attempt = await prisma.practiceAttempt.create({
       data: {
         studentId: ownerStudentId,
@@ -199,7 +212,7 @@ export async function POST(request: NextRequest) {
         correctAnswer,
         sorting,
         exemplars: exemplars.success ? exemplars.data : null,
-        selfAssess: fritext,
+        selfAssess: fritext || flashcardReveal,
         appliedGrade,
         schedulesToday,
         nextDueDays: state?.daysUntilDue ?? null,
@@ -240,6 +253,7 @@ export async function PATCH(request: NextRequest) {
     const attempt = await prisma.practiceAttempt.findUnique({
       where: { id: attemptId },
       include: { question: { select: { type: true, subskill: true } } },
+      // value behövs för att känna igen vända kort nedan
     });
     const accounts = await resolveLinkedAccounts(session.studentId);
     const owned =
@@ -254,7 +268,11 @@ export async function PATCH(request: NextRequest) {
 
     const fritext =
       attempt.isCorrect === null && isFormagaFritext(attempt.question);
-    if (attempt.isCorrect !== true && !fritext) {
+    // Ett vänt kort är orättat (isCorrect null) - hela betyget 1-4 är elevens,
+    // inklusive Om igen, precis som i Anki.
+    const flashcard =
+      attempt.isCorrect === null && attempt.value === FLASHCARD_REVEAL;
+    if (attempt.isCorrect !== true && !fritext && !flashcard) {
       return NextResponse.json(
         { error: "Bara rätta svar kan självskattas" },
         { status: 400 }
@@ -276,7 +294,15 @@ export async function PATCH(request: NextRequest) {
 
     await prisma.practiceAttempt.update({
       where: { id: attempt.id },
-      data: { grade },
+      data: flashcard
+        ? {
+            grade,
+            // Markören ersätts med den faktiska skattningen, så försöket är
+            // läsbart i efterhand i stället för att bara stå som "vänt".
+            value: FLASHCARD_RATINGS.find((r) => r.grade === grade)!.value,
+            isCorrect: grade > 1,
+          }
+        : { grade },
     });
 
     const history = await loadQuestionHistory(

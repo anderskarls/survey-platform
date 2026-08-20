@@ -77,13 +77,24 @@ export default async function PracticePage() {
 
   const dbQuestions = await prisma.question.findMany({
     where: { id: { in: setIds } },
-    include: { options: true },
+    include: {
+      options: true,
+      // Flashcardläget sitter på kursen, och övningen kan spänna över flera
+      // kurser - därför avgörs kortformen per fråga, inte per pass.
+      topic: { select: { course: { select: { flashcardMode: true } } } },
+    },
   });
   const byId = new Map(dbQuestions.map((q) => [q.id, q]));
   const questions = setIds
     .map((id) => byId.get(id))
     .filter((q): q is NonNullable<typeof q> => q !== undefined)
-    .map((q) => toPracticeQuestion(q, multiCourse ? (questionInfo.get(q.id)?.courseName ?? null) : null))
+    .map((q) =>
+      toPracticeQuestion(
+        q,
+        multiCourse ? (questionInfo.get(q.id)?.courseName ?? null) : null,
+        q.topic.course.flashcardMode
+      )
+    )
     .filter((q): q is NonNullable<typeof q> => q !== null);
 
   return (

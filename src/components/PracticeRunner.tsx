@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import ExemplarPanel, { ExemplarView } from "@/components/ExemplarPanel";
+import { FLASHCARD_REVEAL } from "@/lib/flashcard";
 
 export interface PracticeQuestion {
   id: number;
@@ -13,6 +14,8 @@ export interface PracticeQuestion {
   /** SORTING: konfiguration utan facit */
   sorting?: { categories: string[]; items: string[] } | null;
   courseName?: string | null;
+  /** Visas som Anki-kort: framsida, vänd, självskatta. Inga alternativ. */
+  flashcard?: boolean;
 }
 
 interface SortingItemResult {
@@ -110,8 +113,12 @@ export default function PracticeRunner({ questions }: Props) {
 
   const isSorting = question?.type === "SORTING";
   const isFreeText = question?.type === "FREE_TEXT";
+  const isFlashcard = question?.flashcard === true;
 
   function buildValue(): string | null {
+    // Kortet har inget att fylla i - att vända det ÄR svaret, och baksidan
+    // kommer tillbaka i svaret från servern.
+    if (isFlashcard) return FLASHCARD_REVEAL;
     if (isSorting) {
       const items = question.sorting?.items ?? [];
       if (items.some((i) => !placements[i])) return null;
@@ -259,9 +266,29 @@ export default function PracticeRunner({ questions }: Props) {
             {question.courseName}
           </span>
         )}
-        <p className="font-semibold tracking-tight mb-4">{question.text}</p>
+        <p
+          className={
+            isFlashcard
+              ? "text-center text-xl font-semibold tracking-tight px-2 py-4"
+              : "font-semibold tracking-tight mb-4"
+          }
+        >
+          {question.text}
+        </p>
 
-        {isSorting && question.sorting ? (
+        {isFlashcard ? (
+          showFeedback && (
+            <>
+              <div className="border-t border-border-light mb-6" />
+              <p
+                className="text-center text-2xl font-bold text-primary px-2"
+                role="status"
+              >
+                {result.correctAnswer}
+              </p>
+            </>
+          )
+        ) : isSorting && question.sorting ? (
           <div className="flex flex-col gap-3">
             {question.sorting.items.map((item) => {
               const itemResult = result?.sorting?.perItem.find(
@@ -426,7 +453,9 @@ export default function PracticeRunner({ questions }: Props) {
         result.selfAssess ? (
           <div>
             <p className="text-sm text-muted mb-2 text-center">
-              Jämför med exempelsvaren: hur väl stod sig ditt resonemang?
+              {isFlashcard
+                ? "Hur gick det? Ditt svar styr när ordet kommer tillbaka."
+                : "Jämför med exempelsvaren: hur väl stod sig ditt resonemang?"}
             </p>
             <div className="grid grid-cols-4 gap-2">
               <button
@@ -513,7 +542,15 @@ export default function PracticeRunner({ questions }: Props) {
           disabled={!readyToSubmit || submitting}
           className="btn-primary w-full py-3"
         >
-          {submitting ? (isFreeText ? "Skickar..." : "Rättar...") : "Svara"}
+          {submitting
+            ? isFlashcard
+              ? "Vänder..."
+              : isFreeText
+                ? "Skickar..."
+                : "Rättar..."
+            : isFlashcard
+              ? "Visa svar"
+              : "Svara"}
         </button>
       )}
     </div>

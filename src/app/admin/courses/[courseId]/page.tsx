@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import FlashcardModeToggle from "@/components/admin/FlashcardModeToggle";
 
 export const dynamic = "force-dynamic";
 
@@ -43,6 +44,12 @@ export default async function CourseDashboard({
           </span>
           <span className="text-xs text-muted-light">Dela med eleverna</span>
         </div>
+      )}
+      {course && (
+        <FlashcardModeToggle
+          courseId={course.id}
+          initial={course.flashcardMode}
+        />
       )}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
         {stats.map((s, i) => (

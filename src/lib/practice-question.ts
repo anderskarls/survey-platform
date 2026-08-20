@@ -13,10 +13,14 @@ interface DbQuestionLike {
  * Mappar en DB-fråga till klientens övningsformat. Sorteringsfrågor får sin
  * konfiguration MED FACIT BORTTAGET - rätt kategori får aldrig nå klienten
  * före svar. Returnerar null för sorteringsfrågor med trasig konfiguration.
+ *
+ * Flashcardfrågor skickas helt utan alternativ: baksidan hämtas först när
+ * eleven vänder kortet, av samma skäl som sorteringsfacit hålls tillbaka.
  */
 export function toPracticeQuestion(
   q: DbQuestionLike,
-  courseName: string | null = null
+  courseName: string | null = null,
+  flashcard = false
 ): PracticeQuestion | null {
   if (q.type === "SORTING") {
     const config = sortingConfigSchema.safeParse(q.config);
@@ -30,12 +34,14 @@ export function toPracticeQuestion(
       courseName,
     };
   }
+  const asCard = flashcard && q.type === "MULTIPLE_CHOICE";
   return {
     id: q.id,
     text: q.text,
     type: q.type,
-    options: q.options.map((o) => o.text),
+    options: asCard ? [] : q.options.map((o) => o.text),
     sorting: null,
     courseName,
+    flashcard: asCard,
   };
 }
