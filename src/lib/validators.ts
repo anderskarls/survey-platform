@@ -13,6 +13,10 @@ export const respondSchema = z.object({
   lockModeViolations: z.number().int().min(0).max(1000).optional(),
 });
 
+export const courseSettingsSchema = z.object({
+  flashcardMode: z.boolean(),
+});
+
 export const practiceAttemptSchema = z.object({
   questionId: z.number().int().positive(),
   value: z.string().min(1, "Svar krävs").max(6000, "Svaret är för långt"),

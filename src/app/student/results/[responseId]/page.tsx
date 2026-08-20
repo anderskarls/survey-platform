@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import FeedbackDisplay from "@/components/FeedbackButton";
+import { flashcardLabel } from "@/lib/flashcard";
 
 export default async function ResultDetailPage({
   params,
@@ -83,6 +84,8 @@ export default async function ResultDetailPage({
           const isWrong = answer.isCorrect === false;
           const isUnsure = answer.value === "__UNSURE__";
           const isFreeText = answer.question.type === "FREE_TEXT";
+          // Flashcard: värdet är elevens egen skattning, inte ett valt svar
+          const rating = flashcardLabel(answer.value);
 
           return (
             <div
@@ -105,6 +108,15 @@ export default async function ResultDetailPage({
                 {isUnsure ? (
                   <p className="text-accent">
                     Du markerade att du var osäker - bra att du var ärlig!
+                  </p>
+                ) : rating ? (
+                  <p>
+                    Rätt svar:{" "}
+                    <span className="font-semibold">{correctOption?.text}</span>
+                    <span className="text-muted">
+                      {" "}
+                      - du skattade kortet som {rating.toLowerCase()}
+                    </span>
                   </p>
                 ) : (
                   <p>

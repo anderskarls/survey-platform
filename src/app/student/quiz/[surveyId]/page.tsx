@@ -62,6 +62,7 @@ export default async function StudentQuizPage({
   const remainingSet = new Set(remainingIds);
 
   // Filter to only non-mastered questions
+  const flashcard = survey.course.flashcardMode;
   const remainingQuestions = survey.questions
     .filter((sq) => remainingSet.has(sq.questionId))
     .map((sq) => ({
@@ -69,6 +70,11 @@ export default async function StudentQuizPage({
       text: sq.question.text,
       type: sq.question.type,
       options: sq.question.options.map((o) => o.text),
+      // Baksidan skickas bara i flashcardläge, där eleven ändå ska vända
+      // kortet. I vanliga quiz får facit aldrig lämna servern före svaret.
+      answer: flashcard
+        ? sq.question.options.find((o) => o.isCorrect)?.text ?? null
+        : null,
     }));
 
   if (remainingQuestions.length === 0) {
@@ -91,6 +97,7 @@ export default async function StudentQuizPage({
           questions: remainingQuestions,
         }}
         lockMode={survey.lockMode}
+        flashcard={flashcard}
       />
     </div>
   );

@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import FlagButton from "@/components/FlagButton";
+import { flashcardLabel } from "@/lib/flashcard";
 
 interface Score {
   correct: number;
@@ -65,6 +66,8 @@ export default function QuizResultsDisplay({
         <div className="space-y-3 mb-6">
           {quizResults.map((r, i) => {
             const isUnsure = r.yourAnswer === "__UNSURE__";
+            // Flashcard: "ditt svar" är elevens egen skattning av kortet
+            const rating = flashcardLabel(r.yourAnswer);
             return (
             <div
               key={r.questionId}
@@ -85,6 +88,15 @@ export default function QuizResultsDisplay({
                   {isUnsure ? (
                     <p className="text-sm text-accent">
                       Du markerade att du var osäker - bra att du var ärlig!
+                    </p>
+                  ) : rating ? (
+                    <p className="text-sm">
+                      Rätt svar:{" "}
+                      <span className="font-semibold">{r.correctAnswer}</span>
+                      <span className="text-muted">
+                        {" "}
+                        - du skattade kortet som {rating.toLowerCase()}
+                      </span>
                     </p>
                   ) : (
                     <p className="text-sm">

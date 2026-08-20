@@ -3,6 +3,11 @@ import { prisma } from "@/lib/prisma";
 import { respondSchema } from "@/lib/validators";
 import { handleApiError } from "@/lib/api-helpers";
 import { getStudentSession } from "@/lib/student-session";
+import {
+  flashcardGrade,
+  flashcardIsCorrect,
+  isFlashcardValue,
+} from "@/lib/flashcard";
 
 /**
  * Så länge räknas ett identiskt svarspaket som samma inlämning.
@@ -97,16 +102,22 @@ export async function POST(
     const isQuiz = survey.mode === "QUIZ";
     const answerData = answers.map((a) => {
       let isCorrect: boolean | null = null;
+      let grade: number | null = null;
       const sq = questionMap.get(a.questionId);
       if (sq && sq.question.type === "MULTIPLE_CHOICE") {
-        if (a.value === "__UNSURE__") {
+        if (isFlashcardValue(a.value)) {
+          // Flashcardläge: svaret ÄR elevens självskattning. Betyget bär
+          // nyansen till FSRS, isCorrect håller poäng och statistik igång.
+          isCorrect = flashcardIsCorrect(a.value);
+          grade = flashcardGrade(a.value);
+        } else if (a.value === "__UNSURE__") {
           isCorrect = null; // Metacognitive "I'm not sure" - neither correct nor incorrect
         } else {
           const correctOption = sq.question.options.find((o) => o.isCorrect);
           isCorrect = correctOption ? a.value === correctOption.text : null;
         }
       }
-      return { questionId: a.questionId, value: a.value, isCorrect };
+      return { questionId: a.questionId, value: a.value, isCorrect, grade };
     });
 
     // Idempotensskydd: har eleven nyss lämnat in exakt samma svar på samma

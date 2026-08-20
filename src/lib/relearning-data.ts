@@ -89,6 +89,7 @@ export async function loadRelearningData(
       select: {
         questionId: true,
         isCorrect: true,
+        grade: true,
         response: { select: { createdAt: true } },
         question: {
           select: { topicId: true, topic: { select: { courseId: true } } },
@@ -114,6 +115,9 @@ export async function loadRelearningData(
       (a): AttemptRecord => ({
         questionId: a.questionId,
         isCorrect: a.isCorrect,
+        // Satt när eleven självskattat kortet i flashcardläge; annars null,
+        // och gradeForAttempt faller tillbaka på isCorrect som förut.
+        grade: a.grade ?? undefined,
         createdAt: a.response.createdAt,
         source: "answer",
       })

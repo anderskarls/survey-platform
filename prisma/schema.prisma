@@ -11,6 +11,11 @@ model Course {
   id        Int       @id @default(autoincrement())
   name      String    @unique
   code      String    @unique
+  /// Flashcardläge: flervalsfrågor visas som Anki-kort (framsida, visa svar,
+  /// självskattning) i stället för alternativlistor. Frågorna i banken är
+  /// oförändrade - det här styr bara presentationen. Per kurs, så att
+  /// glosträning kan köras som kort utan att påverka övriga kurser.
+  flashcardMode Boolean @default(false)
   createdAt DateTime  @default(now())
   topics    Topic[]
   surveys   Survey[]
@@ -145,6 +150,10 @@ model Answer {
   value      String
   feedback   String?
   isCorrect  Boolean?
+  /// FSRS-betyg 1-4 när eleven självskattat kortet (flashcardläge). Null för
+  /// vanliga svar - då härleds betyget ur isCorrect som tidigare. Utan den här
+  /// kolumnen skulle Svårt och Lätt kollapsa till Bra/Om igen i repetitionen.
+  grade      Int?
   response   Response @relation(fields: [responseId], references: [id], onDelete: Cascade)
   question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
 

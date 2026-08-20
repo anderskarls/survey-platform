@@ -17,6 +17,7 @@ interface SurveyData {
     text: string;
     type: string;
     options: string[];
+    answer?: string | null;
   }[];
 }
 
@@ -39,9 +40,15 @@ interface Score {
 interface Props {
   survey: SurveyData;
   lockMode?: boolean;
+  /** Visa flervalsfrågorna som Anki-kort i stället för alternativlistor. */
+  flashcard?: boolean;
 }
 
-export default function StudentQuizForm({ survey, lockMode = false }: Props) {
+export default function StudentQuizForm({
+  survey,
+  lockMode = false,
+  flashcard = false,
+}: Props) {
   const router = useRouter();
   const [answers, setAnswers] = useState<Record<number, string>>({});
   const [submitted, setSubmitted] = useState(false);
@@ -203,6 +210,15 @@ export default function StudentQuizForm({ survey, lockMode = false }: Props) {
     setCurrentStep((s) => Math.min(totalQuestions - 1, s + 1));
   }
 
+  /**
+   * Efter en skattning går vi vidare till nästa kort automatiskt - det är
+   * rytmen i en kortlek, och utan den måste eleven trycka Nästa 30 gånger.
+   * På sista kortet står vi kvar så att Skicka svar syns.
+   */
+  function handleRated() {
+    if (!isLastQuestion) goNext();
+  }
+
   return (
     <form onSubmit={handleSubmit}>
       <LockOverlay
@@ -254,6 +270,8 @@ export default function StudentQuizForm({ survey, lockMode = false }: Props) {
           onAnswer={setAnswer}
           flaggedIds={flaggedIds}
           startIndex={currentStep}
+          flashcard={flashcard}
+          onRated={handleRated}
         />
       )}
 
