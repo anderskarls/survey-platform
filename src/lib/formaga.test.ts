@@ -144,6 +144,41 @@ describe("CSV med förmågefält", () => {
     expect(errors[0]).toContain("Okänd delfärdighet");
   });
 
+  it("parsar CLOZE-rad med facit i config", () => {
+    const clozeConfig = JSON.stringify({
+      answer: "influence",
+      accept: ["influences"],
+      hint: "Inflytande / Påverkan",
+    }).replace(/"/g, '""');
+    const csv =
+      `topic,type,text,config\n` +
+      `"Vecka 01",CLOZE,"Her ___ on the team was obvious.","${clozeConfig}"`;
+    const rows = parseCsvContent(csv);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].type).toBe("CLOZE");
+    expect(validateCsvRows(rows)).toEqual([]);
+    const data = questionCreateData(rows[0]);
+    expect(data.type).toBe("CLOZE");
+    expect(data.config).toMatchObject({ answer: "influence" });
+  });
+
+  it("avvisar luckfråga utan facit", () => {
+    const csv =
+      `topic,type,text,config\n` +
+      `"Vecka 01",CLOZE,"Her ___ was obvious.","{""hint"":""bara ledtråd""}"`;
+    const errors = validateCsvRows(parseCsvContent(csv));
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors[0]).toContain("Ogiltig luckkonfiguration");
+  });
+
+  it("avvisar luckfråga där markeringen för luckan saknas", () => {
+    const csv =
+      `topic,type,text,config\n` +
+      `"Vecka 01",CLOZE,"Her power on the team was obvious.","{""answer"":""influence""}"`;
+    const errors = validateCsvRows(parseCsvContent(csv));
+    expect(errors.some((e) => e.includes("saknar markören"))).toBe(true);
+  });
+
   it("hanterar vanliga flervalsrader som tidigare", () => {
     const csv = `topic,type,text,option1,option2,correctAnswer\nMatematik,MULTIPLE_CHOICE,Vad är 2+2?,3,4,4`;
     const rows = parseCsvContent(csv);

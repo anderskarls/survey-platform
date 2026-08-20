@@ -5,6 +5,7 @@ import type { PlannableQuestion } from "./question-edit";
 
 function fraga(overrides: Partial<PlannableQuestion> = {}): PlannableQuestion {
   return {
+    text: "Vilket fredsavtal avslutade första världskriget?",
     type: "MULTIPLE_CHOICE",
     options: [
       { id: 1, text: "Versaillesfreden", isCorrect: true },

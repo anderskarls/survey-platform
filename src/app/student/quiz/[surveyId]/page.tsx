@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { calculateMastery, ResponseRecord } from "@/lib/mastery";
 import StudentQuizForm from "@/components/StudentQuizForm";
 import Link from "next/link";
+import { toClientClozeConfig } from "@/lib/cloze";
 
 export default async function StudentQuizPage({
   params,
@@ -75,6 +76,8 @@ export default async function StudentQuizPage({
       answer: flashcard
         ? sq.question.options.find((o) => o.isCorrect)?.text ?? null
         : null,
+      // Luckfrågans ledtråd. Facit stannar på servern - se toClientClozeConfig.
+      cloze: toClientClozeConfig(sq.question.type, sq.question.config),
     }));
 
   if (remainingQuestions.length === 0) {

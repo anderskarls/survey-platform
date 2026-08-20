@@ -8,6 +8,7 @@ import {
   flashcardIsCorrect,
   isFlashcardValue,
 } from "@/lib/flashcard";
+import { gradeCloze, parseClozeConfig, type ClozeVerdict } from "@/lib/cloze";
 
 /**
  * Så länge räknas ett identiskt svarspaket som samma inlämning.
@@ -100,11 +101,23 @@ export async function POST(
 
     // Build answer data, computing isCorrect for multiple choice questions in all modes
     const isQuiz = survey.mode === "QUIZ";
+    // Luckfrågornas domar sparas vid sidan av: nära-miss är återkoppling till
+    // eleven, inte ett resultat, och har därför ingen kolumn i Answer.
+    const clozeVerdicts = new Map<number, ClozeVerdict>();
     const answerData = answers.map((a) => {
       let isCorrect: boolean | null = null;
       let grade: number | null = null;
       const sq = questionMap.get(a.questionId);
-      if (sq && sq.question.type === "MULTIPLE_CHOICE") {
+      if (sq && sq.question.type === "CLOZE") {
+        const config = parseClozeConfig(sq.question.config);
+        if (config) {
+          const verdict = gradeCloze(a.value, config);
+          clozeVerdicts.set(a.questionId, verdict);
+          isCorrect = verdict.isCorrect;
+        }
+        // Saknas configen är frågan orättbar. Den lämnas orättad (null)
+        // i stället för att räknas som fel - felet är lärarens, inte elevens.
+      } else if (sq && sq.question.type === "MULTIPLE_CHOICE") {
         if (isFlashcardValue(a.value)) {
           // Flashcardläge: svaret ÄR elevens självskattning. Betyget bär
           // nyansen till FSRS, isCorrect håller poäng och statistik igång.
@@ -176,6 +189,7 @@ export async function POST(
     const results = answerData.map((a) => {
       const sq = questionMap.get(a.questionId);
       const correctOption = sq?.question.options.find((o) => o.isCorrect);
+      const cloze = clozeVerdicts.get(a.questionId);
       return {
         answerId: answerIdMap.get(a.questionId) ?? null,
         questionId: a.questionId,
@@ -183,7 +197,11 @@ export async function POST(
         questionType: sq?.question.type,
         yourAnswer: a.value,
         isCorrect: a.isCorrect,
-        correctAnswer: correctOption?.text || null,
+        // Luckfrågans facit kommer ur config, inte ur alternativen.
+        correctAnswer: cloze ? cloze.answer : correctOption?.text || null,
+        // Fel svar som bara var några bokstäver bort - eleven kan ordet men
+        // inte stavningen, och det är en annan sak att säga till hen.
+        nearMiss: cloze?.nearMiss ?? false,
       };
     });
 

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import FlagButton from "@/components/FlagButton";
 import { FLASHCARD_RATINGS } from "@/lib/flashcard";
+import { splitAtGap, type ClientClozeConfig } from "@/lib/cloze";
 
 interface Question {
   id: number;
@@ -11,6 +12,8 @@ interface Question {
   options: string[];
   /** Kortets baksida. Skickas bara med i flashcardläge. */
   answer?: string | null;
+  /** Luckfrågans ledtråd. Facit ingår aldrig - det stannar på servern. */
+  cloze?: ClientClozeConfig | null;
 }
 
 interface QuestionRendererProps {
@@ -122,6 +125,70 @@ function FlashcardCard({
   );
 }
 
+/**
+ * En luckfråga: meningen med ett inmatningsfält där ordet saknas.
+ *
+ * Webbläsarens rättstavning, autokorrigering och versalisering stängs av med
+ * flit. Frågan mäter elevens stavning, och en mobil som rättar "recieve" åt
+ * eleven mäter telefonens.
+ */
+function ClozeQuestion({
+  question,
+  index,
+  value,
+  onAnswer,
+  flaggedIds,
+}: {
+  question: Question;
+  index: number;
+  value: string;
+  onAnswer: (questionId: number, value: string) => void;
+  flaggedIds?: Set<number>;
+}) {
+  const { before, after } = splitAtGap(question.text);
+  const hint = question.cloze?.hint;
+
+  return (
+    <div className="card p-6 mb-4">
+      <div className="flex items-start justify-between gap-2 mb-3">
+        <span className="block font-semibold tracking-tight text-muted">
+          {index + 1}. Skriv ordet som saknas
+        </span>
+        {flaggedIds !== undefined && (
+          <FlagButton
+            questionId={question.id}
+            initialFlagged={flaggedIds.has(question.id)}
+          />
+        )}
+      </div>
+
+      <p className="text-lg leading-relaxed">
+        <span>{before}</span>
+        <input
+          type="text"
+          value={value}
+          onChange={(e) => onAnswer(question.id, e.target.value)}
+          // Markören läses upp som understreck av en skärmläsare. Ordet
+          // "lucka" på dess plats säger vad fältet är.
+          aria-label={`Ordet som saknas i: ${before}lucka${after}`}
+          autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="off"
+          spellCheck={false}
+          className="inline-block mx-1 px-2 py-1 min-w-[8rem] w-40 text-center font-semibold border-b-2 border-primary bg-primary-light/30 rounded-t focus:outline-none focus:ring-2 focus:ring-primary"
+        />
+        <span>{after}</span>
+      </p>
+
+      {hint && (
+        <p className="text-sm text-muted mt-3">
+          Ledtråd: <span className="font-medium">{hint}</span>
+        </p>
+      )}
+    </div>
+  );
+}
+
 export default function QuestionRenderer({
   questions,
   answers,
@@ -142,6 +209,15 @@ export default function QuestionRenderer({
             chosen={answers[q.id]}
             onAnswer={onAnswer}
             onRated={onRated}
+            flaggedIds={flaggedIds}
+          />
+        ) : q.type === "CLOZE" ? (
+          <ClozeQuestion
+            key={q.id}
+            question={q}
+            index={startIndex + i}
+            value={answers[q.id] || ""}
+            onAnswer={onAnswer}
             flaggedIds={flaggedIds}
           />
         ) : (

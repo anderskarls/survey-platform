@@ -1,5 +1,20 @@
 import { z } from "zod";
 import { SUBSKILLS, exemplarsSchema, sortingConfigSchema } from "@/lib/formaga";
+import { clozeConfigSchema, hasGap } from "@/lib/cloze";
+
+export const QUESTION_TYPES = [
+  "MULTIPLE_CHOICE",
+  "FREE_TEXT",
+  "REFLECTION",
+  "SORTING",
+  "CLOZE",
+] as const;
+
+// Sorterings- och luckfrågor delar config-kolumn men har olika form. Unionen
+// avgör vilken det är på innehållet; superRefine nedan kontrollerar sedan att
+// formen matchar frågans typ, så en luckfråga inte kan sparas med en
+// sorteringskonfiguration.
+const questionConfigSchema = z.union([sortingConfigSchema, clozeConfigSchema]);
 
 export const respondSchema = z.object({
   answers: z
@@ -72,13 +87,30 @@ export const createQuestionSchema = z.object({
     .min(1, "Frågetext krävs")
     .max(1000)
     .transform((s) => s.trim()),
-  type: z.enum(["MULTIPLE_CHOICE", "FREE_TEXT", "REFLECTION", "SORTING"]),
+  type: z.enum(QUESTION_TYPES),
   topicId: z.number().int().positive(),
   options: z.array(z.string()).optional(),
   correctOptionIndex: z.number().int().min(0).optional(),
   subskill: z.enum(SUBSKILLS).optional(),
-  config: sortingConfigSchema.optional(),
+  config: questionConfigSchema.optional(),
   exemplars: exemplarsSchema.optional(),
+}).superRefine((data, ctx) => {
+  if (data.type !== "CLOZE") return;
+  const parsed = clozeConfigSchema.safeParse(data.config);
+  if (!parsed.success) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["config"],
+      message: "Luckfrågor kräver en config med facit (answer)",
+    });
+  }
+  if (!hasGap(data.text)) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["text"],
+      message: 'Luckfrågans mening måste innehålla markören ___ där ordet ska stå',
+    });
+  }
 });
 
 // Alternativ som redan finns skickas med sitt id - då kan texten ändras utan
@@ -101,11 +133,11 @@ export const updateQuestionSchema = z
       .max(1000)
       .transform((s) => s.trim())
       .optional(),
-    type: z.enum(["MULTIPLE_CHOICE", "FREE_TEXT", "REFLECTION", "SORTING"]).optional(),
+    type: z.enum(QUESTION_TYPES).optional(),
     topicId: z.number().int().positive().optional(),
     options: z.array(questionOptionInputSchema).max(10).optional(),
     subskill: z.enum(SUBSKILLS).nullable().optional(),
-    config: sortingConfigSchema.optional(),
+    config: questionConfigSchema.optional(),
     exemplars: exemplarsSchema.optional(),
     // Lärarens kvittering av att tidigare elevsvar rättas om.
     confirmRegrade: z.boolean().optional().default(false),

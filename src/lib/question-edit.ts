@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import type { UpdateQuestionInput } from "@/lib/validators";
+import { hasGap, parseClozeConfig } from "@/lib/cloze";
 
 // Metakognitiva "Jag är inte säker" - varken rätt eller fel, se respond-routen.
 const UNSURE = "__UNSURE__";
@@ -76,6 +77,7 @@ function countPhrase(answers: number, attempts: number): string {
  * betyg gör.
  */
 export interface PlannableQuestion {
+  text: string;
   type: string;
   config?: unknown;
   options: { id: number; text: string; isCorrect: boolean }[];
@@ -134,6 +136,23 @@ export function planQuestionUpdate(
       "Sorteringsfrågor kräver config med categories och items",
       400
     );
+  }
+
+  if (nextType === "CLOZE") {
+    // Facit ligger i config. Byts typen till CLOZE utan att en config skickas
+    // med finns inget att rätta mot, och frågan hade tyst blivit orättad.
+    if (!parseClozeConfig(input.config ?? existing.config)) {
+      throw new QuestionEditError(
+        "Luckfrågor kräver config med facit (answer)",
+        400
+      );
+    }
+    if (!hasGap(input.text ?? existing.text)) {
+      throw new QuestionEditError(
+        "Luckfrågans mening måste innehålla markören ___ där ordet ska stå",
+        400
+      );
+    }
   }
 
   const removed = incoming
