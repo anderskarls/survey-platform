@@ -20,6 +20,7 @@ export default async function PublicSurveyPage({
   const survey = await prisma.survey.findUnique({
     where: { shareCode },
     include: {
+      course: { select: { flashcardMode: true } },
       questions: {
         include: { question: { include: { options: true } } },
         orderBy: { order: "asc" },
@@ -33,17 +34,24 @@ export default async function PublicSurveyPage({
     redirect("/student");
   }
 
+  const flashcard = survey.course.flashcardMode;
   const surveyData = {
     id: survey.id,
     title: survey.title,
     description: survey.description,
     mode: survey.mode,
     lockMode: survey.lockMode,
+    flashcard,
     questions: survey.questions.map((sq) => ({
       id: sq.question.id,
       text: sq.question.text,
       type: sq.question.type,
       options: sq.question.options.map((o) => o.text),
+      // Baksidan följer bara med i flashcardläge - i vanliga enkäter får
+      // facit aldrig nå klienten före svaret.
+      answer: flashcard
+        ? sq.question.options.find((o) => o.isCorrect)?.text ?? null
+        : null,
     })),
   };
 

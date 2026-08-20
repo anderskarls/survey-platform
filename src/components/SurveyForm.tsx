@@ -12,11 +12,14 @@ interface SurveyData {
   description: string;
   mode: string;
   lockMode: boolean;
+  /** Kursen kör flashcardläge: flervalsfrågor visas som Anki-kort */
+  flashcard?: boolean;
   questions: {
     id: number;
     text: string;
     type: string;
     options: string[];
+    answer?: string | null;
   }[];
 }
 
@@ -183,6 +186,11 @@ export default function SurveyForm({ survey }: { survey: SurveyData }) {
     setCurrentStep((s) => Math.min(totalQuestions - 1, s + 1));
   }
 
+  /** Efter en skattning bläddras kortleken vidare av sig själv. */
+  function handleRated() {
+    if (!isLastQuestion) goNext();
+  }
+
   return (
     <form onSubmit={handleSubmit}>
       <LockOverlay enabled={survey.lockMode && !submitted} />
@@ -227,6 +235,8 @@ export default function SurveyForm({ survey }: { survey: SurveyData }) {
           onAnswer={setAnswer}
           flaggedIds={flaggedIds}
           startIndex={currentStep}
+          flashcard={survey.flashcard ?? false}
+          onRated={handleRated}
         />
       )}
 
