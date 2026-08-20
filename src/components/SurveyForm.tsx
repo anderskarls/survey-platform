@@ -5,6 +5,7 @@ import QuestionRenderer from "@/components/QuestionRenderer";
 import QuizResultsDisplay from "@/components/QuizResultsDisplay";
 import ProgressBar from "@/components/ProgressBar";
 import LockOverlay from "@/components/LockOverlay";
+import type { ClientClozeConfig } from "@/lib/cloze";
 
 interface SurveyData {
   id: number;
@@ -20,6 +21,8 @@ interface SurveyData {
     type: string;
     options: string[];
     answer?: string | null;
+    /** Luckfrågans ledtråd - facit ingår aldrig. */
+    cloze?: ClientClozeConfig | null;
   }[];
 }
 

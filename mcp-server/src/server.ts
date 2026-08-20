@@ -109,7 +109,7 @@ server.tool(
 
 server.tool(
   "create_quiz_from_csv",
-  "Importera frågor från CSV OCH skapa en quiz/enkät av exakt de frågorna i ett enda anrop. Använd detta när du vill skapa en quiz direkt från nygenererade frågor (t.ex. från en lektionsplanering) utan att först behöva ta reda på fråge-ID:n. Frågornas ordning i quizzen följer CSV-raderna. CSV-format: topic,type,text,option1,option2,...,correctAnswer",
+  "Importera frågor från CSV OCH skapa en quiz/enkät av exakt de frågorna i ett enda anrop. Använd detta när du vill skapa en quiz direkt från nygenererade frågor (t.ex. från en lektionsplanering) utan att först behöva ta reda på fråge-ID:n. Frågornas ordning i quizzen följer CSV-raderna. CSV-format: topic,type,text,option1,option2,...,correctAnswer. För luckfrågor: type=CLOZE, skriv ___ i texten där ordet ska stå och lägg facit i JSON-kolumnen config, t.ex. {\"answer\":\"influence\",\"accept\":[\"influences\"],\"hint\":\"Inflytande / Påverkan\"}",
   {
     course_id: z.number().int().positive().describe("Kursens ID"),
     title: z.string().min(1).describe("Quizzens/enkätens titel"),

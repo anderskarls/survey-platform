@@ -1,6 +1,7 @@
 import Papa from "papaparse";
 import { Prisma } from "@prisma/client";
 import { SUBSKILLS, exemplarsSchema, sortingConfigSchema } from "@/lib/formaga";
+import { CLOZE_GAP, clozeConfigSchema, hasGap } from "@/lib/cloze";
 
 export interface CsvQuestionRow {
   topic: string;
@@ -18,7 +19,7 @@ export interface CsvQuestionRow {
   jsonError?: string;
 }
 
-const KNOWN_TYPES = ["FREE_TEXT", "REFLECTION", "SORTING"] as const;
+const KNOWN_TYPES = ["FREE_TEXT", "REFLECTION", "SORTING", "CLOZE"] as const;
 
 export function parseCsvContent(csvContent: string): CsvQuestionRow[] {
   const result = Papa.parse(csvContent, {
@@ -97,6 +98,19 @@ export function validateCsvRows(rows: CsvQuestionRow[]): string[] {
         );
       }
     }
+    if (row.type === "CLOZE") {
+      const parsed = clozeConfigSchema.safeParse(row.config);
+      if (!parsed.success) {
+        errors.push(
+          `Ogiltig luckkonfiguration för "${row.text}": ${parsed.error.issues[0]?.message ?? "okänt fel"}`
+        );
+      }
+      if (!hasGap(row.text)) {
+        errors.push(
+          `Luckfrågan "${row.text}" saknar markören ${CLOZE_GAP} där ordet ska stå`
+        );
+      }
+    }
     if (row.exemplars !== undefined) {
       const parsed = exemplarsSchema.safeParse(row.exemplars);
       if (!parsed.success) {
@@ -124,7 +138,7 @@ export function questionCreateData(
     type: row.type,
     subskill,
     config:
-      row.type === "SORTING"
+      row.type === "SORTING" || row.type === "CLOZE"
         ? (row.config as Prisma.InputJsonValue)
         : undefined,
     exemplars:

@@ -4,15 +4,18 @@ import { useState } from "react";
 import Link from "next/link";
 import ExemplarPanel, { ExemplarView } from "@/components/ExemplarPanel";
 import { FLASHCARD_REVEAL } from "@/lib/flashcard";
+import { splitAtGap, type ClientClozeConfig } from "@/lib/cloze";
 
 export interface PracticeQuestion {
   id: number;
   text: string;
-  /** MULTIPLE_CHOICE | SORTING | FREE_TEXT (förmågeövning) */
+  /** MULTIPLE_CHOICE | SORTING | FREE_TEXT (förmågeövning) | CLOZE */
   type: string;
   options: string[];
   /** SORTING: konfiguration utan facit */
   sorting?: { categories: string[]; items: string[] } | null;
+  /** CLOZE: ledtråden. Facit ligger kvar på servern. */
+  cloze?: ClientClozeConfig | null;
   courseName?: string | null;
   /** Visas som Anki-kort: framsida, vänd, självskatta. Inga alternativ. */
   flashcard?: boolean;
@@ -29,6 +32,8 @@ interface AttemptResult {
   attemptId: number;
   isCorrect: boolean | null;
   correctAnswer: string | null;
+  /** Luckfråga: fel svar som bara var några bokstäver bort. */
+  nearMiss?: boolean;
   sorting: {
     perItem: SortingItemResult[];
     correctCount: number;
@@ -91,6 +96,51 @@ function RerunNote({ show }: { show: boolean }) {
   );
 }
 
+/**
+ * Luckfrågan i övningsläget. Samma rendering som i quizet: fältet ligger mitt
+ * i meningen och webbläsarens rättstavning är avstängd - det är elevens
+ * stavning som övas, inte telefonens.
+ */
+function ClozePractice({
+  question,
+  value,
+  onChange,
+  disabled,
+}: {
+  question: PracticeQuestion;
+  value: string;
+  onChange: (v: string) => void;
+  disabled: boolean;
+}) {
+  const { before, after } = splitAtGap(question.text);
+  const hint = question.cloze?.hint;
+  return (
+    <div className="mb-4">
+      <p className="text-lg leading-relaxed">
+        <span>{before}</span>
+        <input
+          type="text"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          disabled={disabled}
+          aria-label={`Ordet som saknas i: ${before}lucka${after}`}
+          autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="off"
+          spellCheck={false}
+          className="inline-block mx-1 px-2 py-1 min-w-[8rem] w-40 text-center font-semibold border-b-2 border-primary bg-primary-light/30 rounded-t focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-70"
+        />
+        <span>{after}</span>
+      </p>
+      {hint && (
+        <p className="text-sm text-muted mt-3">
+          Ledtråd: <span className="font-medium">{hint}</span>
+        </p>
+      )}
+    </div>
+  );
+}
+
 export default function PracticeRunner({ questions }: Props) {
   // Passkö i Anki-stil: fel/osäker/"om igen" lägger tillbaka frågan sist i
   // kön; passet är klart först när varje fråga klarats av en gång.
@@ -114,6 +164,7 @@ export default function PracticeRunner({ questions }: Props) {
   const isSorting = question?.type === "SORTING";
   const isFreeText = question?.type === "FREE_TEXT";
   const isFlashcard = question?.flashcard === true;
+  const isCloze = question?.type === "CLOZE";
 
   function buildValue(): string | null {
     // Kortet har inget att fylla i - att vända det ÄR svaret, och baksidan
@@ -124,7 +175,7 @@ export default function PracticeRunner({ questions }: Props) {
       if (items.some((i) => !placements[i])) return null;
       return JSON.stringify(placements);
     }
-    if (isFreeText) {
+    if (isFreeText || isCloze) {
       const trimmed = freeText.trim();
       return trimmed.length > 0 ? trimmed : null;
     }
@@ -266,17 +317,26 @@ export default function PracticeRunner({ questions }: Props) {
             {question.courseName}
           </span>
         )}
-        <p
-          className={
-            isFlashcard
-              ? "text-center text-xl font-semibold tracking-tight px-2 py-4"
-              : "font-semibold tracking-tight mb-4"
-          }
-        >
-          {question.text}
-        </p>
+        {isCloze ? (
+          <ClozePractice
+            question={question}
+            value={freeText}
+            onChange={setFreeText}
+            disabled={showFeedback}
+          />
+        ) : (
+          <p
+            className={
+              isFlashcard
+                ? "text-center text-xl font-semibold tracking-tight px-2 py-4"
+                : "font-semibold tracking-tight mb-4"
+            }
+          >
+            {question.text}
+          </p>
+        )}
 
-        {isFlashcard ? (
+        {isCloze ? null : isFlashcard ? (
           showFeedback && (
             <>
               <div className="border-t border-border-light mb-6" />
@@ -427,6 +487,14 @@ export default function PracticeRunner({ questions }: Props) {
               <p className="font-semibold">
                 {result.sorting.correctCount} av {result.sorting.total} rätt
                 placerade. Titta på de markerade - frågan återkommer senare i
+                passet.
+              </p>
+            ) : isCloze ? (
+              <p className="font-semibold">
+                {result.nearMiss
+                  ? "Nästan! Rätt ord - men kolla stavningen."
+                  : "Inte rätt."}{" "}
+                Rätt svar: {result.correctAnswer}. Frågan återkommer senare i
                 passet.
               </p>
             ) : (

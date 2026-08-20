@@ -1,4 +1,5 @@
 import { sortingConfigSchema, stripSortingFacit } from "@/lib/formaga";
+import { toClientClozeConfig } from "@/lib/cloze";
 import type { PracticeQuestion } from "@/components/PracticeRunner";
 
 interface DbQuestionLike {
@@ -41,6 +42,9 @@ export function toPracticeQuestion(
     type: q.type,
     options: asCard ? [] : q.options.map((o) => o.text),
     sorting: null,
+    // Luckfrågan får ledtråden men aldrig facit - av samma skäl som
+    // sorteringsfacit hålls tillbaka ovan.
+    cloze: toClientClozeConfig(q.type, q.config),
     courseName,
     flashcard: asCard,
   };

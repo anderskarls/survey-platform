@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { notFound, redirect } from "next/navigation";
 import SurveyForm from "@/components/SurveyForm";
 import { getStudentSession } from "@/lib/student-session";
+import { toClientClozeConfig } from "@/lib/cloze";
 
 export const dynamic = "force-dynamic";
 
@@ -52,6 +53,8 @@ export default async function PublicSurveyPage({
       answer: flashcard
         ? sq.question.options.find((o) => o.isCorrect)?.text ?? null
         : null,
+      // Luckfrågans ledtråd. Facit stannar på servern - se toClientClozeConfig.
+      cloze: toClientClozeConfig(sq.question.type, sq.question.config),
     })),
   };
 

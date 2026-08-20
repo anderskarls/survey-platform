@@ -18,6 +18,7 @@ import {
   type SortingResult,
 } from "@/lib/formaga";
 import { Rating } from "ts-fsrs";
+import { gradeCloze, parseClozeConfig } from "@/lib/cloze";
 import { FLASHCARD_RATINGS, FLASHCARD_REVEAL } from "@/lib/flashcard";
 
 /** Hela försökshistoriken för en fråga hos ett elevkonto (quiz + övning) */
@@ -112,6 +113,7 @@ export async function POST(request: NextRequest) {
     if (
       question.type !== "MULTIPLE_CHOICE" &&
       question.type !== "SORTING" &&
+      question.type !== "CLOZE" &&
       !fritext
     ) {
       return NextResponse.json(
@@ -124,6 +126,7 @@ export async function POST(request: NextRequest) {
     let isCorrect: boolean | null = null;
     let correctAnswer: string | null = null;
     let sorting: SortingResult | null = null;
+    let nearMiss = false;
 
     if (question.type === "MULTIPLE_CHOICE") {
       // Samma rättningslogik som /api/surveys/[id]/respond
@@ -154,6 +157,19 @@ export async function POST(request: NextRequest) {
       }
       sorting = gradeSorting(config.data, placements);
       isCorrect = sorting.allCorrect;
+    } else if (question.type === "CLOZE") {
+      const config = parseClozeConfig(question.config);
+      if (!config) {
+        return NextResponse.json(
+          { error: "Frågan saknar giltigt facit" },
+          { status: 400 }
+        );
+      }
+      const verdict = gradeCloze(value, config);
+      isCorrect = verdict.isCorrect;
+      nearMiss = verdict.nearMiss;
+      // Facit skickas tillbaka först nu, efter elevens försök.
+      correctAnswer = verdict.answer;
     }
     // Fritext: isCorrect förblir null - kvaliteten bedöms av eleven själv
     // mot exempelsvaren (fas 2), inte av servern.
@@ -210,6 +226,7 @@ export async function POST(request: NextRequest) {
         attemptId: attempt.id,
         isCorrect,
         correctAnswer,
+        nearMiss,
         sorting,
         exemplars: exemplars.success ? exemplars.data : null,
         selfAssess: fritext || flashcardReveal,

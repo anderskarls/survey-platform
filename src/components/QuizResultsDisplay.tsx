@@ -18,6 +18,8 @@ interface QuizResult {
   yourAnswer: string;
   isCorrect: boolean | null;
   correctAnswer: string | null;
+  /** Luckfråga: fel svar som bara var några bokstäver bort. */
+  nearMiss?: boolean;
 }
 
 interface QuizResultsDisplayProps {
@@ -110,6 +112,11 @@ export default function QuizResultsDisplay({
                       >
                         {r.yourAnswer}
                       </span>
+                    </p>
+                  )}
+                  {r.nearMiss && (
+                    <p className="text-sm text-warning font-medium">
+                      Nästan! Rätt ord - men kolla stavningen.
                     </p>
                   )}
                   {(r.isCorrect === false || isUnsure) && r.correctAnswer && (
