@@ -11,11 +11,17 @@ model Course {
   id        Int       @id @default(autoincrement())
   name      String    @unique
   code      String    @unique
+  /// Flashcardläge: flervalsfrågor visas som Anki-kort (framsida, visa svar,
+  /// självskattning) i stället för alternativlistor. Frågorna i banken är
+  /// oförändrade - det här styr bara presentationen. Per kurs, så att
+  /// glosträning kan köras som kort utan att påverka övriga kurser.
+  flashcardMode Boolean @default(false)
   createdAt DateTime  @default(now())
   topics    Topic[]
   surveys   Survey[]
   students  Student[]
   units     Unit[]
+  campaignSnapshot CampaignSnapshot?
 }
 
 model Unit {
@@ -29,6 +35,7 @@ model Unit {
   course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
   createdAt   DateTime @default(now())
   surveys     Survey[]
+  topics      Topic[]
 
   @@unique([courseId, title])
 }
@@ -58,15 +65,21 @@ model Topic {
   name      String
   courseId   Int
   course    Course     @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  unitId    Int?
+  unit      Unit?      @relation(fields: [unitId], references: [id], onDelete: SetNull)
   questions Question[]
 
   @@unique([courseId, name])
+  @@index([unitId])
 }
 
 model Question {
   id              Int              @id @default(autoincrement())
   text            String
-  type            String           // MULTIPLE_CHOICE | FREE_TEXT | REFLECTION
+  type            String           // MULTIPLE_CHOICE | FREE_TEXT | REFLECTION | SORTING
+  subskill        String?          // delfärdighet för förmågeträning: kategorisera | kedjor | forgrena | vikta | kritisera
+  config          Json?            // typspecifik konfiguration; SORTING: { categories, items: [{ text, category }] }
+  exemplars       Json?            // exempelsvar i nivåer: [{ level: "E"|"C"|"A", text, kommentar }] - visas först efter elevens försök
   topicId         Int
   topic           Topic            @relation(fields: [topicId], references: [id])
   options         QuestionOption[]
@@ -137,6 +150,10 @@ model Answer {
   value      String
   feedback   String?
   isCorrect  Boolean?
+  /// FSRS-betyg 1-4 när eleven självskattat kortet (flashcardläge). Null för
+  /// vanliga svar - då härleds betyget ur isCorrect som tidigare. Utan den här
+  /// kolumnen skulle Svårt och Lätt kollapsa till Bra/Om igen i repetitionen.
+  grade      Int?
   response   Response @relation(fields: [responseId], references: [id], onDelete: Cascade)
   question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
 
@@ -179,10 +196,19 @@ model PracticeAttempt {
   value      String
   isCorrect  Boolean?
   grade      Int?     @db.SmallInt // FSRS Rating 1-4; null = före FSRS (härleds ur isCorrect)
+  aiFeedback String?  // AI-genererad återkoppling (en styrka + en förbättring) för fritextövningar
   createdAt  DateTime @default(now())
 
   @@index([studentId, questionId])
   @@index([studentId, createdAt])
+}
+
+model CampaignSnapshot {
+  id       Int      @id @default(autoincrement())
+  courseId Int      @unique
+  course   Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  payload  Json     // sektorpositioner vid senast visade dagsrapport
+  shownAt  DateTime @default(now())
 }
 
 model Admin {
@@ -204,4 +230,15 @@ model AssignmentFeedback {
   updatedAt DateTime  @updatedAt
 
   @@index([studentId, createdAt])
+}
+
+// Delad rate limit-raknare. Ligger i databasen for att serverless-instanser
+// inte delar minne - se src/lib/rate-limit.ts. Raderna ar kortlivade och
+// stadas opportunistiskt.
+model RateLimit {
+  key     String   @id
+  count   Int
+  resetAt DateTime
+
+  @@index([resetAt])
 }

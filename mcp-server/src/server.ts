@@ -1,5 +1,8 @@
 import "dotenv/config";
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import {
+  McpServer,
+  ResourceTemplate,
+} from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 
@@ -19,9 +22,9 @@ import { deleteSurvey } from "./tools/delete-survey.js";
 import { importMoment } from "./tools/import-moment.js";
 import { getMomentReport } from "./tools/get-moment-report.js";
 import { summarizeReflections } from "./tools/summarize-reflections.js";
-import { listTopics } from "./resources/topics.js";
+import { listTopics, listQuestionResourceUris } from "./resources/topics.js";
 import { getQuestionsByTopic } from "./resources/questions.js";
-import { listCourses } from "./resources/courses.js";
+import { listCourses, listTopicResourceUris } from "./resources/courses.js";
 
 const server = new McpServer({
   name: "survey-platform",
@@ -525,116 +528,90 @@ server.tool(
 
 // Resources
 
+/**
+ * Plockar ut ett positivt heltals-ID ur en URI-variabel.
+ *
+ * Variabler ur en URI-mall är `string | string[]` - en upprepad variabel ger
+ * en array. Ett ID är alltid ett enda värde, så allt annat avvisas hellre än
+ * tolkas. Returnerar null vid ogiltigt värde.
+ */
+function uriId(value: string | string[] | undefined): number | null {
+  if (typeof value !== "string") return null;
+  const id = Number(value);
+  return Number.isInteger(id) && id > 0 ? id : null;
+}
+
+/** Enhetligt JSON-svar för en resurs */
+function resourceJson(uri: URL, payload: string) {
+  return {
+    contents: [{ uri: uri.href, text: payload, mimeType: "application/json" }],
+  };
+}
+
+function resourceError(uri: URL, message: string) {
+  return resourceJson(uri, JSON.stringify({ error: message }));
+}
+
 server.resource(
   "courses",
   "survey://courses",
   { description: "Lista alla kurser" },
-  async () => {
+  async (uri) => {
     try {
-      const result = await listCourses();
-      return {
-        contents: [
-          {
-            uri: "survey://courses",
-            text: result,
-            mimeType: "application/json",
-          },
-        ],
-      };
+      return resourceJson(uri, await listCourses());
     } catch (error) {
-      return {
-        contents: [
-          {
-            uri: "survey://courses",
-            text: JSON.stringify({
-              error: `Fel: ${(error as Error).message}`,
-            }),
-            mimeType: "application/json",
-          },
-        ],
-      };
+      return resourceError(uri, `Fel: ${(error as Error).message}`);
     }
   }
 );
 
 server.resource(
   "topics",
-  "survey://courses/{courseId}/topics",
-  { description: "Lista alla ämnen i en kurs med antal frågor" },
-  async (uri) => {
-    try {
-      const match = uri.href.match(/courses\/(\d+)\/topics/);
-      if (!match) {
-        return {
-          contents: [
-            {
-              uri: uri.href,
-              text: JSON.stringify({ error: "Ogiltigt kurs-ID i URI" }),
-              mimeType: "application/json",
-            },
-          ],
-        };
+  new ResourceTemplate("survey://courses/{courseId}/topics", {
+    list: async () => {
+      try {
+        return { resources: await listTopicResourceUris() };
+      } catch {
+        // En trasig listning får inte sänka hela resources/list
+        return { resources: [] };
       }
-      const courseId = Number(match[1]);
-      const result = await listTopics(courseId);
-      return {
-        contents: [
-          { uri: uri.href, text: result, mimeType: "application/json" },
-        ],
-      };
+    },
+  }),
+  { description: "Lista alla ämnen i en kurs med antal frågor" },
+  async (uri, { courseId }) => {
+    try {
+      const id = uriId(courseId);
+      if (id === null) {
+        return resourceError(uri, `Ogiltigt kurs-ID i URI: ${uri.href}`);
+      }
+      return resourceJson(uri, await listTopics(id));
     } catch (error) {
-      return {
-        contents: [
-          {
-            uri: uri.href,
-            text: JSON.stringify({
-              error: `Fel: ${(error as Error).message}`,
-            }),
-            mimeType: "application/json",
-          },
-        ],
-      };
+      return resourceError(uri, `Fel: ${(error as Error).message}`);
     }
   }
 );
 
 server.resource(
   "questions-template",
-  "survey://topics/{topicId}/questions",
-  { description: "Hämta alla frågor inom ett visst ämne" },
-  async (uri) => {
-    try {
-      const match = uri.href.match(/topics\/(\d+)\/questions/);
-      if (!match) {
-        return {
-          contents: [
-            {
-              uri: uri.href,
-              text: JSON.stringify({ error: "Ogiltigt ämnes-ID i URI" }),
-              mimeType: "application/json",
-            },
-          ],
-        };
+  new ResourceTemplate("survey://topics/{topicId}/questions", {
+    list: async () => {
+      try {
+        return { resources: await listQuestionResourceUris() };
+      } catch {
+        return { resources: [] };
       }
-      const topicId = Number(match[1]);
-      const result = await getQuestionsByTopic(topicId);
-      return {
-        contents: [
-          { uri: uri.href, text: result, mimeType: "application/json" },
-        ],
-      };
+    },
+  }),
+  { description: "Hämta alla frågor inom ett visst ämne" },
+  async (uri, { topicId }) => {
+    try {
+      const id = uriId(topicId);
+      if (id === null) {
+        return resourceError(uri, `Ogiltigt ämnes-ID i URI: ${uri.href}`);
+      }
+      return resourceJson(uri, await getQuestionsByTopic(id));
     } catch (error) {
-      return {
-        contents: [
-          {
-            uri: uri.href,
-            text: JSON.stringify({
-              error: `Fel: ${(error as Error).message}`,
-            }),
-            mimeType: "application/json",
-          },
-        ],
-      };
+      return resourceError(uri, `Fel: ${(error as Error).message}`);
     }
   }
 );
