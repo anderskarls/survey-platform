@@ -1,5 +1,8 @@
-import "dotenv/config";
+import { config } from "dotenv";
 import { PrismaClient } from "@prisma/client";
+import { PrismaNeon } from "@prisma/adapter-neon";
+import { neonConfig } from "@neondatabase/serverless";
+import ws from "ws";
 import bcrypt from "bcryptjs";
 
 /**
@@ -17,7 +20,26 @@ import bcrypt from "bcryptjs";
  *   npx tsx scripts/manage-teacher.ts delete <e-post>
  */
 
-const prisma = new PrismaClient();
+// DATABASE_URL kan ligga i roten eller - som på Windows-maskinen - bara i
+// mcp-server/.env. Läs båda, rotens först om den finns.
+config();
+config({ path: "mcp-server/.env" });
+
+// Neons WebSocket-drivrutin går över port 443 och fungerar därför även bakom
+// nätverk som blockerar direkta Postgres-anslutningar (TCP 5432). Samma väg
+// in som mcp-server och verifieringsskripten tar.
+neonConfig.webSocketConstructor = ws;
+
+const connectionString = process.env.DATABASE_URL;
+if (!connectionString) {
+  throw new Error(
+    "DATABASE_URL saknas. Lägg den i .env i roten eller i mcp-server/.env."
+  );
+}
+
+const prisma = new PrismaClient({
+  adapter: new PrismaNeon({ connectionString }),
+});
 
 const ANVANDNING = `Användning:
   list                                            visa alla konton och deras kurser

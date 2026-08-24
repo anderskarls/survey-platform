@@ -77,15 +77,19 @@ async function scopeForEmail(email: string): Promise<AdminScope | null> {
   };
 }
 
+/**
+ * Städar i beroendeordning. Topic kaskaderar från Course, men
+ * `Question.topicId` gör det INTE - en kurs går därför inte att radera
+ * medan dess frågor finns kvar, och en städning som börjar med kursen
+ * misslyckas och lämnar allt kvar i databasen.
+ */
 async function stad() {
+  const egenKurs = { course: { name: { startsWith: MARKER } } };
+  await prisma.question.deleteMany({ where: { topic: egenKurs } });
+  await prisma.survey.deleteMany({ where: egenKurs });
+  await prisma.topic.deleteMany({ where: egenKurs });
+  await prisma.course.deleteMany({ where: { name: { startsWith: MARKER } } });
   await prisma.admin.deleteMany({ where: { email: { startsWith: MARKER } } });
-  const kurser = await prisma.course.findMany({
-    where: { name: { startsWith: MARKER } },
-    select: { id: true },
-  });
-  for (const k of kurser) {
-    await prisma.course.delete({ where: { id: k.id } });
-  }
 }
 
 async function main() {
@@ -231,6 +235,18 @@ async function main() {
   }
 
   console.log("\n7. Kaskadradering");
+  // Steg 5 tog bort kopplingen. Utan att lägga tillbaka den skulle testet
+  // nedan passera på tom hand och inte pröva kaskaden alls.
+  await prisma.adminCourse.create({
+    data: { adminId: larare.id, courseId: kursA.id },
+  });
+  check(
+    "kopplingen finns innan kursen raderas",
+    (await prisma.adminCourse.count({ where: { courseId: kursA.id } })) === 1
+  );
+  // Frågorna först: Question.topicId kaskaderar inte från Course.
+  await prisma.question.deleteMany({ where: { topic: { courseId: kursA.id } } });
+  await prisma.survey.deleteMany({ where: { courseId: kursA.id } });
   await prisma.course.delete({ where: { id: kursA.id } });
   const kvar = await prisma.adminCourse.count({ where: { courseId: kursA.id } });
   check("kopplingen försvinner när kursen raderas", kvar === 0);
