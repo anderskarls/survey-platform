@@ -199,7 +199,14 @@ export async function requireTopicAccess(
 export async function requireOwner(): Promise<NextResponse | null> {
   const scope = await requireAdminScope();
   if (scope instanceof NextResponse) return scope;
-  if (!scopeIsOwner(scope)) return forbidden();
+  if (!scopeIsOwner(scope)) {
+    // Egen text: här är ingen kurs inblandad, så forbidden() skulle svara på
+    // en fråga som inte ställdes.
+    return NextResponse.json(
+      { error: "Bara ägarkontot kan göra det här" },
+      { status: 403 }
+    );
+  }
   return null;
 }
 
