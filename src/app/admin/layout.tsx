@@ -1,4 +1,5 @@
 import BaseSidebar from "@/components/BaseSidebar";
+import AdminAccountFooter from "@/components/admin/AdminAccountFooter";
 import { requirePageScope } from "@/lib/page-auth";
 
 const adminLinks = [
@@ -28,6 +29,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             <p className="text-xs text-white/50 mt-0.5">{scope.name}</p>
           </div>
         }
+        footerContent={<AdminAccountFooter name={scope.name} email={scope.email} />}
         mobileTopbar={<span className="font-bold text-sm">Enkätplattform</span>}
       />
       <main id="main-content" className="flex-1 p-4 md:p-8">

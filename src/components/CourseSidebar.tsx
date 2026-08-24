@@ -3,10 +3,13 @@
 import { useState } from "react";
 import Link from "next/link";
 import BaseSidebar from "@/components/BaseSidebar";
+import AdminAccountFooter from "@/components/admin/AdminAccountFooter";
 
 interface CourseSidebarProps {
   courseId: number;
   courseName: string;
+  adminName: string;
+  adminEmail?: string | null;
 }
 
 /**
@@ -60,7 +63,12 @@ function ViewAsStudentButton({ courseId }: { courseId: number }) {
   );
 }
 
-export default function CourseSidebar({ courseId, courseName }: CourseSidebarProps) {
+export default function CourseSidebar({
+  courseId,
+  courseName,
+  adminName,
+  adminEmail,
+}: CourseSidebarProps) {
   const base = `/admin/courses/${courseId}`;
 
   const links = [
@@ -85,7 +93,12 @@ export default function CourseSidebar({ courseId, courseName }: CourseSidebarPro
           <h1 className="text-lg font-bold mt-1.5 px-3 tracking-tight">{courseName}</h1>
         </div>
       }
-      footerContent={<ViewAsStudentButton courseId={courseId} />}
+      footerContent={
+        <>
+          <ViewAsStudentButton courseId={courseId} />
+          <AdminAccountFooter name={adminName} email={adminEmail} />
+        </>
+      }
       mobileTopbar={
         <div className="flex items-center gap-2">
           <Link href="/admin" className="text-white/50 hover:text-white text-xs">&larr;</Link>

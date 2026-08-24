@@ -16,7 +16,7 @@ export default async function CourseLayout({
 
   // Enda porten till hela /admin/courses/[courseId]/**. Alla undersidor
   // ärver den här kontrollen - läggs en ny sida till behöver den inget eget.
-  await requireCoursePage(Number(courseId));
+  const scope = await requireCoursePage(Number(courseId));
 
   const course = await prisma.course.findUnique({
     where: { id: Number(courseId) },
@@ -29,7 +29,12 @@ export default async function CourseLayout({
       <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:bg-primary focus:text-white focus:px-4 focus:py-2 focus:rounded">
         Hoppa till innehåll
       </a>
-      <CourseSidebar courseId={course.id} courseName={course.name} />
+      <CourseSidebar
+        courseId={course.id}
+        courseName={course.name}
+        adminName={scope.name}
+        adminEmail={scope.email}
+      />
       <main id="main-content" className="flex-1 p-4 md:p-8">{children}</main>
     </div>
   );

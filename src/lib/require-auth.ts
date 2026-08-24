@@ -48,6 +48,7 @@ export async function getAdminScope(): Promise<ScopeLookup> {
     select: {
       id: true,
       name: true,
+      email: true,
       role: true,
       courses: { select: { courseId: true } },
     },
@@ -58,11 +59,14 @@ export async function getAdminScope(): Promise<ScopeLookup> {
   // borttagen lärare tappar åtkomsten direkt.
   if (!admin) return null;
 
-  if (admin.role === "OWNER") return fullScope(admin.id, admin.name);
+  if (admin.role === "OWNER") {
+    return fullScope(admin.id, admin.name, admin.email);
+  }
 
   return {
     adminId: admin.id,
     name: admin.name,
+    email: admin.email,
     isOwner: false,
     courseIds: admin.courses.map((c) => c.courseId),
   };

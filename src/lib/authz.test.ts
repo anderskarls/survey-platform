@@ -14,12 +14,14 @@ const apiNyckel: AdminScope = fullScope(null, "API-nyckel");
 const larare: AdminScope = {
   adminId: 2,
   name: "Kollega",
+  email: "kollega@example.invalid",
   isOwner: false,
   courseIds: [13],
 };
 const utanKurser: AdminScope = {
   adminId: 3,
   name: "Ny kollega",
+  email: "ny@example.invalid",
   isOwner: false,
   courseIds: [],
 };

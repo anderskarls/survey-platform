@@ -16,6 +16,8 @@ export type AdminScope = {
   /** Kontots id, eller null för API-nyckeln som inte är ett konto. */
   adminId: number | null;
   name: string;
+  /** null för API-nyckeln, som inte är ett konto. */
+  email: string | null;
   isOwner: boolean;
   /**
    * Kurserna kontot når. `null` betyder alla kurser och gäller ägaren och
@@ -27,8 +29,12 @@ export type AdminScope = {
 };
 
 /** Ägarens och API-nyckelns obegränsade scope. */
-export function fullScope(adminId: number | null, name: string): AdminScope {
-  return { adminId, name, isOwner: true, courseIds: null };
+export function fullScope(
+  adminId: number | null,
+  name: string,
+  email: string | null = null
+): AdminScope {
+  return { adminId, name, email, isOwner: true, courseIds: null };
 }
 
 /** Når det här scopet den angivna kursen? */
