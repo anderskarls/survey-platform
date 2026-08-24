@@ -68,6 +68,9 @@ model Topic {
   course    Course     @relation(fields: [courseId], references: [id], onDelete: Cascade)
   unitId    Int?
   unit      Unit?      @relation(fields: [unitId], references: [id], onDelete: SetNull)
+  /// Öppen för övning: nya frågor härifrån flödar in i elevernas
+  /// övningspass utan att först ha mötts i ett quiz. Se relearning-data.
+  practiceOpen Boolean @default(false)
   questions Question[]
 
   @@unique([courseId, name])

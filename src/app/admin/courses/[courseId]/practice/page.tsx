@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { loadCourseRelearningOverview } from "@/lib/relearning-data";
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import PracticeTopicRelease from "@/components/admin/PracticeTopicRelease";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +22,7 @@ export default async function CoursePracticePage({
   const cId = Number(courseId);
   if (isNaN(cId)) notFound();
 
-  const [course, students, overview] = await Promise.all([
+  const [course, students, overview, topics] = await Promise.all([
     prisma.course.findUnique({ where: { id: cId } }),
     prisma.student.findMany({
       // Lärarens provkonto hör inte till klassens siffror
@@ -30,6 +31,16 @@ export default async function CoursePracticePage({
       select: { id: true, number: true, username: true },
     }),
     loadCourseRelearningOverview(cId),
+    prisma.topic.findMany({
+      where: { courseId: cId },
+      orderBy: { name: "asc" },
+      select: {
+        id: true,
+        name: true,
+        practiceOpen: true,
+        _count: { select: { questions: true } },
+      },
+    }),
   ]);
 
   if (!course) notFound();
@@ -75,6 +86,16 @@ export default async function CoursePracticePage({
         vem som låter luckorna ligga, och vilka frågor som inte sitter i
         klassen.
       </p>
+
+      <PracticeTopicRelease
+        courseId={cId}
+        topics={topics.map((t) => ({
+          id: t.id,
+          name: t.name,
+          questionCount: t._count.questions,
+          practiceOpen: t.practiceOpen,
+        }))}
+      />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         {stats.map((s, i) => (

@@ -2,7 +2,11 @@ import { getStudentSession } from "@/lib/student-session";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { loadRelearningData } from "@/lib/relearning-data";
-import { selectPracticeSet, summarizeStates } from "@/lib/relearning";
+import {
+  PRACTICE_SET_CAP,
+  selectPracticeSet,
+  summarizeStates,
+} from "@/lib/relearning";
 import PracticeRunner from "@/components/PracticeRunner";
 import { toPracticeQuestion } from "@/lib/practice-question";
 import Link from "next/link";
@@ -11,10 +15,19 @@ export default async function PracticePage() {
   const session = await getStudentSession();
   if (!session) redirect("/login");
 
-  const { states, candidates, questionInfo, accounts } =
-    await loadRelearningData(session.studentId);
+  const {
+    states,
+    candidates,
+    questionInfo,
+    accounts,
+    newCandidates,
+    introducedToday,
+  } = await loadRelearningData(session.studentId);
   const stats = summarizeStates(states);
-  const setIds = selectPracticeSet(candidates, states);
+  const setIds = selectPracticeSet(candidates, states, PRACTICE_SET_CAP, {
+    candidates: newCandidates,
+    introducedToday,
+  });
   // Kursetiketter visas bara när övningen spänner över flera kurser
   const multiCourse = new Set(accounts.map((a) => a.courseId)).size > 1;
 
@@ -34,8 +47,21 @@ export default async function PracticePage() {
           Frågor du mött återkommer här lagom innan du hinner glömma dem.
         </p>
         <div className="card p-6 text-center">
-          <p className="font-semibold mb-1">Inget att öva på just nu</p>
-          {states.size === 0 ? (
+          <p className="font-semibold mb-1">
+            {newCandidates.length > 0
+              ? "Klart för idag"
+              : "Inget att öva på just nu"}
+          </p>
+          {newCandidates.length > 0 ? (
+            // Dagens tak för nya ord är nått. Fler ord väntar, men de kommer
+            // imorgon - att ta dem nu vore att plugga, inte att repetera.
+            <p className="text-sm text-muted">
+              Du har gått igenom dagens nya ord
+              {introducedToday > 0 ? ` (${introducedToday} st)` : ""}. Nya ord
+              kommer imorgon, och orden du redan mött återkommer när det är
+              dags att repetera dem.
+            </p>
+          ) : states.size === 0 ? (
             <p className="text-sm text-muted">
               När du gjort en quiz hamnar frågorna här och återkommer med
               växande mellanrum - oftare om de är svåra, mer sällan när de

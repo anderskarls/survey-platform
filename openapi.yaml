@@ -722,6 +722,47 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
+  /api/courses/{courseId}/topics/{topicId}:
+    patch:
+      tags: [topics]
+      summary: Open or close a topic for practice
+      description: >
+        An open topic feeds its multiple-choice questions into students'
+        practice sessions as new cards, capped per day, without the student
+        having met them in a quiz first. Closing stops the intake only -
+        questions the student has already met keep their history.
+      operationId: updateTopic
+      parameters:
+        - $ref: "#/components/parameters/CourseId"
+        - name: topicId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [practiceOpen]
+              properties:
+                practiceOpen:
+                  type: boolean
+      responses:
+        "200":
+          description: Topic updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Topic"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Topic not found in this course
+
   /api/courses/{courseId}/students:
     get:
       tags: [students]
@@ -1468,6 +1509,11 @@ components:
           type: string
         courseId:
           type: integer
+        practiceOpen:
+          type: boolean
+          description: >
+            When true, the topic's unseen multiple-choice questions flow into
+            students' practice sessions as new cards (daily cap applies).
         _count:
           type: object
           properties:

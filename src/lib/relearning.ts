@@ -24,6 +24,15 @@ export interface AttemptRecord {
 
 /** Max antal frågor per övningspass */
 export const PRACTICE_SET_CAP = 20;
+/**
+ * Max antal ALDRIG MÖTTA frågor som introduceras per kalenderdag.
+ *
+ * Ankis "new cards/day". Utan tak skulle en öppnad vecka (t.ex. 15 glosor
+ * åt båda hållen = 30 kort) landa i elevens knä samma dag och tränga undan
+ * repetitionerna, som är det som faktiskt bygger minnet. Repetitioner går
+ * alltid före nya kort i passet.
+ */
+export const DAILY_NEW_CARD_CAP = 10;
 /** "Behärskad" = schemalagt intervall minst så här många dagar */
 export const MASTERED_INTERVAL_DAYS = 7;
 
@@ -114,6 +123,8 @@ export function hasAttemptOnDay(
 export interface ReplayedCard {
   card: Card;
   lastGrade: Grade;
+  /** Tidpunkten för elevens allra första försök på frågan */
+  firstAttempt: Date;
 }
 
 /** Foldar försökshistoriken (dagens första försök per dag) genom FSRS */
@@ -127,7 +138,7 @@ export function replayCard(attempts: AttemptRecord[]): ReplayedCard | null {
     card = scheduler.next(card, a.createdAt, grade).card;
     lastGrade = grade;
   }
-  return { card, lastGrade };
+  return { card, lastGrade, firstAttempt: sorted[0].createdAt };
 }
 
 export interface QuestionPracticeState {
@@ -149,6 +160,8 @@ export interface QuestionPracticeState {
   lastReview: Date;
   lapses: number;
   reps: number;
+  /** Kalenderdag för elevens första försök - dagens tak för nya kort */
+  firstSeenDay: string;
   /** Intervall >= MASTERED_INTERVAL_DAYS och senaste betyg inte "Om igen" */
   mastered: boolean;
 }
@@ -165,7 +178,7 @@ export function buildQuestionState(
 ): QuestionPracticeState | null {
   const replayed = replayCard(attempts);
   if (!replayed) return null;
-  const { card, lastGrade } = replayed;
+  const { card, lastGrade, firstAttempt } = replayed;
 
   const dueDay = dayKey(card.due);
   const daysUntilDue = Math.max(0, dayDiff(dayKey(now), dueDay));
@@ -183,6 +196,7 @@ export function buildQuestionState(
     lastReview: card.last_review ?? attempts[0].createdAt,
     lapses: card.lapses,
     reps: card.reps,
+    firstSeenDay: dayKey(firstAttempt),
     mastered:
       card.scheduled_days >= MASTERED_INTERVAL_DAYS &&
       lastGrade !== Rating.Again,
@@ -215,14 +229,49 @@ export interface PracticeCandidate {
 }
 
 /**
+ * Räknar hur många nya frågor eleven redan introducerats för idag, så att
+ * dagens tak håller över flera pass. En fråga är ny den dag den möttes
+ * första gången - därefter är den en repetition som vilken annan.
+ */
+export function countIntroducedToday(
+  states: Map<number, QuestionPracticeState>,
+  now: Date = new Date()
+): number {
+  const today = dayKey(now);
+  let count = 0;
+  for (const s of states.values()) if (s.firstSeenDay === today) count++;
+  return count;
+}
+
+/**
+ * Aldrig mötta frågor som får introduceras, i den ordning läraren öppnat
+ * dem. Tom lista = kursen kör den ursprungliga modellen, där en fråga når
+ * övningen först när eleven mött den i ett quiz.
+ */
+export interface NewCardIntake {
+  /** Kandidater utan försökshistorik, i introduktionsordning */
+  candidates: PracticeCandidate[];
+  /** Redan introducerade idag - dras av från dagens tak */
+  introducedToday: number;
+  /** Tak per kalenderdag */
+  dailyCap?: number;
+}
+
+/**
  * Väljer dagens övningspass: due-frågor, svagast minne först (lägst
  * retrievability), äldst due som tie-break, round-robin över topics för
  * tematisk variation.
+ *
+ * Finns det nya kort att introducera fylls de på SIST, upp till dagens tak
+ * och bara om passet har plats kvar. Ordningen är avsiktlig: en elev med
+ * många repetitioner ska beta av dem innan hen får nya ord, annars växer
+ * skulden snabbare än den betalas.
  */
 export function selectPracticeSet(
   candidates: PracticeCandidate[],
   states: Map<number, QuestionPracticeState>,
-  cap: number = PRACTICE_SET_CAP
+  cap: number = PRACTICE_SET_CAP,
+  newCards?: NewCardIntake
 ): number[] {
   const due = candidates
     .map((c) => ({ ...c, state: states.get(c.questionId) }))
@@ -258,6 +307,23 @@ export function selectPracticeSet(
       }
     }
   }
+
+  if (newCards && result.length < cap) {
+    const dailyCap = newCards.dailyCap ?? DAILY_NEW_CARD_CAP;
+    const room = Math.min(
+      cap - result.length,
+      Math.max(0, dailyCap - newCards.introducedToday)
+    );
+    // Frågor med historik är redan hanterade ovan; ta bara de verkligt nya
+    let introduced = 0;
+    for (const c of newCards.candidates) {
+      if (introduced >= room || result.length >= cap) break;
+      if (states.has(c.questionId)) continue;
+      result.push(c.questionId);
+      introduced++;
+    }
+  }
+
   return result;
 }
 

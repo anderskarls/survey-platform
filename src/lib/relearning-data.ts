@@ -4,6 +4,7 @@ import {
   PracticeCandidate,
   QuestionPracticeState,
   buildRelearningStates,
+  countIntroducedToday,
   summarizeStates,
 } from "@/lib/relearning";
 
@@ -62,6 +63,10 @@ export interface RelearningData {
   states: Map<number, QuestionPracticeState>;
   candidates: PracticeCandidate[];
   questionInfo: Map<number, PracticeQuestionInfo>;
+  /** Aldrig mötta frågor ur öppnade topics, i introduktionsordning */
+  newCandidates: PracticeCandidate[];
+  /** Antal nya frågor eleven redan introducerats för idag */
+  introducedToday: number;
 }
 
 /**
@@ -71,6 +76,12 @@ export interface RelearningData {
  * i två kurser) slås ihop så att övningen täcker alla kurser oavsett vilket
  * konto eleven är inloggad på. Varje fråga hör till exakt en kurs, så
  * historiken per fråga blandas aldrig mellan konton.
+ *
+ * Därutöver hämtas ALDRIG MÖTTA flervalsfrågor ur de topics läraren öppnat
+ * för övning (`Topic.practiceOpen`). De är vägen in för kurser där glosorna
+ * övas i stället för att provas - utan dem kan en fråga bara nå övningen
+ * genom ett quiz. Är inget topic öppnat blir listan tom och modellen är
+ * exakt den gamla.
  */
 export async function loadRelearningData(
   studentId: number,
@@ -159,7 +170,40 @@ export async function loadRelearningData(
     })
   );
 
-  return { accounts, states, candidates, questionInfo };
+  // Nya kort: flervalsfrågor ur öppnade topics som eleven aldrig mött.
+  // Ordningen är topicets namn ("Vecka 01" före "Vecka 02") och därefter
+  // frågans id, så introduktionen följer kursens gång och är deterministisk.
+  const courseIds = accounts.map((a) => a.courseId);
+  const seen = new Set(states.keys());
+  const newQuestions = await prisma.question.findMany({
+    where: {
+      type: "MULTIPLE_CHOICE",
+      id: { notIn: Array.from(seen) },
+      topic: { practiceOpen: true, courseId: { in: courseIds } },
+    },
+    select: {
+      id: true,
+      topicId: true,
+      topic: { select: { name: true, courseId: true } },
+    },
+    orderBy: [{ topic: { name: "asc" } }, { id: "asc" }],
+  });
+
+  const newCandidates: PracticeCandidate[] = [];
+  for (const q of newQuestions) {
+    if (seen.has(q.id)) continue;
+    register(q.id, q.topicId, q.topic.courseId);
+    newCandidates.push({ questionId: q.id, topicId: q.topicId });
+  }
+
+  return {
+    accounts,
+    states,
+    candidates,
+    questionInfo,
+    newCandidates,
+    introducedToday: countIntroducedToday(states, now),
+  };
 }
 
 export interface StudentPracticeOverview {
