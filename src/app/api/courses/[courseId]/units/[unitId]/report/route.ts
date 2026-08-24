@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/require-auth";
+import { requireCourseAccess } from "@/lib/require-auth";
 
 // Markdown teacher-report for a whole moment: completion per assignment,
 // per-question breakdown (option counts with the correct one marked for
@@ -10,7 +10,7 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ courseId: string; unitId: string }> }
 ) {
-  const authError = await requireAdmin();
+  const authError = await requireCourseAccess(params);
   if (authError) return authError;
 
   const { courseId, unitId } = await params;

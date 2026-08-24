@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/require-auth";
+import { requireCourseAccess } from "@/lib/require-auth";
 import { handleApiError } from "@/lib/api-helpers";
 import { courseSettingsSchema } from "@/lib/validators";
 
@@ -8,7 +8,7 @@ export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ courseId: string }> }
 ) {
-  const authError = await requireAdmin();
+  const authError = await requireCourseAccess(params);
   if (authError) return authError;
 
   const { courseId } = await params;
@@ -34,7 +34,7 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ courseId: string }> }
 ) {
-  const authError = await requireAdmin();
+  const authError = await requireCourseAccess(params);
   if (authError) return authError;
 
   const { courseId } = await params;

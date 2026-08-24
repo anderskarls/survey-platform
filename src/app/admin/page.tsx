@@ -1,10 +1,16 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { ownCoursesWhere, scopeIsOwner } from "@/lib/authz";
+import { requirePageScope } from "@/lib/page-auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function CoursesPage() {
+  const scope = await requirePageScope();
+  const arAgare = scopeIsOwner(scope);
+
   const courses = await prisma.course.findMany({
+    where: ownCoursesWhere(scope),
     include: {
       _count: { select: { topics: true, surveys: true } },
       surveys: {
@@ -21,18 +27,26 @@ export default async function CoursesPage() {
           <h1 className="text-2xl font-bold tracking-tight">Mina kurser</h1>
           <p className="text-muted text-sm mt-1">{courses.length} kurser</p>
         </div>
-        <Link href="/admin/courses/new" className="btn-primary">
-          Skapa ny kurs
-        </Link>
+        {arAgare && (
+          <Link href="/admin/courses/new" className="btn-primary">
+            Skapa ny kurs
+          </Link>
+        )}
       </div>
 
       {courses.length === 0 ? (
         <div className="card p-12 text-center">
           <div className="text-4xl mb-4 opacity-40">&#128218;</div>
-          <p className="text-muted mb-4">Inga kurser skapade ännu.</p>
-          <Link href="/admin/courses/new" className="text-primary font-semibold hover:underline">
-            Skapa din första kurs
-          </Link>
+          <p className="text-muted mb-4">
+            {arAgare
+              ? "Inga kurser skapade ännu."
+              : "Du har inte tilldelats någon kurs ännu."}
+          </p>
+          {arAgare && (
+            <Link href="/admin/courses/new" className="text-primary font-semibold hover:underline">
+              Skapa din första kurs
+            </Link>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">

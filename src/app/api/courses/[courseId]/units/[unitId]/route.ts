@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/require-auth";
+import { requireCourseAccess } from "@/lib/require-auth";
 
 interface LessonPatch {
   n: number;
@@ -29,7 +29,7 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ courseId: string; unitId: string }> }
 ) {
-  const authError = await requireAdmin();
+  const authError = await requireCourseAccess(params);
   if (authError) return authError;
 
   const { courseId, unitId } = await params;

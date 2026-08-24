@@ -1,19 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/require-auth";
+import { requireSurveyAccess } from "@/lib/require-auth";
 
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const authError = await requireAdmin();
-  if (authError) return authError;
-
   const { id } = await params;
   const surveyId = Number(id);
   if (isNaN(surveyId)) {
     return NextResponse.json({ error: "Ogiltigt enkät-ID" }, { status: 400 });
   }
+
+  const authError = await requireSurveyAccess(surveyId);
+  if (authError) return authError;
 
   const survey = await prisma.survey.findUnique({
     where: { id: surveyId },

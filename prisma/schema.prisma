@@ -22,6 +22,7 @@ model Course {
   students  Student[]
   units     Unit[]
   campaignSnapshot CampaignSnapshot?
+  admins    AdminCourse[]
 }
 
 model Unit {
@@ -211,12 +212,36 @@ model CampaignSnapshot {
   shownAt  DateTime @default(now())
 }
 
+/// OWNER ser hela plattformen. TEACHER ser bara de kurser kontot är kopplat
+/// till - allt annat är osynligt, inte bara oredigerbart.
+enum AdminRole {
+  OWNER
+  TEACHER
+}
+
 model Admin {
   id           Int      @id @default(autoincrement())
   email        String   @unique
   name         String
   passwordHash String
+  /// Default är TEACHER så att ett konto som skapas utan uttalad roll blir
+  /// det snävaste, inte det vidaste. Ägarkontot sätts explicit av seed-admin.
+  role         AdminRole @default(TEACHER)
   createdAt    DateTime @default(now())
+  courses      AdminCourse[]
+}
+
+/// Vilka kurser ett TEACHER-konto når. Raderna saknar betydelse för OWNER -
+/// ägaren når alla kurser oavsett vad som står här.
+model AdminCourse {
+  adminId   Int
+  admin     Admin    @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  courseId  Int
+  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([adminId, courseId])
+  @@index([courseId])
 }
 
 model AssignmentFeedback {

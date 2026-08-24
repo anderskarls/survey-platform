@@ -2,14 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createQuestionSchema } from "@/lib/validators";
 import { handleApiError } from "@/lib/api-helpers";
-import { requireAdmin } from "@/lib/require-auth";
+import { requireCourseAccess } from "@/lib/require-auth";
 import { questionListInclude } from "@/lib/question-edit";
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ courseId: string }> }
 ) {
-  const authError = await requireAdmin();
+  const authError = await requireCourseAccess(params);
   if (authError) return authError;
 
   const { courseId } = await params;
@@ -44,7 +44,7 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ courseId: string }> }
 ) {
-  const authError = await requireAdmin();
+  const authError = await requireCourseAccess(params);
   if (authError) return authError;
 
   try {

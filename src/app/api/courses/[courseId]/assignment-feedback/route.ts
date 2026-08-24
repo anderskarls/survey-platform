@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/require-auth";
+import { requireCourseAccess } from "@/lib/require-auth";
 import { createAssignmentFeedbackSchema } from "@/lib/validators";
 import { handleApiError } from "@/lib/api-helpers";
 
@@ -8,7 +8,7 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ courseId: string }> }
 ) {
-  const authError = await requireAdmin();
+  const authError = await requireCourseAccess(params);
   if (authError) return authError;
 
   try {

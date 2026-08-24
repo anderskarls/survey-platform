@@ -23,12 +23,14 @@ import { randomBytes } from "node:crypto";
 const TEST_STUDENT_NUMBER = 99;
 
 export async function POST(request: NextRequest) {
-  const authError = await requireAdmin();
-  if (authError) return authError;
-
   try {
     const body = await request.json();
     const { courseId } = studentImpersonateSchema.parse(body);
+
+    // "Visa som elev" tar kursen ur bodyn, inte ur URL:en. Utan kontrollen
+    // här vore knappen en genväg in i vilken kurs som helst.
+    const authError = await requireAdmin(courseId);
+    if (authError) return authError;
 
     const course = await prisma.course.findUnique({
       where: { id: courseId },

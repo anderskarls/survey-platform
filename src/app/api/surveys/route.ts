@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { generateShareCode } from "@/lib/share-code";
 import { handleApiError } from "@/lib/api-helpers";
-import { requireAdmin } from "@/lib/require-auth";
+import { requireAdmin, requireAdminScope } from "@/lib/require-auth";
+import { courseScopeWhere } from "@/lib/authz";
 import { z } from "zod";
 
 const createSurveyWithCourseSchema = z.object({
@@ -13,10 +14,11 @@ const createSurveyWithCourseSchema = z.object({
 });
 
 export async function GET() {
-  const authError = await requireAdmin();
-  if (authError) return authError;
+  const scope = await requireAdminScope();
+  if (scope instanceof NextResponse) return scope;
 
   const surveys = await prisma.survey.findMany({
+    where: courseScopeWhere(scope),
     include: {
       _count: { select: { questions: true, responses: true } },
     },
@@ -26,13 +28,26 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const authError = await requireAdmin();
-  if (authError) return authError;
-
   try {
     const body = await request.json();
     const { title, description, courseId, questionIds } =
       createSurveyWithCourseSchema.parse(body);
+
+    const authError = await requireAdmin(courseId);
+    if (authError) return authError;
+
+    // SurveyQuestion hindrar inte i sig att en fråga ur en annan kurs hamnar
+    // i enkäten. Utan den här kontrollen vore enkäten en väg att läsa frågor
+    // ur kurser man inte når - behörigheten på enkäten skulle inte hjälpa.
+    const frammande = await prisma.question.count({
+      where: { id: { in: questionIds }, topic: { courseId: { not: courseId } } },
+    });
+    if (frammande > 0) {
+      return NextResponse.json(
+        { error: "Enkäten innehåller frågor som inte tillhör kursen" },
+        { status: 400 }
+      );
+    }
 
     const survey = await prisma.survey.create({
       data: {

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createStudentsSchema } from "@/lib/validators";
 import { handleApiError } from "@/lib/api-helpers";
-import { requireAdmin } from "@/lib/require-auth";
+import { requireCourseAccess } from "@/lib/require-auth";
 import bcrypt from "bcryptjs";
 import { nanoid } from "nanoid";
 import { randomInt } from "node:crypto";
@@ -21,7 +21,7 @@ export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ courseId: string }> }
 ) {
-  const authError = await requireAdmin();
+  const authError = await requireCourseAccess(params);
   if (authError) return authError;
 
   const { courseId } = await params;
@@ -76,7 +76,7 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ courseId: string }> }
 ) {
-  const authError = await requireAdmin();
+  const authError = await requireCourseAccess(params);
   if (authError) return authError;
 
   try {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/require-auth";
+import { forbidden, requireAdminScope } from "@/lib/require-auth";
+import { questionScopeWhere, scopeAllowsCourse } from "@/lib/authz";
 import { handleApiError } from "@/lib/api-helpers";
 import { submitPracticeFeedbackSchema } from "@/lib/validators";
 import {
@@ -19,8 +20,8 @@ const TRIVIAL_VALUES = new Set(["?", ".", "!", "1", "-", ".."]);
 // har promptunderlaget. Ingen elevidentitet exponeras - försöks-ID räcker
 // för att lämna feedback.
 export async function GET(request: NextRequest) {
-  const authError = await requireAdmin();
-  if (authError) return authError;
+  const scope = await requireAdminScope();
+  if (scope instanceof NextResponse) return scope;
 
   try {
     const { searchParams } = request.nextUrl;
@@ -34,6 +35,7 @@ export async function GET(request: NextRequest) {
           { status: 400 }
         );
       }
+      if (!scopeAllowsCourse(scope, courseId)) return forbidden();
     }
 
     const attempts = await prisma.practiceAttempt.findMany({
@@ -42,7 +44,12 @@ export async function GET(request: NextRequest) {
         question: {
           type: "FREE_TEXT",
           subskill: { not: null },
-          ...(courseId !== undefined ? { topic: { courseId } } : {}),
+          // courseId är frivilligt i anropet. För ägaren betyder utelämnat
+          // "alla kurser"; för en lärare skulle det betyda samma sak, så
+          // scopet får sätta gränsen när anroparen inte gjort det.
+          ...(courseId !== undefined
+            ? { topic: { courseId } }
+            : questionScopeWhere(scope)),
         },
       },
       select: {
@@ -121,16 +128,19 @@ export async function GET(request: NextRequest) {
 // accepteras; övriga räknas som skipped. Omskrivning är tillåten
 // (idempotent re-submit av samma batch).
 export async function POST(request: NextRequest) {
-  const authError = await requireAdmin();
-  if (authError) return authError;
+  const scope = await requireAdminScope();
+  if (scope instanceof NextResponse) return scope;
 
   try {
     const body = await request.json();
     const { feedbacks } = submitPracticeFeedbackSchema.parse(body);
 
     const ids = feedbacks.map((f) => f.attempt_id);
+    // Försöks-ID:n är globala. Scopefiltret är det enda som hindrar att
+    // feedback skrivs på en annan kurs elever - försök utanför scopet faller
+    // ut ur listan och rapporteras som skipped, precis som övriga ogiltiga.
     const attempts = await prisma.practiceAttempt.findMany({
-      where: { id: { in: ids } },
+      where: { id: { in: ids }, question: questionScopeWhere(scope) },
       select: {
         id: true,
         question: { select: { type: true, subskill: true } },

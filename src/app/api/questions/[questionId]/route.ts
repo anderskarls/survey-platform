@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/require-auth";
+import { requireQuestionAccess } from "@/lib/require-auth";
 import { handleApiError } from "@/lib/api-helpers";
 import { updateQuestionSchema } from "@/lib/validators";
 import {
@@ -14,15 +14,15 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ questionId: string }> }
 ) {
-  const authError = await requireAdmin();
-  if (authError) return authError;
-
   try {
     const { questionId } = await params;
     const qId = Number(questionId);
     if (isNaN(qId)) {
       return NextResponse.json({ error: "Ogiltigt fråge-ID" }, { status: 400 });
     }
+
+    const authError = await requireQuestionAccess(qId);
+    if (authError) return authError;
 
     const question = await prisma.question.findUnique({
       where: { id: qId },
@@ -55,15 +55,15 @@ export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ questionId: string }> }
 ) {
-  const authError = await requireAdmin();
-  if (authError) return authError;
-
   try {
     const { questionId } = await params;
     const qId = Number(questionId);
     if (isNaN(qId)) {
       return NextResponse.json({ error: "Ogiltigt fråge-ID" }, { status: 400 });
     }
+
+    const authError = await requireQuestionAccess(qId);
+    if (authError) return authError;
 
     const question = await prisma.question.findUnique({
       where: { id: qId },

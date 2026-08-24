@@ -29,6 +29,18 @@ _Avoid_: Card, flashcard
 En elevs inloggning i **en** kurs. En elev som läser två kurser har två elevkonton, bundna till samma fysiska person av en delad personnyckel (`personKey`). Ominlärningen slår ihop kontona; sessionen gäller ett konto i taget.
 _Avoid_: Användare, konto (utan led)
 
+**Ägarkonto**:
+Ett adminkonto som når hela plattformen: alla kurser, den globala frågebanken, kursskapande och kontoadministration. Plattformens innehavare. Rollen `OWNER`.
+_Avoid_: Superadmin, huvudadmin
+
+**Lärarkonto**:
+Ett adminkonto som når **bara de kurser det tilldelats** - men där med full paritet: elever, frågor, enkäter, moment, resultat, feedback och export. Övriga kurser är osynliga, inte bara oredigerbara: de saknas i kurslistan, i den globala frågebanken och i enkätlistan, och en direktlänk till dem visas som att sidan inte finns. Rollen `TEACHER`.
+_Avoid_: Gästadmin, begränsad admin, medlärare
+
+**Behörighetsomfång**:
+Kurserna ett adminkonto når, upplöst vid varje anrop ur databasen i stället för ur sessionen - en indragen behörighet gäller därför direkt och inte vid nästa inloggning. Ägarens omfång är obegränsat; API-nyckeln (`ADMIN_API_KEY`) har samma obegränsade omfång och delas därför inte ut till lärarkonton.
+_Avoid_: Scope (i svensk text), rättighetsnivå
+
 **Kursväxlare**:
 Elevens byte mellan sina egna elevkonton utan ny inloggning. Sessionscookien skrivs om till syskonkontot; kursscopade sidor gäller inte efter bytet, så växlingen landar alltid på elevstartsidan.
 

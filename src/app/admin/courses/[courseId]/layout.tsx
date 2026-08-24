@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import CourseSidebar from "@/components/CourseSidebar";
+import { requireCoursePage } from "@/lib/page-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +13,11 @@ export default async function CourseLayout({
   params: Promise<{ courseId: string }>;
 }) {
   const { courseId } = await params;
+
+  // Enda porten till hela /admin/courses/[courseId]/**. Alla undersidor
+  // ärver den här kontrollen - läggs en ny sida till behöver den inget eget.
+  await requireCoursePage(Number(courseId));
+
   const course = await prisma.course.findUnique({
     where: { id: Number(courseId) },
   });

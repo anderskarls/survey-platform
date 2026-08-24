@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/require-auth";
+import { requireSurveyAccess } from "@/lib/require-auth";
 
 interface FeedbackItem {
   student_number: number;
@@ -11,9 +11,6 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; questionId: string }> }
 ) {
-  const authError = await requireAdmin();
-  if (authError) return authError;
-
   const { id, questionId } = await params;
   const surveyId = Number(id);
   const qId = Number(questionId);
@@ -23,6 +20,9 @@ export async function POST(
       { status: 400 }
     );
   }
+
+  const authError = await requireSurveyAccess(surveyId);
+  if (authError) return authError;
 
   const body = (await request.json().catch(() => null)) as {
     feedbacks?: FeedbackItem[];

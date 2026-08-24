@@ -11,12 +11,12 @@ const importSchema = z.object({
 });
 
 export async function POST(request: Request) {
-  const authError = await requireAdmin();
-  if (authError) return authError;
-
   try {
     const body = await request.json();
     const { csvContent, courseId } = importSchema.parse(body);
+
+    const authError = await requireAdmin(courseId);
+    if (authError) return authError;
 
     const rows = parseCsvContent(csvContent);
 

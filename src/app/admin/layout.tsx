@@ -1,6 +1,5 @@
-import { redirect } from "next/navigation";
-import { auth } from "@/lib/auth";
 import BaseSidebar from "@/components/BaseSidebar";
+import { requirePageScope } from "@/lib/page-auth";
 
 const adminLinks = [
   { href: "/admin", label: "Dashboard", exact: true },
@@ -9,10 +8,10 @@ const adminLinks = [
 ];
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  const session = await auth();
-  if (!session?.user) {
-    redirect("/admin/login");
-  }
+  // Slår mot databasen i stället för att bara lita på sessionscookien, så
+  // att ett borttaget konto tappar åtkomsten direkt i stället för när
+  // cookien går ut.
+  const scope = await requirePageScope();
   return (
     <div className="flex flex-col md:flex-row min-h-screen bg-background">
       <a
@@ -26,7 +25,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         headerContent={
           <div className="mb-6 px-3">
             <h1 className="text-lg font-bold text-white tracking-tight">Enkätplattform</h1>
-            <p className="text-xs text-white/50 mt-0.5">Administration</p>
+            <p className="text-xs text-white/50 mt-0.5">{scope.name}</p>
           </div>
         }
         mobileTopbar={<span className="font-bold text-sm">Enkätplattform</span>}

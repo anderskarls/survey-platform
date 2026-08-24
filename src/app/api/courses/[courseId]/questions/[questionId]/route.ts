@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/require-auth";
+import { requireCourseAccess } from "@/lib/require-auth";
 import { handleApiError } from "@/lib/api-helpers";
 import { updateQuestionSchema } from "@/lib/validators";
 import {
@@ -52,7 +52,7 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ courseId: string; questionId: string }> }
 ) {
-  const authError = await requireAdmin();
+  const authError = await requireCourseAccess(params);
   if (authError) return authError;
 
   try {
@@ -82,7 +82,7 @@ export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ courseId: string; questionId: string }> }
 ) {
-  const authError = await requireAdmin();
+  const authError = await requireCourseAccess(params);
   if (authError) return authError;
 
   try {

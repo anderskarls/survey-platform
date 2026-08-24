@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { parseCsvContent, questionCreateData, validateCsvRows } from "@/lib/csv";
 import { importMomentSchema } from "@/lib/validators";
 import { handleApiError } from "@/lib/api-helpers";
-import { requireAdmin } from "@/lib/require-auth";
+import { requireCourseAccess } from "@/lib/require-auth";
 import { generateShareCode } from "@/lib/share-code";
 
 // Import a whole moment ("unit") in one call: creates the Unit plus one survey
@@ -14,7 +14,7 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ courseId: string }> }
 ) {
-  const authError = await requireAdmin();
+  const authError = await requireCourseAccess(params);
   if (authError) return authError;
 
   try {
