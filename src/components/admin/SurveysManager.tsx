@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useToast } from "@/components/Toast";
 import TopicComposer from "./TopicComposer";
+import WeeklyReleaseScheduler from "./WeeklyReleaseScheduler";
+import { formatRelease, isReleased } from "@/lib/survey-release";
 
 interface Topic {
   id: number;
@@ -29,6 +31,7 @@ interface Survey {
   shareCode: string;
   mode?: string;
   lockMode?: boolean;
+  openAt?: string | null; // schemalagt släpp; null = öppen direkt
   createdAt: string;
   _count: { questions: number; responses: number };
 }
@@ -58,6 +61,7 @@ export default function SurveysManager({
   const [filterTopic, setFilterTopic] = useState("");
   const [topics, setTopics] = useState<Topic[]>([]);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [scheduling, setScheduling] = useState(false);
 
   const loadSurveys = useCallback(async () => {
     try {
@@ -91,6 +95,22 @@ export default function SurveysManager({
       showToast("Kunde inte radera enkät", "error");
     } finally {
       setDeletingId(null);
+    }
+  }
+
+  /** Släpper en schemalagd enkät på en gång - nollställer dess öppningsdatum. */
+  async function releaseNow(id: number) {
+    try {
+      const res = await fetch(`${apiBase}/surveys`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ schedule: [{ id, openAt: null }] }),
+      });
+      if (!res.ok) throw new Error("Patch failed");
+      showToast("Enkäten är öppen");
+      loadSurveys();
+    } catch {
+      showToast("Kunde inte öppna enkäten", "error");
     }
   }
 
@@ -160,6 +180,14 @@ export default function SurveysManager({
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold tracking-tight">Enkäter</h1>
         <div className="flex gap-2">
+          {surveys.length > 0 && (
+            <button
+              onClick={() => setScheduling((v) => !v)}
+              className="btn-secondary"
+            >
+              Schemalägg veckovis
+            </button>
+          )}
           <button onClick={openCreate} className="btn-primary">
             Skapa enkät
           </button>
@@ -173,6 +201,18 @@ export default function SurveysManager({
           )}
         </div>
       </div>
+
+      <WeeklyReleaseScheduler
+        apiBase={apiBase}
+        surveys={surveys}
+        open={scheduling}
+        onClose={() => setScheduling(false)}
+        onSaved={(m) => {
+          showToast(m);
+          loadSurveys();
+        }}
+        onError={(m) => showToast(m, "error")}
+      />
 
       {createMode === "compose" && (
         <TopicComposer
@@ -301,6 +341,7 @@ export default function SurveysManager({
                 <th className="p-4 font-semibold text-muted text-xs uppercase tracking-wider">Titel</th>
                 <th className="p-4 font-semibold text-muted text-xs uppercase tracking-wider">Frågor</th>
                 <th className="p-4 font-semibold text-muted text-xs uppercase tracking-wider">Svar</th>
+                <th className="p-4 font-semibold text-muted text-xs uppercase tracking-wider">Öppnar</th>
                 <th className="p-4 font-semibold text-muted text-xs uppercase tracking-wider">Delningslänk</th>
                 <th className="p-4 font-semibold text-muted text-xs uppercase tracking-wider">Skapad</th>
                 <th className="p-4"></th>
@@ -309,7 +350,7 @@ export default function SurveysManager({
             <tbody>
               {surveys.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="p-4 text-muted">
+                  <td colSpan={7} className="p-4 text-muted">
                     Inga enkäter skapade ännu.
                   </td>
                 </tr>
@@ -334,6 +375,27 @@ export default function SurveysManager({
                     </td>
                     <td className="p-4 text-muted">{s._count.questions}</td>
                     <td className="p-4 text-muted">{s._count.responses}</td>
+                    <td className="p-4 whitespace-nowrap">
+                      {!s.openAt ? (
+                        <span className="text-muted">Öppen</span>
+                      ) : isReleased({ openAt: new Date(s.openAt) }) ? (
+                        <span className="text-muted">
+                          Öppnad {formatRelease(new Date(s.openAt))}
+                        </span>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <span className="badge bg-surface-muted text-muted">
+                            {formatRelease(new Date(s.openAt))}
+                          </span>
+                          <button
+                            onClick={() => releaseNow(s.id)}
+                            className="text-xs text-primary hover:underline font-medium"
+                          >
+                            Släpp nu
+                          </button>
+                        </div>
+                      )}
+                    </td>
                     <td className="p-4">
                       <div className="flex items-center gap-2">
                         <code className="bg-surface-muted px-2 py-0.5 rounded-lg text-xs truncate max-w-[200px] font-mono">

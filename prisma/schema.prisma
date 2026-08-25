@@ -113,12 +113,18 @@ model Survey {
   unitId      Int?
   unit        Unit?            @relation(fields: [unitId], references: [id], onDelete: SetNull)
   lesson      Int?
+  /// Släpptidpunkt: enkäten är dold för eleverna tills klockan passerat.
+  /// null = öppen direkt, vilket är hur allt fungerade innan fältet fanns.
+  /// Används för veckotest som ska komma ett i taget - se survey-release.ts.
+  /// En gång släppt förblir den öppen; frånvarande elever kan ta igen.
+  openAt      DateTime?
   createdAt   DateTime         @default(now())
   questions   SurveyQuestion[]
   responses   Response[]
   drafts      DraftResponse[]
 
   @@index([unitId])
+  @@index([courseId, openAt])
 }
 
 model SurveyQuestion {

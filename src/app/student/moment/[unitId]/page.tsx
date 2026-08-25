@@ -224,6 +224,7 @@ export default async function MomentPage({
       questionCount: s.questions.length,
       result: resultBySurvey.get(s.id),
       progress: progressBySurvey.get(s.id),
+      openAt: s.openAt,
     })),
     submittedSurveyIds: responses.map((r) => r.surveyId),
     draftSurveyIds: drafts.map((d) => d.surveyId),

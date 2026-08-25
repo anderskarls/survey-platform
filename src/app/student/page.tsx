@@ -6,6 +6,7 @@ import { loadRelearningData } from "@/lib/relearning-data";
 import { summarizeStates } from "@/lib/relearning";
 import Link from "next/link";
 import FlaggedQuestionsList from "@/components/FlaggedQuestionsList";
+import { isReleased, nextRelease, formatRelease } from "@/lib/survey-release";
 
 export default async function StudentDashboard() {
   const session = await getStudentSession();
@@ -13,7 +14,7 @@ export default async function StudentDashboard() {
 
   const { studentId, courseId } = session;
 
-  const [course, surveys, flaggedQuestions, drafts, units] = await Promise.all([
+  const [course, allSurveys, flaggedQuestions, drafts, units] = await Promise.all([
     prisma.course.findUnique({ where: { id: courseId } }),
     prisma.survey.findMany({
       where: { courseId },
@@ -42,6 +43,10 @@ export default async function StudentDashboard() {
   const draftBySurvey = new Map(drafts.map((d) => [d.surveyId, d.updatedAt]));
 
   if (!course) redirect("/login");
+
+  // Schemalagda enkäter finns inte för eleven förrän de släppts.
+  const now = new Date();
+  const surveys = allSurveys.filter((s) => isReleased(s, now));
 
   const surveyIds = surveys.map((s) => s.id);
 
@@ -76,7 +81,14 @@ export default async function StudentDashboard() {
   // Moment-gruppering: surveys med unitId visas under sina moment, fristående i den platta listan
   const submittedSurveyIds = new Set(responses.map((r) => r.surveyId));
   const unitIdSet = new Set(units.map((u) => u.id));
-  const looseSurveys = surveys.filter((s) => s.unitId == null || !unitIdSet.has(s.unitId));
+  const isLoose = (s: { unitId: number | null }) =>
+    s.unitId == null || !unitIdSet.has(s.unitId);
+  const looseSurveys = surveys.filter(isLoose);
+  // Nästa schemalagda enkät visas som ett låst kort med sitt datum, så att
+  // veckans rytm syns i stället för att testet dyker upp ur tomma intet.
+  // Enkäter som hör till ett moment räknas inte här - de har sin egen
+  // "Kommande"-lista inne i momentet.
+  const upcomingSurvey = nextRelease(allSurveys.filter(isLoose), now);
   const unitProgress = units
     .map((u) => {
       const us = surveys.filter((s) => s.unitId === u.id);
@@ -154,7 +166,7 @@ export default async function StudentDashboard() {
         </div>
       )}
 
-      {looseSurveys.length === 0 ? (
+      {looseSurveys.length === 0 && !upcomingSurvey ? (
         <p className="text-muted text-center py-12">
           Inga quiz tillgängliga ännu.
         </p>
@@ -228,6 +240,22 @@ export default async function StudentDashboard() {
               </div>
             );
           })}
+
+          {upcomingSurvey && (
+            <div className="card p-5 opacity-70">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h3 className="font-semibold tracking-tight text-muted">
+                    {upcomingSurvey.title}
+                  </h3>
+                  <p className="text-sm text-muted mt-0.5">
+                    Öppnar {formatRelease(upcomingSurvey.openAt)}
+                  </p>
+                </div>
+                <span className="badge bg-surface-muted text-muted">Kommande</span>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

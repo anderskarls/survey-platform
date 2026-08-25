@@ -3,6 +3,8 @@ import { notFound, redirect } from "next/navigation";
 import SurveyForm from "@/components/SurveyForm";
 import { getStudentSession } from "@/lib/student-session";
 import { toClientClozeConfig } from "@/lib/cloze";
+import { isReleased, formatRelease } from "@/lib/survey-release";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +35,26 @@ export default async function PublicSurveyPage({
 
   if (survey.courseId !== session.courseId) {
     redirect("/student");
+  }
+
+  // Delningslänken är ingen genväg förbi släppdatumet. Eleven får se att
+  // enkäten finns och när den öppnar - inte dess innehåll.
+  if (survey.openAt && !isReleased(survey)) {
+    return (
+      <div className="min-h-screen bg-background py-12">
+        <div className="max-w-2xl mx-auto px-4">
+          <div className="card p-8 text-center">
+            <h1 className="text-xl font-bold tracking-tight">{survey.title}</h1>
+            <p className="text-muted mt-2">
+              Öppnar {formatRelease(survey.openAt)}
+            </p>
+            <Link href="/student" className="btn-primary inline-block mt-6">
+              Till mina uppgifter
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   const flashcard = survey.course.flashcardMode;

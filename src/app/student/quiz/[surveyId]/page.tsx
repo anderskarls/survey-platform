@@ -5,6 +5,7 @@ import { calculateMastery, ResponseRecord } from "@/lib/mastery";
 import StudentQuizForm from "@/components/StudentQuizForm";
 import Link from "next/link";
 import { toClientClozeConfig } from "@/lib/cloze";
+import { isReleased } from "@/lib/survey-release";
 
 export default async function StudentQuizPage({
   params,
@@ -35,6 +36,12 @@ export default async function StudentQuizPage({
   });
 
   if (!survey || survey.courseId !== courseId) {
+    redirect("/student");
+  }
+
+  // Schemalagt test som inte släppts än - direktlänken ska inte vara en genväg
+  // förbi veckoordningen.
+  if (!isReleased(survey)) {
     redirect("/student");
   }
 

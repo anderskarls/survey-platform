@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getStudentSession } from "@/lib/student-session";
 import { handleApiError } from "@/lib/api-helpers";
+import { formatRelease, isReleased } from "@/lib/survey-release";
 
 export async function GET(
   _request: NextRequest,
@@ -76,7 +77,7 @@ export async function PUT(
     // Verify survey exists and student has access
     const survey = await prisma.survey.findUnique({
       where: { id: surveyId },
-      select: { courseId: true },
+      select: { courseId: true, openAt: true },
     });
 
     if (!survey) {
@@ -85,6 +86,15 @@ export async function PUT(
 
     if (survey.courseId !== session.courseId) {
       return NextResponse.json({ error: "Ingen åtkomst" }, { status: 403 });
+    }
+
+    // Inget utkast på ett test som inte släppts - annars kunde svaren
+    // förberedas i förväg och lämnas in i samma sekund som testet öppnar.
+    if (survey.openAt && !isReleased(survey)) {
+      return NextResponse.json(
+        { error: `Enkäten öppnar ${formatRelease(survey.openAt)}.` },
+        { status: 403 }
+      );
     }
 
     await prisma.draftResponse.upsert({

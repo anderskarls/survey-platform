@@ -5,6 +5,13 @@
 // surfaced as a friendly "missed" nudge - never a block. Status is derived
 // here from Response/DraftResponse + the lesson date, so no extra DB column is
 // needed (see docs/elevuppgifter/05-hela-momentet-implementation.md, Fas 2).
+//
+// Undantaget är Survey.openAt (survey-release.ts): en schemalagd enkät är
+// faktiskt spärrad tills den släpps, och visas som "upcoming" med sitt eget
+// datum i stället för lektionens. Rekommendationen ovan gäller alltså allt
+// utom det läraren uttryckligen tidsatt.
+
+import { isReleased } from "./survey-release";
 
 export type TaskStatus = "done" | "active" | "todo" | "missed" | "upcoming";
 export type LessonStatus = "done" | "active" | "today" | "upcoming";
@@ -31,6 +38,7 @@ export interface SurveyInput {
   questionCount: number;
   result?: string; // e.g. "8/8" for a graded quiz (display only, computed by the page)
   progress?: string; // e.g. "11/14" answered in a saved draft (display only)
+  openAt?: Date | null; // scheduled release; null/undefined = open from the start
 }
 
 export interface TaskState {
@@ -41,6 +49,7 @@ export interface TaskState {
   status: TaskStatus;
   result?: string;
   progress?: string;
+  openAt?: Date | null; // set when the task is upcoming because of its release date
 }
 
 export interface LessonState {
@@ -88,9 +97,16 @@ export function deriveTaskStatus(opts: {
   hasResponse: boolean;
   hasDraft: boolean;
   lessonDate?: Date | null;
+  released?: boolean;
   today?: Date;
 }): TaskStatus {
   if (opts.hasResponse) return "done";
+
+  // En osläppt enkät är kommande oavsett vad lektionsdatumet säger. Redan
+  // inlämnat räknas fortfarande som klart ovan, ifall läraren skjutit fram
+  // släppet i efterhand.
+  if (opts.released === false) return "upcoming";
+
   if (opts.hasDraft) return "active";
 
   const lessonDate = opts.lessonDate ?? null;
@@ -123,7 +139,10 @@ export function buildMomentState(input: {
   draftSurveyIds: Iterable<number>;
   today?: Date;
 }): MomentState {
-  const today = startOfDay(input.today ?? new Date());
+  // `today` klipps till dygnets början för lektionsdatumen; släpptidpunkten
+  // behöver klockslaget kvar, så den jämförs mot `now`.
+  const now = input.today ?? new Date();
+  const today = startOfDay(now);
   const submitted = new Set(input.submittedSurveyIds);
   const drafts = new Set(input.draftSurveyIds);
 
@@ -138,10 +157,12 @@ export function buildMomentState(input: {
     lesson: s.lesson,
     result: s.result,
     progress: s.progress,
+    openAt: s.openAt ?? null,
     status: deriveTaskStatus({
       hasResponse: submitted.has(s.id),
       hasDraft: drafts.has(s.id),
       lessonDate: s.lesson != null ? dateByLesson.get(s.lesson) ?? null : null,
+      released: isReleased({ openAt: s.openAt ?? null }, now),
       today,
     }),
   });

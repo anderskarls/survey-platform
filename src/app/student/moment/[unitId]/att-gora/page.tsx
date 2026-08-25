@@ -5,6 +5,7 @@ import { buildMomentState, LessonOutline, TaskState } from "@/lib/moment-status"
 import { quizResult, draftProgress } from "@/lib/moment-scoring";
 import { IconCheck, IconArrowRight, IconFlag, IconClock, IconDot } from "@/components/moment-icons";
 import Link from "next/link";
+import { formatRelease } from "@/lib/survey-release";
 
 const KIND_LABEL: Record<string, string> = { QUIZ: "Övning", SURVEY: "Reflektion" };
 
@@ -98,7 +99,11 @@ function FlowRow({ task }: { task: FlowTask }) {
         Ta igen
       </Link>
     ),
-    upcoming: <span className="text-xs text-muted">Öppnas {dateLabel ?? "senare"}</span>,
+    upcoming: (
+      <span className="text-xs text-muted">
+        Öppnas {task.openAt ? formatRelease(task.openAt) : dateLabel ?? "senare"}
+      </span>
+    ),
   };
   return (
     <div className={`flex items-center gap-3 py-3 ${task.status === "upcoming" ? "opacity-60" : ""}`}>
@@ -176,6 +181,7 @@ export default async function MomentTasksPage({
       questionCount: s.questions.length,
       result: resultBySurvey.get(s.id),
       progress: progressBySurvey.get(s.id),
+      openAt: s.openAt,
     })),
     submittedSurveyIds: responses.map((r) => r.surveyId),
     draftSurveyIds: drafts.map((d) => d.surveyId),

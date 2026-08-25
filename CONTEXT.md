@@ -21,6 +21,10 @@ _Avoid_: Unit (i svensk text)
 En utskickad uppsättning frågor som elever besvarar vid ett tillfälle.
 _Avoid_: Survey (i svensk text), quiz, prov
 
+**Släpp**:
+Tidpunkten då en enkät blir synlig och besvarbar för eleverna (`Survey.openAt`). Utan släpptidpunkt ligger enkäten öppen från början, vilket är normalfallet. En släppt enkät stängs aldrig igen - den som varit sjuk ska kunna ta igen. Används för kurser med ett veckotest i veckan, där hela terminens frågebank annars går att läsa i förväg.
+_Avoid_: Publicering, schemaläggning (om själva tidpunkten), deadline
+
 **Minneskort**:
 Ett FSRS-kort per elev och fråga, härlett ur elevens hela försökshistorik (skarpa quizsvar och övningsförsök). Grunden för all ominlärning.
 _Avoid_: Card, flashcard

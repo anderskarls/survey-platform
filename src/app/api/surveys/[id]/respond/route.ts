@@ -9,6 +9,7 @@ import {
   isFlashcardValue,
 } from "@/lib/flashcard";
 import { gradeCloze, parseClozeConfig, type ClozeVerdict } from "@/lib/cloze";
+import { formatRelease, isReleased } from "@/lib/survey-release";
 
 /**
  * Så länge räknas ett identiskt svarspaket som samma inlämning.
@@ -71,6 +72,16 @@ export async function POST(
     if (survey.courseId !== session.courseId) {
       return NextResponse.json(
         { error: "Du har inte tillgång till denna enkät." },
+        { status: 403 }
+      );
+    }
+
+    // Här hålls veckoordningen. Elevvyerna döljer det osläppta, men ett
+    // gammalt formulär i en flik eller en delad länk går förbi dem - inte
+    // förbi den här kontrollen.
+    if (survey.openAt && !isReleased(survey)) {
+      return NextResponse.json(
+        { error: `Enkäten öppnar ${formatRelease(survey.openAt)}.` },
         { status: 403 }
       );
     }
