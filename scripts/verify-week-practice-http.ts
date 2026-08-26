@@ -252,8 +252,7 @@ async function main() {
       JSON.stringify(rader)
     );
 
-    console.log("
-4. Avbryt och fortsatt senare");
+    console.log("\n4. Avbryt och fortsatt senare");
     const efter = await getPage("/student/practice");
     check(
       "veckolistan raknar bort kortet (2 kvar idag)",
