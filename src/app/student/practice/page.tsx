@@ -9,6 +9,9 @@ import {
 } from "@/lib/relearning";
 import PracticeRunner from "@/components/PracticeRunner";
 import { toPracticeQuestion } from "@/lib/practice-question";
+import { loadWeekPracticeTopics } from "@/lib/week-practice-data";
+import { summarizeWeekTopics } from "@/lib/week-practice";
+import WeekPracticeList from "@/components/WeekPracticeList";
 import Link from "next/link";
 
 export default async function PracticePage() {
@@ -22,6 +25,13 @@ export default async function PracticePage() {
     candidates: newCandidates,
     introducedToday,
   });
+
+  // Veckolistan står under passet i båda lägena. Den är elevens egen väg in:
+  // passet ger dagens repetitioner, listan ger en bestämd vecka på begäran.
+  const weekTopics = summarizeWeekTopics(
+    await loadWeekPracticeTopics(session.courseId),
+    states
+  );
 
   if (setIds.length === 0) {
     // Nästa tillfälle = minsta antal dagar tills någon fråga blir due
@@ -89,6 +99,7 @@ export default async function PracticePage() {
             Tillbaka till dashboard
           </Link>
         </div>
+        <WeekPracticeList topics={weekTopics} />
       </div>
     );
   }
@@ -123,6 +134,7 @@ export default async function PracticePage() {
         innan du glömmer är det som bygger minnet.
       </p>
       <PracticeRunner questions={questions} />
+      <WeekPracticeList topics={weekTopics} />
     </div>
   );
 }

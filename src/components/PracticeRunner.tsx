@@ -58,6 +58,9 @@ interface AttemptResult {
 
 interface Props {
   questions: PracticeQuestion[];
+  /** Vart knappen i "Passet klart" leder. Default: elevens dashboard. */
+  doneHref?: string;
+  doneLabel?: string;
 }
 
 function inDays(days: number): string {
@@ -141,7 +144,11 @@ function ClozePractice({
   );
 }
 
-export default function PracticeRunner({ questions }: Props) {
+export default function PracticeRunner({
+  questions,
+  doneHref = "/student",
+  doneLabel = "Tillbaka till dashboard",
+}: Props) {
   // Passkö i Anki-stil: fel/osäker/"om igen" lägger tillbaka frågan sist i
   // kön; passet är klart först när varje fråga klarats av en gång.
   const [queue, setQueue] = useState<PracticeQuestion[]>(questions);
@@ -281,8 +288,8 @@ export default function PracticeRunner({ questions }: Props) {
           Frågorna återkommer lagom innan du hinner glömma dem - ju bättre de
           sitter, desto längre blir pausen.
         </p>
-        <Link href="/student" className="btn-primary inline-block py-3 px-6">
-          Tillbaka till dashboard
+        <Link href={doneHref} className="btn-primary inline-block py-3 px-6">
+          {doneLabel}
         </Link>
       </div>
     );
