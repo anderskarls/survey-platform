@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import ExemplarPanel, { ExemplarView } from "@/components/ExemplarPanel";
 import { FLASHCARD_REVEAL } from "@/lib/flashcard";
@@ -94,6 +94,37 @@ function IntervalHint({
     <span className={muted ? "text-xs text-muted" : "text-xs opacity-80"}>
       {inDays(days)}
     </span>
+  );
+}
+
+/**
+ * Huvudknappen, med "Fortsätt senare" bredvid när passet går att avbryta.
+ *
+ * Knappen står här och inte i framstegsraden av ett enkelt skäl: det är hit
+ * eleven tittar. Valet att sluta ska vara lika synligt som valet att vända
+ * nästa kort - annars stänger man fliken i stället, och det ser ut som att
+ * appen inte tillät en paus.
+ */
+function ActionRow({
+  pauseHref,
+  pauseLabel,
+  children,
+}: {
+  pauseHref?: string;
+  pauseLabel: string;
+  children: ReactNode;
+}) {
+  if (!pauseHref) return <>{children}</>;
+  return (
+    <div className="flex items-stretch gap-3">
+      <div className="flex-1">{children}</div>
+      <Link
+        href={pauseHref}
+        className="btn-secondary py-3 px-5 flex items-center justify-center whitespace-nowrap"
+      >
+        {pauseLabel}
+      </Link>
+    </div>
   );
 }
 
@@ -315,21 +346,11 @@ export default function PracticeRunner({
           <span className="text-sm font-semibold text-muted">
             Klara: {completedCount} av {uniqueTotal}
           </span>
-          <div className="flex items-center gap-3">
-            {queue.length > 1 && (
-              <span className="text-xs font-semibold text-muted bg-surface-muted rounded-full px-2.5 py-1">
-                {queue.length - 1} kvar i kön
-              </span>
-            )}
-            {pauseHref && (
-              <Link
-                href={pauseHref}
-                className="text-sm text-muted hover:text-foreground transition-colors"
-              >
-                {pauseLabel}
-              </Link>
-            )}
-          </div>
+          {queue.length > 1 && (
+            <span className="text-xs font-semibold text-muted bg-surface-muted rounded-full px-2.5 py-1">
+              {queue.length - 1} kvar i kön
+            </span>
+          )}
         </div>
         <div className="w-full bg-surface-muted rounded-full h-1.5">
           <div
@@ -628,26 +649,33 @@ export default function PracticeRunner({
             <RerunNote show={!result.schedulesToday} />
           </div>
         ) : (
-          <button onClick={() => advance(true)} className="btn-primary w-full py-3">
-            Nästa fråga
-          </button>
+          <ActionRow pauseHref={pauseHref} pauseLabel={pauseLabel}>
+            <button
+              onClick={() => advance(true)}
+              className="btn-primary w-full py-3"
+            >
+              Nästa fråga
+            </button>
+          </ActionRow>
         )
       ) : (
-        <button
-          onClick={handleSubmit}
-          disabled={!readyToSubmit || submitting}
-          className="btn-primary w-full py-3"
-        >
-          {submitting
-            ? isFlashcard
-              ? "Vänder..."
-              : isFreeText
-                ? "Skickar..."
-                : "Rättar..."
-            : isFlashcard
-              ? "Visa svar"
-              : "Svara"}
-        </button>
+        <ActionRow pauseHref={pauseHref} pauseLabel={pauseLabel}>
+          <button
+            onClick={handleSubmit}
+            disabled={!readyToSubmit || submitting}
+            className="btn-primary w-full py-3"
+          >
+            {submitting
+              ? isFlashcard
+                ? "Vänder..."
+                : isFreeText
+                  ? "Skickar..."
+                  : "Rättar..."
+              : isFlashcard
+                ? "Visa svar"
+                : "Svara"}
+          </button>
+        </ActionRow>
       )}
     </div>
   );
