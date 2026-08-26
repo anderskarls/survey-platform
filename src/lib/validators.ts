@@ -73,6 +73,58 @@ export const createSurveySchema = z.object({
   courseId: z.number().int().positive().optional(),
 });
 
+/**
+ * Redigering av en befintlig enkät. Allt är valfritt - det som inte skickas
+ * med lämnas orört, så en titeländring inte råkar nollställa släpptiden.
+ *
+ * `questionIds` är hela den ordnade uppsättningen, inte ett tillägg: listan är
+ * facit för vilka frågor enkäten innehåller och i vilken ordning. Att lyfta ur
+ * en fråga som har elevsvar kräver `confirmRemoval` - se survey-edit.ts.
+ */
+export const updateSurveySchema = z
+  .object({
+    title: z
+      .string()
+      .min(1, "Titel krävs")
+      .max(200)
+      .transform((s) => s.trim())
+      .optional(),
+    description: z
+      .string()
+      .max(1000)
+      .transform((s) => s.trim())
+      .optional(),
+    mode: z.enum(["SURVEY", "QUIZ"]).optional(),
+    lockMode: z.boolean().optional(),
+    unitId: z.number().int().positive().nullable().optional(),
+    lesson: z.number().int().min(1).max(200).nullable().optional(),
+    openAt: z.string().datetime().nullable().optional(),
+    questionIds: z
+      .array(z.number().int().positive())
+      .min(1, "En enkät behöver minst en fråga")
+      .max(500)
+      .optional(),
+    // Lärarens kvittering av att svar försvinner ur resultaten.
+    confirmRemoval: z.boolean().optional().default(false),
+  })
+  .superRefine((data, ctx) => {
+    const changed = [
+      data.title,
+      data.description,
+      data.mode,
+      data.lockMode,
+      data.unitId,
+      data.lesson,
+      data.openAt,
+      data.questionIds,
+    ].some((v) => v !== undefined);
+    if (!changed) {
+      ctx.addIssue({ code: "custom", message: "Inget att uppdatera" });
+    }
+  });
+
+export type UpdateSurveyInput = z.infer<typeof updateSurveySchema>;
+
 export const createTopicSchema = z.object({
   name: z
     .string()

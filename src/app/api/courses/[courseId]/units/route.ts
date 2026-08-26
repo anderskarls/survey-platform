@@ -7,6 +7,28 @@ import { handleApiError } from "@/lib/api-helpers";
 import { requireCourseAccess } from "@/lib/require-auth";
 import { generateShareCode } from "@/lib/share-code";
 
+/** Kursens moment, för väljare i adminvyn. */
+export async function GET(
+  _request: Request,
+  { params }: { params: Promise<{ courseId: string }> }
+) {
+  const authError = await requireCourseAccess(params);
+  if (authError) return authError;
+
+  const { courseId } = await params;
+  const cId = Number(courseId);
+  if (isNaN(cId)) {
+    return NextResponse.json({ error: "Ogiltigt kurs-ID" }, { status: 400 });
+  }
+
+  const units = await prisma.unit.findMany({
+    where: { courseId: cId },
+    select: { id: true, title: true, period: true },
+    orderBy: { createdAt: "asc" },
+  });
+  return NextResponse.json(units);
+}
+
 // Import a whole moment ("unit") in one call: creates the Unit plus one survey
 // per assignment, with questions parsed from each assignment's CSV. Mirrors the
 // MCP import_moment tool but goes through the app's Prisma client.

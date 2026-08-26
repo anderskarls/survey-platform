@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useToast } from "@/components/Toast";
 import TopicComposer from "./TopicComposer";
+import SurveyEditor from "./SurveyEditor";
 import WeeklyReleaseScheduler from "./WeeklyReleaseScheduler";
 import { formatRelease, isReleased } from "@/lib/survey-release";
 
@@ -40,12 +41,15 @@ interface SurveysManagerProps {
   apiBase: string;
   allowModeSelection?: boolean;
   resultsBasePath: string;
+  /** Kursbunden vy. Moment och lektionsnummer finns bara med kurskontext. */
+  courseId?: number;
 }
 
 export default function SurveysManager({
   apiBase,
   allowModeSelection = false,
   resultsBasePath,
+  courseId,
 }: SurveysManagerProps) {
   const { showToast } = useToast();
   const [surveys, setSurveys] = useState<Survey[]>([]);
@@ -61,6 +65,7 @@ export default function SurveysManager({
   const [filterTopic, setFilterTopic] = useState("");
   const [topics, setTopics] = useState<Topic[]>([]);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [editingId, setEditingId] = useState<number | null>(null);
   const [scheduling, setScheduling] = useState(false);
 
   const loadSurveys = useCallback(async () => {
@@ -98,13 +103,18 @@ export default function SurveysManager({
     }
   }
 
-  /** Släpper en schemalagd enkät på en gång - nollställer dess öppningsdatum. */
+  /**
+   * Släpper en schemalagd enkät på en gång - nollställer dess öppningsdatum.
+   * Går via enkätens egen route i stället för kursens schemaläggning, så att
+   * knappen fungerar även i den kursövergripande vyn, där kurs-id saknas i
+   * URL:en och samlingsroutens PATCH inte finns.
+   */
   async function releaseNow(id: number) {
     try {
-      const res = await fetch(`${apiBase}/surveys`, {
+      const res = await fetch(`${apiBase}/surveys/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ schedule: [{ id, openAt: null }] }),
+        body: JSON.stringify({ openAt: null }),
       });
       if (!res.ok) throw new Error("Patch failed");
       showToast("Enkäten är öppen");
@@ -213,6 +223,21 @@ export default function SurveysManager({
         }}
         onError={(m) => showToast(m, "error")}
       />
+
+      {editingId !== null && (
+        <SurveyEditor
+          apiBase={apiBase}
+          surveyId={editingId}
+          courseId={courseId}
+          allowModeSelection={allowModeSelection}
+          onSaved={(m) => {
+            showToast(m);
+            loadSurveys();
+          }}
+          onError={(m) => showToast(m, "error")}
+          onClose={() => setEditingId(null)}
+        />
+      )}
 
       {createMode === "compose" && (
         <TopicComposer
@@ -427,6 +452,14 @@ export default function SurveysManager({
                         >
                           Resultat
                         </Link>
+                        <button
+                          onClick={() =>
+                            setEditingId((prev) => (prev === s.id ? null : s.id))
+                          }
+                          className="text-primary hover:underline text-sm font-medium"
+                        >
+                          Redigera
+                        </button>
                         <button
                           onClick={() => deleteSurvey(s.id)}
                           disabled={deletingId === s.id}

@@ -9,6 +9,7 @@ export default function CourseSurveysPage() {
     <SurveysManager
       apiBase={`/api/courses/${courseId}`}
       allowModeSelection
+      courseId={Number(courseId)}
       resultsBasePath={`/admin/courses/${courseId}/surveys`}
     />
   );
