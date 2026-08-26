@@ -61,6 +61,15 @@ interface Props {
   /** Vart knappen i "Passet klart" leder. Default: elevens dashboard. */
   doneHref?: string;
   doneLabel?: string;
+  /**
+   * Vart "Fortsätt senare" leder. Utelämnad = ingen sådan knapp.
+   *
+   * En veckoövning är 30 kort; ingen sitter igenom det i ett svep. Knappen
+   * gör avbrottet till ett val i stället för att eleven stänger fliken -
+   * och det som är gjort är sparat kort för kort, inget går förlorat.
+   */
+  pauseHref?: string;
+  pauseLabel?: string;
 }
 
 function inDays(days: number): string {
@@ -148,6 +157,8 @@ export default function PracticeRunner({
   questions,
   doneHref = "/student",
   doneLabel = "Tillbaka till dashboard",
+  pauseHref,
+  pauseLabel = "Fortsätt senare",
 }: Props) {
   // Passkö i Anki-stil: fel/osäker/"om igen" lägger tillbaka frågan sist i
   // kön; passet är klart först när varje fråga klarats av en gång.
@@ -304,11 +315,21 @@ export default function PracticeRunner({
           <span className="text-sm font-semibold text-muted">
             Klara: {completedCount} av {uniqueTotal}
           </span>
-          {queue.length > 1 && (
-            <span className="text-xs font-semibold text-muted bg-surface-muted rounded-full px-2.5 py-1">
-              {queue.length - 1} kvar i kön
-            </span>
-          )}
+          <div className="flex items-center gap-3">
+            {queue.length > 1 && (
+              <span className="text-xs font-semibold text-muted bg-surface-muted rounded-full px-2.5 py-1">
+                {queue.length - 1} kvar i kön
+              </span>
+            )}
+            {pauseHref && (
+              <Link
+                href={pauseHref}
+                className="text-sm text-muted hover:text-foreground transition-colors"
+              >
+                {pauseLabel}
+              </Link>
+            )}
+          </div>
         </div>
         <div className="w-full bg-surface-muted rounded-full h-1.5">
           <div

@@ -14,6 +14,13 @@
  *   - Bara kurser i kortform (`Course.flashcardMode`) får listan. I en
  *     vanlig kurs vore samma lista en väg att köra om quizets frågor utanför
  *     provet; glosträningen är hela poängen här.
+ *
+ * En vecka är 30 kort. Ingen sitter igenom det i ett svep, så veckan är
+ * delbar: det eleven redan gjort IDAG räknas bort, och nästa besök fortsätter
+ * med resten. Dagen är rätt gräns eftersom bara dagens första försök på en
+ * fråga flyttar dess repetitionsintervall (se firstAttemptPerDay i
+ * relearning.ts) - att visa ett redan avklarat kort igen vore arbete utan
+ * verkan.
  */
 
 import type { QuestionPracticeState } from "@/lib/relearning";
@@ -31,6 +38,10 @@ export interface WeekPracticeTopic {
   due: number;
   /** Kort som sitter så bra att nästa repetition ligger minst en vecka bort */
   mastered: number;
+  /** Kort eleven redan gjort idag */
+  doneToday: number;
+  /** Kort kvar att göra idag (total - doneToday) */
+  remaining: number;
 }
 
 export interface WeekTopicInput {
@@ -48,14 +59,17 @@ export interface WeekTopicInput {
  */
 export function summarizeWeekTopics(
   topics: WeekTopicInput[],
-  states: Map<number, QuestionPracticeState>
+  states: Map<number, QuestionPracticeState>,
+  doneToday: Set<number> = new Set()
 ): WeekPracticeTopic[] {
   return topics
     .map((t) => {
       let fresh = 0;
       let due = 0;
       let mastered = 0;
+      let gjorda = 0;
       for (const id of t.questionIds) {
+        if (doneToday.has(id)) gjorda++;
         const state = states.get(id);
         if (!state) {
           fresh++;
@@ -71,9 +85,25 @@ export function summarizeWeekTopics(
         fresh,
         due,
         mastered,
+        doneToday: gjorda,
+        remaining: t.questionIds.length - gjorda,
       };
     })
     .sort((a, b) => compareTitles(a.name, b.name));
+}
+
+/**
+ * Korten som står kvar i veckan idag.
+ *
+ * Ett kort eleven redan gjort idag kan inte flytta sitt intervall en gång
+ * till, så det hör inte hemma i fortsättningen. Vill eleven ändå köra hela
+ * veckan igen finns vägen dit - den går bara inte genom den här funktionen.
+ */
+export function remainingToday(
+  questionIds: number[],
+  doneToday: Set<number>
+): number[] {
+  return questionIds.filter((id) => !doneToday.has(id));
 }
 
 /**
@@ -106,6 +136,15 @@ export function orderWeekQuestions(
 /** Kort sammanfattning av en veckas läge, för elevens ögon */
 export function weekStatusLabel(topic: WeekPracticeTopic): string {
   const delar: string[] = [`${topic.total} kort`];
+  if (topic.doneToday > 0) {
+    // Påbörjad idag: det enda eleven vill veta är hur mycket som står kvar.
+    delar.push(
+      topic.remaining > 0
+        ? `${topic.remaining} kvar idag`
+        : "klar för idag"
+    );
+    return delar.join(" · ");
+  }
   if (topic.due > 0) delar.push(`${topic.due} att repetera`);
   if (topic.fresh > 0) delar.push(`${topic.fresh} nya`);
   if (topic.due === 0 && topic.fresh === 0) {

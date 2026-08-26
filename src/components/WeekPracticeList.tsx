@@ -18,8 +18,10 @@ export default function WeekPracticeList({
       <h3 className="text-lg font-bold tracking-tight mb-1">Öva en vecka</h3>
       <p className="text-sm text-muted mb-4">
         Här ligger orden vecka för vecka, som kort. Välj den vecka du vill nöta
-        - inför ett veckotest, eller för att ta igen en vecka du missat. Det du
-        gör här räknas som övning: orden återkommer sedan i passet ovan.
+        - inför ett veckotest, eller för att ta igen en vecka du missat. Du
+        behöver inte ta hela veckan på en gång: gör några kort, gå ut, och
+        fortsätt där du slutade. Det du gör räknas som övning, så orden
+        återkommer sedan i passet ovan.
       </p>
       <div className="grid gap-3 sm:grid-cols-2">
         {topics.map((t) => {
@@ -38,9 +40,17 @@ export default function WeekPracticeList({
                   {weekStatusLabel(t)}
                 </div>
               </div>
-              {allMastered ? (
+              {t.doneToday > 0 && t.remaining === 0 ? (
+                <span className="badge bg-success-light text-success-dark shrink-0">
+                  Klar idag
+                </span>
+              ) : allMastered ? (
                 <span className="badge bg-success-light text-success-dark shrink-0">
                   Sitter
+                </span>
+              ) : t.doneToday > 0 ? (
+                <span className="badge bg-surface-muted text-muted shrink-0">
+                  {t.remaining}
                 </span>
               ) : t.due > 0 ? (
                 <span className="badge bg-surface-muted text-muted shrink-0">

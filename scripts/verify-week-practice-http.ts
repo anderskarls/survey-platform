@@ -252,12 +252,58 @@ async function main() {
       JSON.stringify(rader)
     );
 
-    // Veckolistan ska nu se att ett kort är mött: 3 nya blir 2
+    console.log("
+4. Avbryt och fortsatt senare");
     const efter = await getPage("/student/practice");
     check(
-      "veckolistan ser att ett kort ar mott (2 nya)",
-      efter.html.includes("2 nya"),
+      "veckolistan raknar bort kortet (2 kvar idag)",
+      efter.html.includes("2 kvar idag"),
       "etiketten uppdaterades inte"
+    );
+
+    const forts = await getPage(`/student/practice/${v1.topic.id}`);
+    check(
+      "drillen fortsatter dar eleven slutade",
+      forts.html.includes("2 kort kvar av veckans 3") &&
+        forts.html.includes("du gjorde 1 tidigare idag"),
+      "sammanfattningen sag inte att veckan var pabörjad"
+    );
+    check(
+      "knappen Fortsatt senare finns",
+      forts.html.includes("Fortsätt senare")
+    );
+
+    // Ta resten av veckan
+    for (const id of v1.kortIds.slice(1)) {
+      const r = await fetch(`${BASE}/api/student/practice`, {
+        method: "POST",
+        headers: { "content-type": "application/json", cookie },
+        body: JSON.stringify({ questionId: id, value: FLASHCARD_REVEAL }),
+      });
+      const j = (await r.json()) as { attemptId?: number };
+      await fetch(`${BASE}/api/student/practice`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json", cookie },
+        body: JSON.stringify({ attemptId: j.attemptId, grade: 3 }),
+      });
+    }
+
+    const klar = await getPage(`/student/practice/${v1.topic.id}`);
+    check(
+      "hela veckan gjord idag ger klarlage, inte en tom drill",
+      klar.status === 200 && klar.html.includes("Klar med veckan för idag"),
+      `status ${klar.status}`
+    );
+    check(
+      "listan sager klar for idag",
+      (await getPage("/student/practice")).html.includes("klar för idag")
+    );
+
+    const igen = await getPage(`/student/practice/${v1.topic.id}?igen=1`);
+    check(
+      "vagen att kora igenom anda finns",
+      igen.status === 200 && igen.html.includes("3 kort, hela veckan"),
+      `status ${igen.status}`
     );
   } finally {
     await prisma.survey.deleteMany({ where: { courseId: course.id } });

@@ -9,7 +9,10 @@ import {
 } from "@/lib/relearning";
 import PracticeRunner from "@/components/PracticeRunner";
 import { toPracticeQuestion } from "@/lib/practice-question";
-import { loadWeekPracticeTopics } from "@/lib/week-practice-data";
+import {
+  loadWeekPracticeTopics,
+  loadDoneToday,
+} from "@/lib/week-practice-data";
 import { summarizeWeekTopics } from "@/lib/week-practice";
 import WeekPracticeList from "@/components/WeekPracticeList";
 import Link from "next/link";
@@ -28,9 +31,14 @@ export default async function PracticePage() {
 
   // Veckolistan står under passet i båda lägena. Den är elevens egen väg in:
   // passet ger dagens repetitioner, listan ger en bestämd vecka på begäran.
+  const veckor = await loadWeekPracticeTopics(session.courseId);
   const weekTopics = summarizeWeekTopics(
-    await loadWeekPracticeTopics(session.courseId),
-    states
+    veckor,
+    states,
+    await loadDoneToday(
+      session.studentId,
+      veckor.flatMap((v) => v.questionIds)
+    )
   );
 
   if (setIds.length === 0) {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   orderWeekQuestions,
+  remainingToday,
   summarizeWeekTopics,
   weekStatusLabel,
 } from "./week-practice";
@@ -111,6 +112,8 @@ describe("weekStatusLabel", () => {
         fresh: 4,
         due: 6,
         mastered: 10,
+        doneToday: 0,
+        remaining: 30,
       })
     ).toBe("30 kort · 6 att repetera · 4 nya");
   });
@@ -124,6 +127,8 @@ describe("weekStatusLabel", () => {
         fresh: 0,
         due: 0,
         mastered: 30,
+        doneToday: 0,
+        remaining: 30,
       })
     ).toBe("30 kort · allt sitter");
   });
@@ -137,7 +142,71 @@ describe("weekStatusLabel", () => {
         fresh: 0,
         due: 0,
         mastered: 12,
+        doneToday: 0,
+        remaining: 30,
       })
     ).toBe("30 kort · inget att repetera nu");
+  });
+});
+
+// Regeln som testas: en vecka pa 30 kort ska vara delbar. Det eleven gjort
+// idag raknas bort - inte for att det ar "klart", utan for att ett andra
+// forsok samma dag inte flyttar nagot intervall.
+
+describe("veckan är delbar", () => {
+  it("räknar bort det som gjorts idag", () => {
+    const [vecka] = summarizeWeekTopics(
+      [{ id: 1, name: "Vecka 01", questionIds: [10, 11, 12, 13] }],
+      states([]),
+      new Set([10, 11])
+    );
+    expect(vecka.doneToday).toBe(2);
+    expect(vecka.remaining).toBe(2);
+    expect(vecka.total).toBe(4);
+  });
+
+  it("utan gjorda kort står hela veckan kvar", () => {
+    const [vecka] = summarizeWeekTopics(
+      [{ id: 1, name: "Vecka 01", questionIds: [10, 11] }],
+      states([])
+    );
+    expect(vecka.doneToday).toBe(0);
+    expect(vecka.remaining).toBe(2);
+  });
+
+  it("remainingToday lämnar kvar det som inte gjorts, i ordning", () => {
+    expect(remainingToday([1, 2, 3, 4], new Set([2, 4]))).toEqual([1, 3]);
+    expect(remainingToday([1, 2], new Set())).toEqual([1, 2]);
+    expect(remainingToday([1, 2], new Set([1, 2]))).toEqual([]);
+  });
+
+  it("etiketten säger hur mycket som står kvar när veckan är påbörjad", () => {
+    expect(
+      weekStatusLabel({
+        topicId: 1,
+        name: "Vecka 01",
+        total: 30,
+        fresh: 18,
+        due: 0,
+        mastered: 0,
+        doneToday: 12,
+        remaining: 18,
+      })
+    ).toBe("30 kort · 18 kvar idag");
+  });
+
+  it("etiketten säger klar för idag när inget står kvar", () => {
+    expect(
+      weekStatusLabel({
+        topicId: 1,
+        name: "Vecka 01",
+        total: 30,
+        fresh: 0,
+        due: 0,
+        mastered: 3,
+        doneToday: 30,
+        remaining: 0,
+      })
+    ).toBe("30 kort · klar för idag");
   });
 });

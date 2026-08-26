@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { dayKey } from "@/lib/relearning";
 import { releasedWhere } from "@/lib/survey-release";
 import type { WeekTopicInput } from "@/lib/week-practice";
 
@@ -60,4 +61,51 @@ export async function loadWeekPracticeTopics(
       name: t.name,
       questionIds: t.questions.map((q) => q.id),
     }));
+}
+
+/**
+ * Korten eleven redan gjort IDAG, av de frågor som skickas in.
+ *
+ * Räknar både övningsförsök och quizsvar, av samma skäl som `hasAttemptOnDay`
+ * gör det: har frågan mötts i ett skarpt quiz tidigare på dagen är den redan
+ * avräknad, och en repris i drillen flyttar inget.
+ *
+ * Dygnet är elevens, inte serverns. Därför hämtas två dygn bakåt och jämförs
+ * på `dayKey` (Europe/Stockholm) i stället för att räkna på UTC-midnatt.
+ */
+export async function loadDoneToday(
+  studentId: number,
+  questionIds: number[],
+  now: Date = new Date()
+): Promise<Set<number>> {
+  if (questionIds.length === 0) return new Set();
+  const idag = dayKey(now);
+  const sedan = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000);
+
+  const [ovning, svar] = await Promise.all([
+    prisma.practiceAttempt.findMany({
+      where: {
+        studentId,
+        questionId: { in: questionIds },
+        createdAt: { gte: sedan },
+      },
+      select: { questionId: true, createdAt: true },
+    }),
+    prisma.answer.findMany({
+      where: {
+        questionId: { in: questionIds },
+        response: { studentId, createdAt: { gte: sedan } },
+      },
+      select: { questionId: true, response: { select: { createdAt: true } } },
+    }),
+  ]);
+
+  const gjorda = new Set<number>();
+  for (const a of ovning) {
+    if (dayKey(a.createdAt) === idag) gjorda.add(a.questionId);
+  }
+  for (const a of svar) {
+    if (dayKey(a.response.createdAt) === idag) gjorda.add(a.questionId);
+  }
+  return gjorda;
 }
