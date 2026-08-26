@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { prisma } from "@/lib/prisma";
 import {
   AttemptRecord,
@@ -206,6 +207,16 @@ export async function loadRelearningData(
   };
 }
 
+/**
+ * Samma laddning, men bara en gång per begäran.
+ *
+ * Elevens layout och elevens sida behöver båda ominlärningsläget, och varje
+ * laddning läser hela svars- och försökshistoriken. React-cachen ger dem
+ * samma resultat i stället för att köra frågorna två gånger. Använd den här i
+ * server-komponenter; skript och tester anropar loadRelearningData direkt.
+ */
+export const getRelearningData = cache(loadRelearningData);
+
 export interface StudentPracticeOverview {
   studentId: number;
   due: number;
@@ -267,17 +278,31 @@ export async function loadCourseRelearningOverview(
         isCorrect: true,
         grade: true,
         createdAt: true,
+        question: {
+          select: { text: true, topic: { select: { name: true } } },
+        },
       },
     }),
   ]);
 
-  // Frågemetadata för luck-listan (alla poolfrågor har minst ett quiz-svar)
+  // Frågemetadata för luck-listan. Måste hämtas från BÅDA hållen: sedan
+  // öppnade topics kan ett ord nå eleven direkt i övningen utan att någonsin
+  // ha besvarats i ett quiz, och i en kurs där veckotesten är luckfrågor
+  // gäller det varje kort. Utan raden nedan stod hela listan som "Fråga 4711".
   const questionMeta = new Map<number, { text: string; topicName: string }>();
   for (const a of answers) {
     if (!questionMeta.has(a.questionId)) {
       questionMeta.set(a.questionId, {
         text: a.question.text,
         topicName: a.question.topic.name,
+      });
+    }
+  }
+  for (const p of practice) {
+    if (!questionMeta.has(p.questionId)) {
+      questionMeta.set(p.questionId, {
+        text: p.question.text,
+        topicName: p.question.topic.name,
       });
     }
   }

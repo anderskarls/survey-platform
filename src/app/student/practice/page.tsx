@@ -1,7 +1,7 @@
 import { getStudentSession } from "@/lib/student-session";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { loadRelearningData } from "@/lib/relearning-data";
+import { getRelearningData } from "@/lib/relearning-data";
 import {
   PRACTICE_SET_CAP,
   selectPracticeSet,
@@ -22,7 +22,7 @@ export default async function PracticePage() {
     accounts,
     newCandidates,
     introducedToday,
-  } = await loadRelearningData(session.studentId);
+  } = await getRelearningData(session.studentId);
   const stats = summarizeStates(states);
   const setIds = selectPracticeSet(candidates, states, PRACTICE_SET_CAP, {
     candidates: newCandidates,

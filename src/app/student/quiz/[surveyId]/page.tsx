@@ -1,7 +1,12 @@
 import { getStudentSession } from "@/lib/student-session";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { calculateMastery, ResponseRecord } from "@/lib/mastery";
+import {
+  calculateMastery,
+  latestAnswers,
+  type AnswerRecord,
+} from "@/lib/question-progress";
+import { getRelearningData } from "@/lib/relearning-data";
 import StudentQuizForm from "@/components/StudentQuizForm";
 import Link from "next/link";
 import { toClientClozeConfig } from "@/lib/cloze";
@@ -57,7 +62,7 @@ export default async function StudentQuizPage({
     orderBy: { createdAt: "asc" },
   });
 
-  const allRecords: ResponseRecord[] = responses.flatMap((r) =>
+  const allRecords: AnswerRecord[] = responses.flatMap((r) =>
     r.answers.map((a) => ({
       questionId: a.questionId,
       isCorrect: a.isCorrect,
@@ -65,8 +70,16 @@ export default async function StudentQuizPage({
     }))
   );
 
+  // Samma behärskningsmodell som startsidans progressbar: FSRS för det som
+  // finns i övningspoolen, senaste svaret för luckfrågor och fritext. Annars
+  // kunde eleven läsa "12 av 15 klarade" och sedan få alla 15 igen.
+  const { states } = await getRelearningData(studentId);
   const questionIds = survey.questions.map((sq) => sq.questionId);
-  const { remainingIds } = calculateMastery(questionIds, allRecords);
+  const { remainingIds } = calculateMastery(
+    questionIds,
+    states,
+    latestAnswers(allRecords)
+  );
   const remainingSet = new Set(remainingIds);
 
   // Filter to only non-mastered questions

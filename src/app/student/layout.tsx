@@ -1,7 +1,7 @@
 import { getStudentSession } from "@/lib/student-session";
 import { prisma } from "@/lib/prisma";
-import { loadRelearningData } from "@/lib/relearning-data";
-import { summarizeStates } from "@/lib/relearning";
+import { getRelearningData } from "@/lib/relearning-data";
+import { summarizePracticeReady } from "@/lib/relearning";
 import StudentSidebar from "@/components/StudentSidebar";
 
 export const dynamic = "force-dynamic";
@@ -20,8 +20,13 @@ export default async function StudentLayout({
       ? prisma.course.findUnique({ where: { id: session.courseId }, select: { name: true } })
       : Promise.resolve(null),
     session
-      ? loadRelearningData(session.studentId).then((d) => ({
-          due: summarizeStates(d.states).due,
+      ? getRelearningData(session.studentId).then((d) => ({
+          // Badgen ska svara på "finns det något att göra?" - då räknas nya
+          // ord in, inte bara repetitioner.
+          due: summarizePracticeReady(d.states, {
+            candidates: d.newCandidates,
+            introducedToday: d.introducedToday,
+          }).total,
           // Elevens övriga kurser (samma personKey) - underlag för kursväxlaren.
           // Redan upplösta här, så växlaren kostar ingen extra fråga.
           accounts: d.accounts,

@@ -258,6 +258,32 @@ export interface NewCardIntake {
 }
 
 /**
+ * Hur många nya kort som faktiskt får plats idag, givet hur många platser
+ * repetitionerna redan tagit.
+ *
+ * Tre tak möts: passets storlek, dagens tak för nya ord, och hur många nya
+ * kort som över huvud taget finns kvar att introducera. Egen funktion för att
+ * elevens badge och startsidan ska kunna svara på "finns det något att göra?"
+ * med exakt samma räkning som passet självt gör - inte en approximation som
+ * glider isär från den.
+ */
+export function newCardRoom(
+  usedSlots: number,
+  newCards: NewCardIntake,
+  cap: number = PRACTICE_SET_CAP
+): number {
+  const dailyCap = newCards.dailyCap ?? DAILY_NEW_CARD_CAP;
+  return Math.max(
+    0,
+    Math.min(
+      cap - usedSlots,
+      dailyCap - newCards.introducedToday,
+      newCards.candidates.length
+    )
+  );
+}
+
+/**
  * Väljer dagens övningspass: due-frågor, svagast minne först (lägst
  * retrievability), äldst due som tie-break, round-robin över topics för
  * tematisk variation.
@@ -309,11 +335,7 @@ export function selectPracticeSet(
   }
 
   if (newCards && result.length < cap) {
-    const dailyCap = newCards.dailyCap ?? DAILY_NEW_CARD_CAP;
-    const room = Math.min(
-      cap - result.length,
-      Math.max(0, dailyCap - newCards.introducedToday)
-    );
+    const room = newCardRoom(result.length, newCards, cap);
     // Frågor med historik är redan hanterade ovan; ta bara de verkligt nya
     let introduced = 0;
     for (const c of newCards.candidates) {
@@ -360,6 +382,37 @@ export interface RelearningSummary {
   due: number;
   learning: number;
   graduated: number; // behärskade (intervall >= MASTERED_INTERVAL_DAYS)
+}
+
+export interface PracticeReady {
+  /** Frågor eleven mött som är due idag (utan passets tak) */
+  due: number;
+  /** Nya ord som får introduceras idag */
+  newToday: number;
+  /** Allt eleven kan göra just nu - noll betyder att övningen är tom */
+  total: number;
+}
+
+/**
+ * Vad eleven faktiskt har att göra just nu, repetitioner OCH nya ord.
+ *
+ * Badgen och startsidan räknade förr bara due-frågor, och due bygger på
+ * försökshistorik. En elev vars lärare just öppnat en vecka har ingen
+ * historik alls: startsidan var tom och badgen släckt, samtidigt som tio nya
+ * ord låg och väntade bakom länken. Ingenting sa åt eleven att gå dit.
+ */
+export function summarizePracticeReady(
+  states: Map<number, QuestionPracticeState>,
+  newCards?: NewCardIntake,
+  cap: number = PRACTICE_SET_CAP
+): PracticeReady {
+  const due = summarizeStates(states).due;
+  // Repetitionerna tar sina platser först - fyller de passet finns ingen
+  // plats kvar för nya ord idag, precis som i selectPracticeSet.
+  const newToday = newCards
+    ? newCardRoom(Math.min(due, cap), newCards, cap)
+    : 0;
+  return { due, newToday, total: due + newToday };
 }
 
 export function summarizeStates(

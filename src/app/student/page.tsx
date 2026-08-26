@@ -1,9 +1,13 @@
 import { getStudentSession } from "@/lib/student-session";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { calculateMastery, ResponseRecord } from "@/lib/mastery";
-import { loadRelearningData } from "@/lib/relearning-data";
-import { summarizeStates } from "@/lib/relearning";
+import {
+  calculateMastery,
+  latestAnswers,
+  type AnswerRecord,
+} from "@/lib/question-progress";
+import { getRelearningData } from "@/lib/relearning-data";
+import { summarizePracticeReady } from "@/lib/relearning";
 import Link from "next/link";
 import FlaggedQuestionsList from "@/components/FlaggedQuestionsList";
 import { isReleased, nextRelease, formatRelease } from "@/lib/survey-release";
@@ -56,7 +60,7 @@ export default async function StudentDashboard() {
     orderBy: { createdAt: "asc" },
   });
 
-  const allRecords: ResponseRecord[] = responses.flatMap((r) =>
+  const allRecords: AnswerRecord[] = responses.flatMap((r) =>
     r.answers.map((a) => ({
       questionId: a.questionId,
       isCorrect: a.isCorrect,
@@ -74,9 +78,30 @@ export default async function StudentDashboard() {
       fq.question.options.find((o) => o.isCorrect)?.text ?? null,
   }));
 
-  // Successiv ominlärning: frågor eleven missat, due enligt spacad streak-logik
-  const relearning = await loadRelearningData(studentId);
-  const practiceStats = summarizeStates(relearning.states);
+  // Successiv ominlärning: repetitioner som är due plus nya ord som får
+  // introduceras idag. Laddningen delas med layouten via React-cachen.
+  const relearning = await getRelearningData(studentId);
+  const practiceReady = summarizePracticeReady(relearning.states, {
+    candidates: relearning.newCandidates,
+    introducedToday: relearning.introducedToday,
+  });
+  // Behärskning: FSRS där frågan finns i övningspoolen, senaste svaret för
+  // resten. Se question-progress.ts.
+  const latestCorrect = latestAnswers(allRecords);
+
+  // En mening, byggd av de delar som faktiskt finns - nya ord nämns bara när
+  // det finns nya ord, och skälet står sist oavsett vilket.
+  const practiceSummary = [
+    practiceReady.due > 0
+      ? `${practiceReady.due} ${practiceReady.due === 1 ? "fråga" : "frågor"} att repetera`
+      : null,
+    practiceReady.newToday > 0
+      ? `${practiceReady.newToday} ${practiceReady.newToday === 1 ? "nytt ord" : "nya ord"} att möta för första gången`
+      : null,
+  ]
+    .filter(Boolean)
+    .join(" och ")
+    .concat(" - repetition lagom innan du glömmer bygger minnet.");
 
   // Moment-gruppering: surveys med unitId visas under sina moment, fristående i den platta listan
   const submittedSurveyIds = new Set(responses.map((r) => r.surveyId));
@@ -123,21 +148,18 @@ export default async function StudentDashboard() {
         </div>
       )}
 
-      {practiceStats.due > 0 && (
+      {practiceReady.total > 0 && (
         <div className="mb-8">
           <h3 className="text-lg font-semibold mb-3 flex items-center gap-2 tracking-tight">
             Att öva på
             <span className="text-sm font-normal text-muted">
-              ({practiceStats.due})
+              ({practiceReady.total})
             </span>
           </h3>
           <div className="card p-4 flex items-center justify-between">
             <div>
               <span className="font-medium">Dagens övningspass</span>
-              <p className="text-sm text-muted mt-0.5">
-                {practiceStats.due} {practiceStats.due === 1 ? "fråga" : "frågor"} redo
-                att övas - repetition lagom innan du glömmer bygger minnet.
-              </p>
+              <p className="text-sm text-muted mt-0.5">{practiceSummary}</p>
             </div>
             <Link href="/student/practice" className="btn-accent inline-block">
               Öva nu
@@ -176,7 +198,8 @@ export default async function StudentDashboard() {
             const questionIds = survey.questions.map((sq) => sq.questionId);
             const { masteredIds, remainingIds } = calculateMastery(
               questionIds,
-              allRecords
+              relearning.states,
+              latestCorrect
             );
             const hasResponded = responses.some((r) => r.surveyId === survey.id);
             const hasDraft = draftBySurvey.has(survey.id);
