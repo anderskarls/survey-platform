@@ -12,7 +12,7 @@ export default async function StudentLayout({
   children: React.ReactNode;
 }) {
   const session = await getStudentSession();
-  const [unreadFeedback, course, practice] = await Promise.all([
+  const [unreadFeedback, course, practice, formagor] = await Promise.all([
     session
       ? prisma.assignmentFeedback.count({ where: { studentId: session.studentId, readAt: null } })
       : Promise.resolve(0),
@@ -32,6 +32,17 @@ export default async function StudentLayout({
           accounts: d.accounts,
         }))
       : Promise.resolve({ due: 0, accounts: [] }),
+    // Förmågeträningen visas bara i kurser som har övningar. De flesta kurser
+    // har inga, och punkten ledde då till en tom sida. Den kommer tillbaka av
+    // sig själv så fort en övning läggs in i kursen.
+    session
+      ? prisma.question.count({
+          where: {
+            topic: { courseId: session.courseId },
+            OR: [{ subskill: { not: null } }, { type: "SORTING" }],
+          },
+        })
+      : Promise.resolve(0),
   ]);
 
   return (
@@ -52,6 +63,7 @@ export default async function StudentLayout({
           courseId: a.courseId,
           courseName: a.courseName,
         }))}
+        showFormagor={formagor > 0}
         impersonated={session?.impersonated ?? false}
       />
       <main id="main-content" className="flex-1 p-4 md:p-8">

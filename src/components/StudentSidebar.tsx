@@ -17,6 +17,8 @@ interface StudentSidebarProps {
   currentCourseId?: number;
   /** Elevens alla kurser (samma personKey). Växlaren visas först vid fler än en. */
   courses?: CourseOption[];
+  /** Förmågeträning visas bara i kurser som har övningar av den sorten. */
+  showFormagor?: boolean;
   /** Läraren tittar via provkontot - visa vem hen är och vägen tillbaka. */
   impersonated?: boolean;
 }
@@ -86,12 +88,15 @@ export default function StudentSidebar({
   practiceDue,
   currentCourseId,
   courses = [],
+  showFormagor = false,
   impersonated = false,
 }: StudentSidebarProps) {
   const links = [
     { href: "/student", label: "Hem", exact: true },
     { href: "/student/practice", label: "Att öva på", badge: practiceDue || undefined },
-    { href: "/student/formagor", label: "Förmågeträning" },
+    ...(showFormagor
+      ? [{ href: "/student/formagor", label: "Förmågeträning" }]
+      : []),
     { href: "/student/results", label: "Mina resultat" },
     { href: "/student/feedback", label: "Feedback", badge: unreadFeedback || undefined },
   ];
