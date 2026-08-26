@@ -71,32 +71,51 @@ export interface RelearningData {
 }
 
 /**
- * Laddar elevens samlade försökshistorik (skarpa quiz-svar + övningsförsök)
- * för flervalsfrågor och beräknar FSRS-status. Poolen = alla frågor eleven
- * mött (minst ett försök). Länkade konton (samma personKey, t.ex. samma elev
- * i två kurser) slås ihop så att övningen täcker alla kurser oavsett vilket
- * konto eleven är inloggad på. Varje fråga hör till exakt en kurs, så
- * historiken per fråga blandas aldrig mellan konton.
+ * Laddar elevens försökshistorik (skarpa quiz-svar + övningsförsök) för
+ * flervalsfrågor och beräknar FSRS-status. Poolen = frågor eleven mött
+ * (minst ett försök) **i den kurs kontot hör till**.
+ *
+ * Övningen är kursavgränsad, precis som quiz, moment och sidomenyn. Länkade
+ * konton (samma personKey) slås INTE ihop till en gemensam pool - de driver
+ * bara kursväxlaren, som returneras i `accounts`. Går eleven två kurser är
+ * det ett övningspass per kurs, och man byter kurs för att öva den andra.
+ * Tidigare slogs poolen ihop över alla länkade konton; det gjorde att
+ * provkontona - som delar en enda personKey över alla kurser för att
+ * "Visa som elev" ska räcka med ett inlogg - drog in andra kursers frågor i
+ * elevvyn.
  *
  * Därutöver hämtas ALDRIG MÖTTA flervalsfrågor ur de topics läraren öppnat
- * för övning (`Topic.practiceOpen`). De är vägen in för kurser där glosorna
- * övas i stället för att provas - utan dem kan en fråga bara nå övningen
- * genom ett quiz. Är inget topic öppnat blir listan tom och modellen är
- * exakt den gamla.
+ * för övning (`Topic.practiceOpen`) i samma kurs. De är vägen in för kurser
+ * där glosorna övas i stället för att provas - utan dem kan en fråga bara nå
+ * övningen genom ett quiz. Är inget topic öppnat blir listan tom och
+ * modellen är exakt den gamla.
  */
 export async function loadRelearningData(
   studentId: number,
   now: Date = new Date()
 ): Promise<RelearningData> {
   const accounts = await resolveLinkedAccounts(studentId);
-  const studentIds = accounts.map((a) => a.studentId);
-  const accountByCourse = new Map(accounts.map((a) => [a.courseId, a]));
+  // Poolen byggs bara ur det inloggade kontot. `accounts` bär de övriga
+  // vidare till kursväxlaren.
+  const self = accounts.find((a) => a.studentId === studentId);
+  if (!self) {
+    return {
+      accounts,
+      states: new Map(),
+      candidates: [],
+      questionInfo: new Map(),
+      newCandidates: [],
+      introducedToday: 0,
+    };
+  }
+  const studentIds = [self.studentId];
+  const accountByCourse = new Map([[self.courseId, self]]);
 
   const [answers, practice] = await Promise.all([
     prisma.answer.findMany({
       where: {
         response: { studentId: { in: studentIds } },
-        question: { type: "MULTIPLE_CHOICE" },
+        question: { type: "MULTIPLE_CHOICE", topic: { courseId: self.courseId } },
       },
       select: {
         questionId: true,
@@ -109,7 +128,10 @@ export async function loadRelearningData(
       },
     }),
     prisma.practiceAttempt.findMany({
-      where: { studentId: { in: studentIds } },
+      where: {
+        studentId: { in: studentIds },
+        question: { topic: { courseId: self.courseId } },
+      },
       select: {
         questionId: true,
         isCorrect: true,
@@ -174,7 +196,7 @@ export async function loadRelearningData(
   // Nya kort: flervalsfrågor ur öppnade topics som eleven aldrig mött.
   // Ordningen är topicets namn ("Vecka 01" före "Vecka 02") och därefter
   // frågans id, så introduktionen följer kursens gång och är deterministisk.
-  const courseIds = accounts.map((a) => a.courseId);
+  const courseIds = [self.courseId];
   const seen = new Set(states.keys());
   const newQuestions = await prisma.question.findMany({
     where: {

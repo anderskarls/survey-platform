@@ -15,21 +15,13 @@ export default async function PracticePage() {
   const session = await getStudentSession();
   if (!session) redirect("/login");
 
-  const {
-    states,
-    candidates,
-    questionInfo,
-    accounts,
-    newCandidates,
-    introducedToday,
-  } = await getRelearningData(session.studentId);
+  const { states, candidates, newCandidates, introducedToday } =
+    await getRelearningData(session.studentId);
   const stats = summarizeStates(states);
   const setIds = selectPracticeSet(candidates, states, PRACTICE_SET_CAP, {
     candidates: newCandidates,
     introducedToday,
   });
-  // Kursetiketter visas bara när övningen spänner över flera kurser
-  const multiCourse = new Set(accounts.map((a) => a.courseId)).size > 1;
 
   if (setIds.length === 0) {
     // Nästa tillfälle = minsta antal dagar tills någon fråga blir due
@@ -105,8 +97,8 @@ export default async function PracticePage() {
     where: { id: { in: setIds } },
     include: {
       options: true,
-      // Flashcardläget sitter på kursen, och övningen kan spänna över flera
-      // kurser - därför avgörs kortformen per fråga, inte per pass.
+      // Flashcardläget sitter på kursen. Passet är kursavgränsat, men
+      // kortformen läses ändå per fråga - det är samma kurs för alla.
       topic: { select: { course: { select: { flashcardMode: true } } } },
     },
   });
@@ -115,11 +107,9 @@ export default async function PracticePage() {
     .map((id) => byId.get(id))
     .filter((q): q is NonNullable<typeof q> => q !== undefined)
     .map((q) =>
-      toPracticeQuestion(
-        q,
-        multiCourse ? (questionInfo.get(q.id)?.courseName ?? null) : null,
-        q.topic.course.flashcardMode
-      )
+      // Kursetikett behövs inte: passet innehåller bara den egna kursens
+      // frågor sedan övningen kursavgränsades.
+      toPracticeQuestion(q, null, q.topic.course.flashcardMode)
     )
     .filter((q): q is NonNullable<typeof q> => q !== null);
 

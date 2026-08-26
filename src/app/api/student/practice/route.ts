@@ -3,7 +3,6 @@ import { prisma } from "@/lib/prisma";
 import { practiceAttemptSchema, practiceGradeSchema } from "@/lib/validators";
 import { handleApiError } from "@/lib/api-helpers";
 import { getStudentSession } from "@/lib/student-session";
-import { resolveLinkedAccounts } from "@/lib/relearning-data";
 import {
   AttemptRecord,
   buildQuestionState,
@@ -93,19 +92,16 @@ export async function POST(request: NextRequest) {
       where: { id: questionId },
       include: { options: true, topic: { select: { courseId: true } } },
     });
-    // Frågan måste höra till någon av elevens länkade kurser. Försöket
-    // bokförs på kontot i frågans kurs så lärarstatistiken per kurs stämmer.
-    const accounts = await resolveLinkedAccounts(session.studentId);
-    const owner = question
-      ? accounts.find((a) => a.courseId === question.topic.courseId)
-      : undefined;
-    if (!question || !owner) {
+    // Frågan måste höra till kursen kontot är inloggat i. Övningen är
+    // kursavgränsad (se loadRelearningData) - vill eleven öva en annan kurs
+    // byter hen kurs i sidomenyn och övar med det kontot.
+    if (!question || question.topic.courseId !== session.courseId) {
       return NextResponse.json(
         { error: "Frågan hittades inte" },
         { status: 404 }
       );
     }
-    const ownerStudentId = owner.studentId;
+    const ownerStudentId = session.studentId;
 
     const fritext = isFormagaFritext(question);
     const flashcardReveal =
@@ -272,11 +268,9 @@ export async function PATCH(request: NextRequest) {
       include: { question: { select: { type: true, subskill: true } } },
       // value behövs för att känna igen vända kort nedan
     });
-    const accounts = await resolveLinkedAccounts(session.studentId);
-    const owned =
-      attempt !== null &&
-      accounts.some((a) => a.studentId === attempt.studentId);
-    if (!attempt || !owned) {
+    // Försöket bokförs alltid på det inloggade kontot, så självskattningen
+    // gäller bara egna försök i den kursen.
+    if (!attempt || attempt.studentId !== session.studentId) {
       return NextResponse.json(
         { error: "Försöket hittades inte" },
         { status: 404 }

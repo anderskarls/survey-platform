@@ -1,7 +1,6 @@
 import { getStudentSession } from "@/lib/student-session";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { resolveLinkedAccounts } from "@/lib/relearning-data";
 import Link from "next/link";
 
 const SUBSKILL_LABEL: Record<string, string> = {
@@ -37,10 +36,10 @@ export default async function FormagorPage() {
   const session = await getStudentSession();
   if (!session) redirect("/login");
 
-  const accounts = await resolveLinkedAccounts(session.studentId);
-  const courseIds = accounts.map((a) => a.courseId);
-  const studentIds = accounts.map((a) => a.studentId);
-  const multiCourse = new Set(courseIds).size > 1;
+  // Kursavgränsat, som resten av elevvyn: bara den egna kursens övningar
+  // och bara det egna kontots försök.
+  const courseIds = [session.courseId];
+  const studentIds = [session.studentId];
 
   // Feedback på fritextförsök skrivs asynkront av läraren - visa de senaste
   const feedbackAttempts = await prisma.practiceAttempt.findMany({
@@ -64,21 +63,18 @@ export default async function FormagorPage() {
     select: {
       id: true,
       subskill: true,
-      topic: {
-        select: { id: true, name: true, course: { select: { name: true } } },
-      },
+      topic: { select: { id: true, name: true } },
     },
     orderBy: { id: "asc" },
   });
 
   const byTopic = new Map<
     number,
-    { name: string; courseName: string; count: number; subskills: Set<string> }
+    { name: string; count: number; subskills: Set<string> }
   >();
   for (const q of questions) {
     const entry = byTopic.get(q.topic.id) ?? {
       name: q.topic.name,
-      courseName: q.topic.course.name,
       count: 0,
       subskills: new Set<string>(),
     };
@@ -109,11 +105,6 @@ export default async function FormagorPage() {
             <div key={topicId} className="card p-5">
               <div className="flex items-center justify-between gap-3 flex-wrap">
                 <div>
-                  {multiCourse && (
-                    <span className="inline-block text-xs font-semibold uppercase tracking-wider text-muted bg-surface-muted rounded-full px-2.5 py-1 mb-2">
-                      {t.courseName}
-                    </span>
-                  )}
                   <h3 className="font-bold tracking-tight">{t.name}</h3>
                   <p className="text-sm text-muted mt-1">
                     {t.count} {t.count === 1 ? "övning" : "övningar"}

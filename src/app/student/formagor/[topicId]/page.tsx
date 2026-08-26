@@ -1,7 +1,6 @@
 import { getStudentSession } from "@/lib/student-session";
 import { redirect, notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { resolveLinkedAccounts } from "@/lib/relearning-data";
 import { toPracticeQuestion } from "@/lib/practice-question";
 import PracticeRunner from "@/components/PracticeRunner";
 
@@ -20,8 +19,8 @@ export default async function FormagaTopicPage({
   const tId = Number(topicId);
   if (isNaN(tId)) notFound();
 
-  const accounts = await resolveLinkedAccounts(session.studentId);
-  const courseIds = accounts.map((a) => a.courseId);
+  // Bara den egna kursens områden - övningen är kursavgränsad.
+  const courseIds = [session.courseId];
 
   const topic = await prisma.topic.findUnique({
     where: { id: tId },
