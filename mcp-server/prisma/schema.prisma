@@ -22,6 +22,7 @@ model Course {
   students  Student[]
   units     Unit[]
   campaignSnapshot CampaignSnapshot?
+  admins    AdminCourse[]
 }
 
 model Unit {
@@ -67,6 +68,9 @@ model Topic {
   course    Course     @relation(fields: [courseId], references: [id], onDelete: Cascade)
   unitId    Int?
   unit      Unit?      @relation(fields: [unitId], references: [id], onDelete: SetNull)
+  /// Öppen för övning: nya frågor härifrån flödar in i elevernas
+  /// övningspass utan att först ha mötts i ett quiz. Se relearning-data.
+  practiceOpen Boolean @default(false)
   questions Question[]
 
   @@unique([courseId, name])
@@ -109,12 +113,18 @@ model Survey {
   unitId      Int?
   unit        Unit?            @relation(fields: [unitId], references: [id], onDelete: SetNull)
   lesson      Int?
+  /// Släpptidpunkt: enkäten är dold för eleverna tills klockan passerat.
+  /// null = öppen direkt, vilket är hur allt fungerade innan fältet fanns.
+  /// Används för veckotest som ska komma ett i taget - se survey-release.ts.
+  /// En gång släppt förblir den öppen; frånvarande elever kan ta igen.
+  openAt      DateTime?
   createdAt   DateTime         @default(now())
   questions   SurveyQuestion[]
   responses   Response[]
   drafts      DraftResponse[]
 
   @@index([unitId])
+  @@index([courseId, openAt])
 }
 
 model SurveyQuestion {
@@ -211,12 +221,36 @@ model CampaignSnapshot {
   shownAt  DateTime @default(now())
 }
 
+/// OWNER ser hela plattformen. TEACHER ser bara de kurser kontot är kopplat
+/// till - allt annat är osynligt, inte bara oredigerbart.
+enum AdminRole {
+  OWNER
+  TEACHER
+}
+
 model Admin {
   id           Int      @id @default(autoincrement())
   email        String   @unique
   name         String
   passwordHash String
+  /// Default är TEACHER så att ett konto som skapas utan uttalad roll blir
+  /// det snävaste, inte det vidaste. Ägarkontot sätts explicit av seed-admin.
+  role         AdminRole @default(TEACHER)
   createdAt    DateTime @default(now())
+  courses      AdminCourse[]
+}
+
+/// Vilka kurser ett TEACHER-konto når. Raderna saknar betydelse för OWNER -
+/// ägaren når alla kurser oavsett vad som står här.
+model AdminCourse {
+  adminId   Int
+  admin     Admin    @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  courseId  Int
+  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([adminId, courseId])
+  @@index([courseId])
 }
 
 model AssignmentFeedback {
