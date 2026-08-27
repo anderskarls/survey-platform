@@ -7,8 +7,9 @@
  * test som inte har släppts. Det är den vägen en delad länk tar, och det är
  * den som spärren måste hålla.
  *
- * Tre enkäter täcker de tre lägena: osläppt (openAt i framtiden), släppt
- * (openAt passerad) och otidsatt (openAt = null, som allt fungerade förut).
+ * Fyra enkäter täcker de fyra lägena: osläppt (openAt i framtiden), släppt
+ * (openAt passerad), otidsatt (openAt = null, som allt fungerade förut) och
+ * manuell (läraren öppnar själv - sentineltidpunkten).
  *
  * Självstädande - kursen med allt under sig rivs i finally. Rör aldrig
  * befintlig elevdata.
@@ -58,9 +59,14 @@ function cookieFrom(res: Response): string | null {
 }
 
 async function main() {
-  const { isReleased, releasedWhere, nextRelease } = await import(
-    "../src/lib/survey-release"
-  );
+  const {
+    isReleased,
+    releasedWhere,
+    nextRelease,
+    isManualRelease,
+    releaseNotice,
+    MANUAL_RELEASE_AT,
+  } = await import("../src/lib/survey-release");
 
   const course = await prisma.course.create({
     data: { name: `${MARKER} kurs ${STAMP}`, code: `VOA${STAMP}` },
@@ -108,6 +114,7 @@ async function main() {
       `VB${STAMP}`
     );
     const otidsatt = await mkSurvey("otidsatt", null, `VC${STAMP}`);
+    const manuell = await mkSurvey("manuellt", MANUAL_RELEASE_AT, `VD${STAMP}`);
 
     const student = await prisma.student.create({
       data: {
@@ -138,6 +145,28 @@ async function main() {
 
     const next = nextRelease([framtid, datid, otidsatt]);
     check("nextRelease pekar ut det oslappta", next?.id === framtid.id);
+
+    check("isManualRelease kanner igen sentineln", isManualRelease(manuell));
+    check("isManualRelease sager nej om ett riktigt schema", !isManualRelease(framtid));
+    check("isReleased: manuellt test ar stangt", !isReleased(manuell));
+    check(
+      "nextRelease hoppar over det manuella",
+      nextRelease([manuell, framtid])?.id === framtid.id
+    );
+    check(
+      "releaseNotice ger beskedet, inte sentineldatumet",
+      releaseNotice(manuell) === "Öppnas när läraren släpper den",
+      releaseNotice(manuell)
+    );
+
+    const synligaMedManuell = await prisma.survey.findMany({
+      where: { courseId: course.id, ...releasedWhere() },
+      select: { id: true },
+    });
+    check(
+      "releasedWhere filtrerar bort aven det manuella",
+      !synligaMedManuell.some((s) => s.id === manuell.id)
+    );
 
     // --- HTTP-lagret på prod ----------------------------------------------
     console.log("\nHTTP-lagret pa prod");
@@ -206,6 +235,17 @@ async function main() {
       r5.status === 200,
       `status ${r5.status} ${r5.error}`
     );
+
+    const r6 = await post(`/api/surveys/${manuell.id}/respond`, svar);
+    check("respond avvisar manuellt test", r6.status === 403, `status ${r6.status}`);
+    check(
+      "felmeddelandet talar om lararen, aldrig sentineldatumet",
+      /släpper/.test(r6.error) && !/2099/.test(r6.error),
+      JSON.stringify(r6.error)
+    );
+
+    const r7 = await put(`/api/surveys/${manuell.id}/draft`, utkast);
+    check("draft avvisar manuellt test", r7.status === 403, `status ${r7.status}`);
 
     // Inget svar ska ha letat sig in på det osläppta testet
     const spar = await prisma.response.count({ where: { surveyId: framtid.id } });
