@@ -9,7 +9,7 @@ import {
   isFlashcardValue,
 } from "@/lib/flashcard";
 import { gradeCloze, parseClozeConfig, type ClozeVerdict } from "@/lib/cloze";
-import { formatRelease, isReleased } from "@/lib/survey-release";
+import { isReleased, releaseNotice } from "@/lib/survey-release";
 
 /**
  * Så länge räknas ett identiskt svarspaket som samma inlämning.
@@ -81,7 +81,7 @@ export async function POST(
     // förbi den här kontrollen.
     if (survey.openAt && !isReleased(survey)) {
       return NextResponse.json(
-        { error: `Enkäten öppnar ${formatRelease(survey.openAt)}.` },
+        { error: `Enkäten ${releaseNotice(survey).toLowerCase()}.` },
         { status: 403 }
       );
     }

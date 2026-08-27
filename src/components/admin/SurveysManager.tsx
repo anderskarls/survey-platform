@@ -6,7 +6,7 @@ import { useToast } from "@/components/Toast";
 import TopicComposer from "./TopicComposer";
 import SurveyEditor from "./SurveyEditor";
 import WeeklyReleaseScheduler from "./WeeklyReleaseScheduler";
-import { formatRelease, isReleased } from "@/lib/survey-release";
+import { formatRelease, isManualRelease, isReleased } from "@/lib/survey-release";
 
 interface Topic {
   id: number;
@@ -410,7 +410,9 @@ export default function SurveysManager({
                       ) : (
                         <div className="flex items-center gap-2">
                           <span className="badge bg-surface-muted text-muted">
-                            {formatRelease(new Date(s.openAt))}
+                            {isManualRelease({ openAt: new Date(s.openAt) })
+                              ? "Du öppnar"
+                              : formatRelease(new Date(s.openAt))}
                           </span>
                           <button
                             onClick={() => releaseNow(s.id)}

@@ -12,6 +12,15 @@
  *   - En gång släppt förblir släppt. Det finns inget `closeAt` - eleven som
  *     varit sjuk ska kunna ta igen veckan efter.
  *
+ * Utöver det finns ett tredje läge, MANUELLT: enkäten är dold tills läraren
+ * själv trycker "Släpp nu". Det bärs av samma fält - en tidpunkt så långt
+ * fram att den aldrig passerar av sig själv - i stället för av en egen kolumn.
+ * Skälet är att spärren då redan gäller överallt där `isReleased` används:
+ * elevvyerna, delningslänken, respond- och draft-endpointen. En ny kolumn
+ * hade krävt att varje sådant ställe kom ihåg den. Det som skiljer manuellt
+ * från schemalagt är bara vad läraren och eleven får läsa - därav
+ * `isManualRelease` och `releaseNotice` nedan.
+ *
  * Spärren måste hållas på servern. Elevvyerna döljer det oöppnade, men det är
  * `respond`- och `draft`-endpointen som avgör saken; en delningslänk räcker
  * annars för att svara på nästa veckas test.
@@ -27,6 +36,35 @@ export function isReleased(survey: Releasable, now: Date = new Date()): boolean 
 }
 
 /**
+ * Tidpunkten som betyder "läraren öppnar själv". Skrivs av lärardashboarden;
+ * läses via isManualRelease, aldrig genom jämförelse på det här värdet.
+ */
+export const MANUAL_RELEASE_AT = new Date("2099-01-01T00:00:00.000Z");
+
+/**
+ * Väntar enkäten på lärarens knapptryck i stället för på ett datum?
+ *
+ * Gränsen är ett årtal, inte exakt likhet med MANUAL_RELEASE_AT: en tidpunkt
+ * bortom 2090 kan inte vara ett läsårsschema någon menat allvarligt, och en
+ * gammal sentinel med annat klockslag ska läsas rätt ändå.
+ */
+export function isManualRelease(survey: Releasable): boolean {
+  return survey.openAt !== null && survey.openAt.getUTCFullYear() >= 2090;
+}
+
+/**
+ * Vad eleven ska få läsa om en enkät som inte är öppen än. Ett datum när det
+ * finns ett, annars beskedet att läraren öppnar - aldrig sentineldatumet, som
+ * bara skulle förvirra.
+ */
+export function releaseNotice(survey: Releasable): string {
+  if (survey.openAt === null) return "Öppen";
+  return isManualRelease(survey)
+    ? "Öppnas när läraren släpper den"
+    : `Öppnar ${formatRelease(survey.openAt)}`;
+}
+
+/**
  * Prisma-fragment för "bara det som släppts".
  *
  * Kombineras med övriga villkor: `where: { courseId, ...releasedWhere() }`.
@@ -37,13 +75,18 @@ export function releasedWhere(now: Date = new Date()) {
   return { OR: [{ openAt: null }, { openAt: { lte: now } }] };
 }
 
-/** Den enkät som står näst på tur, eller null när inget är schemalagt framåt. */
+/**
+ * Den enkät som står näst på tur, eller null när inget är schemalagt framåt.
+ *
+ * Manuellt släppta enkäter räknas inte: de har ingen tidpunkt att visa upp,
+ * och ett kort med "Öppnar 1 jan 2099" vore ett löfte om fel sak.
+ */
 export function nextRelease<T extends Releasable>(
   surveys: T[],
   now: Date = new Date()
 ): (T & { openAt: Date }) | null {
   const upcoming = surveys
-    .filter((s): s is T & { openAt: Date } => !isReleased(s, now))
+    .filter((s): s is T & { openAt: Date } => !isReleased(s, now) && !isManualRelease(s))
     .sort((a, b) => a.openAt.getTime() - b.openAt.getTime());
   return upcoming[0] ?? null;
 }

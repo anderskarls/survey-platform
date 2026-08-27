@@ -5,7 +5,7 @@ import { buildMomentState, LessonOutline, TaskState } from "@/lib/moment-status"
 import { quizResult, draftProgress } from "@/lib/moment-scoring";
 import { IconCheck, IconArrowRight, IconFlag, IconClock, IconDot } from "@/components/moment-icons";
 import Link from "next/link";
-import { formatRelease } from "@/lib/survey-release";
+import { formatRelease, isManualRelease } from "@/lib/survey-release";
 
 const KIND_LABEL: Record<string, string> = { QUIZ: "Övning", SURVEY: "Reflektion" };
 
@@ -101,7 +101,12 @@ function FlowRow({ task }: { task: FlowTask }) {
     ),
     upcoming: (
       <span className="text-xs text-muted">
-        Öppnas {task.openAt ? formatRelease(task.openAt) : dateLabel ?? "senare"}
+        Öppnas{" "}
+        {task.openAt
+          ? isManualRelease({ openAt: task.openAt })
+            ? "när läraren släpper den"
+            : formatRelease(task.openAt)
+          : dateLabel ?? "senare"}
       </span>
     ),
   };

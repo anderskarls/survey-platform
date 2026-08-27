@@ -1,6 +1,9 @@
 import { describe, it, expect } from "vitest";
 import {
   compareTitles,
+  isManualRelease,
+  MANUAL_RELEASE_AT,
+  releaseNotice,
   isReleased,
   nextRelease,
   numberedReleaseDates,
@@ -207,5 +210,41 @@ describe("numberedReleaseDates", () => {
     expect(
       numberedReleaseDates(start, ["Veckotest 01", "Prov 1"])
     ).toBeNull();
+  });
+});
+
+describe("manuellt släpp", () => {
+  const manuell = { openAt: MANUAL_RELEASE_AT };
+
+  it("sentineln räknas som manuell", () => {
+    expect(isManualRelease(manuell)).toBe(true);
+  });
+
+  it("en gammal sentinel med annat klockslag läses också som manuell", () => {
+    expect(isManualRelease({ openAt: new Date("2099-06-01T08:00:00Z") })).toBe(true);
+  });
+
+  it("ett riktigt läsårsschema är inte manuellt", () => {
+    expect(isManualRelease({ openAt: new Date("2027-04-12T06:00:00Z") })).toBe(false);
+  });
+
+  it("otidsatt enkät är inte manuell - den är öppen", () => {
+    expect(isManualRelease({ openAt: null })).toBe(false);
+  });
+
+  it("manuell enkät är stängd tills läraren släpper den", () => {
+    expect(isReleased(manuell, NOW)).toBe(false);
+  });
+
+  it("manuell enkät står inte på tur - den har inget datum att visa", () => {
+    const schemalagd = { openAt: new Date("2026-09-07T06:00:00Z") };
+    expect(nextRelease([manuell, schemalagd], NOW)).toBe(schemalagd);
+    expect(nextRelease([manuell], NOW)).toBeNull();
+  });
+
+  it("eleven får läsa beskedet, aldrig sentineldatumet", () => {
+    expect(releaseNotice(manuell)).toBe("Öppnas när läraren släpper den");
+    expect(releaseNotice({ openAt: null })).toBe("Öppen");
+    expect(releaseNotice({ openAt: new Date("2026-09-07T06:00:00Z") })).toMatch(/^Öppnar /);
   });
 });

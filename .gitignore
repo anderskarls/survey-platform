@@ -54,3 +54,6 @@ mcp-server/node_modules/
 
 # Dagsrapporter - innehåller elevdata och får aldrig hamna i det publika repot
 reports/
+
+# Elevdata och lösenordsfiler ska aldrig till GitHub (granskningen 2026-07-03)
+.secrets/

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getStudentSession } from "@/lib/student-session";
 import { handleApiError } from "@/lib/api-helpers";
-import { formatRelease, isReleased } from "@/lib/survey-release";
+import { isReleased, releaseNotice } from "@/lib/survey-release";
 
 export async function GET(
   _request: NextRequest,
@@ -92,7 +92,7 @@ export async function PUT(
     // förberedas i förväg och lämnas in i samma sekund som testet öppnar.
     if (survey.openAt && !isReleased(survey)) {
       return NextResponse.json(
-        { error: `Enkäten öppnar ${formatRelease(survey.openAt)}.` },
+        { error: `Enkäten ${releaseNotice(survey).toLowerCase()}.` },
         { status: 403 }
       );
     }
