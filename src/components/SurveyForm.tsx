@@ -6,6 +6,7 @@ import QuizResultsDisplay from "@/components/QuizResultsDisplay";
 import ProgressBar from "@/components/ProgressBar";
 import LockOverlay from "@/components/LockOverlay";
 import type { ClientClozeConfig } from "@/lib/cloze";
+import { enterKeyAction } from "@/lib/form-enter";
 
 interface SurveyData {
   id: number;
@@ -194,8 +195,28 @@ export default function SurveyForm({ survey }: { survey: SurveyData }) {
     if (!isLastQuestion) goNext();
   }
 
+
+  /**
+   * Enter i ett textfält skickade förr in hela formuläret - se
+   * enterKeyAction för varför det är fel i ett test som visas en fråga i
+   * taget. Nu bläddrar Enter vidare, och lämnar in först på sista frågan.
+   */
+  function handleFormKeyDown(e: React.KeyboardEvent<HTMLFormElement>) {
+    const target = e.target as HTMLElement;
+    const action = enterKeyAction({
+      key: e.key,
+      tagName: target.tagName,
+      isLastQuestion,
+      isComposing: (e.nativeEvent as KeyboardEvent).isComposing,
+    });
+    if (action === "next") {
+      e.preventDefault();
+      goNext();
+    }
+  }
+
   return (
-    <form onSubmit={handleSubmit}>
+    <form onSubmit={handleSubmit} onKeyDown={handleFormKeyDown}>
       <LockOverlay enabled={survey.lockMode && !submitted} />
       <div className="card p-6 mb-6">
         <h1 className="text-2xl font-bold tracking-tight">{survey.title}</h1>
