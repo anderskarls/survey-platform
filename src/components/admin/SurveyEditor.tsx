@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { questionTypeLabel } from "@/lib/question-labels";
 
 interface Topic {
   id: number;
@@ -77,14 +78,6 @@ function describeImpact(impact: SurveyEditImpact): string {
   if (parts.length === 0) return "Enkäten sparad";
   return `Enkäten sparad - ${parts.join(", ")}`;
 }
-
-const TYPE_LABELS: Record<string, string> = {
-  MULTIPLE_CHOICE: "Flerval",
-  FREE_TEXT: "Fritext",
-  REFLECTION: "Reflektion",
-  SORTING: "Sortering",
-  CLOZE: "Lucka",
-};
 
 export default function SurveyEditor({
   apiBase,
@@ -361,7 +354,7 @@ export default function SurveyEditor({
                     {q.text}
                   </span>
                   <span className="badge bg-surface-muted text-muted shrink-0">
-                    {TYPE_LABELS[q.type] ?? q.type}
+                    {questionTypeLabel(q.type)}
                   </span>
                   <button
                     onClick={() => move(i, -1)}

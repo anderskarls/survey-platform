@@ -2,6 +2,7 @@
 
 import { Fragment, useState, useEffect, useCallback } from "react";
 import { useToast } from "@/components/Toast";
+import { questionTypeLabel } from "@/lib/question-labels";
 
 interface Topic {
   id: number;
@@ -601,13 +602,7 @@ export default function QuestionsManager({ apiBase, showCorrectAnswers = false }
                             : "bg-accent-light text-accent"
                         }`}
                       >
-                        {q.type === "MULTIPLE_CHOICE"
-                          ? "Flerval"
-                          : q.type === "SORTING"
-                            ? "Sortering"
-                            : q.type === "REFLECTION"
-                              ? "Reflektion"
-                              : "Fritext"}
+                        {questionTypeLabel(q.type)}
                       </span>
                     </td>
                     <td className="p-4 text-muted">{q.topic.name}</td>
