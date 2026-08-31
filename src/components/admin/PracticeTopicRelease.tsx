@@ -20,9 +20,13 @@ export interface PracticeTopicRow {
 export default function PracticeTopicRelease({
   courseId,
   topics,
+  dailyCap,
 }: {
   courseId: number;
   topics: PracticeTopicRow[];
+  /** DAILY_NEW_CARD_CAP, skickad från serversidan så talet i texten
+   *  inte kan hamna på efterkälken när taket ändras. */
+  dailyCap: number;
 }) {
   const [open, setOpen] = useState<Record<number, boolean>>(
     Object.fromEntries(topics.map((t) => [t.id, t.practiceOpen]))
@@ -63,8 +67,8 @@ export default function PracticeTopicRelease({
     <div className="card p-5 mb-8">
       <h2 className="font-semibold tracking-tight">Öppna för övning</h2>
       <p className="text-sm text-muted mt-1 mb-4 max-w-prose">
-        En öppnad vecka börjar mata elevernas övningspass med sina ord, högst
-        10 nya per dag och elev. Repetitioner går alltid före nya ord. Stäng
+        En öppnad vecka börjar mata elevernas övningspass med sina ord, högst{" "}
+        {dailyCap} nya per dag och elev. Repetitioner går alltid före nya ord. Stäng
         igen när du vill - ord eleverna redan mött ligger kvar och fortsätter
         repeteras. {openCount} av {topics.length} veckor är öppna.
       </p>

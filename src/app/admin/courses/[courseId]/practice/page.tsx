@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { loadCourseRelearningOverview } from "@/lib/relearning-data";
+import { DAILY_NEW_CARD_CAP } from "@/lib/relearning";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import PracticeTopicRelease from "@/components/admin/PracticeTopicRelease";
@@ -95,6 +96,7 @@ export default async function CoursePracticePage({
           questionCount: t._count.questions,
           practiceOpen: t.practiceOpen,
         }))}
+        dailyCap={DAILY_NEW_CARD_CAP}
       />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">

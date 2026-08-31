@@ -54,3 +54,6 @@ node mcp-server/scripts/make-cloze-cards.mjs <kursId> --dry-run
 ```
 
 Skriptet kopierar varje `CLOZE` i kursen till ett `CLOZE_CARD` i samma ämne (idempotent - kan köras om när nya veckor tillkommit). Med `--suffix " - kort"` hamnar korten i ett eget ämne per vecka, som då måste öppnas för sig.
+
+Eftersom varje ord då finns som både glosekort och mening tar en öppnad vecka dubbelt så många kort att introducera. `DAILY_NEW_CARD_CAP` höjdes därför från 10 till 15 samtidigt som korten infördes - fortfarande under passtaket på 20, och repetitioner går alltid före nya kort.
+

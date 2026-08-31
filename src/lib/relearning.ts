@@ -31,8 +31,12 @@ export const PRACTICE_SET_CAP = 20;
  * åt båda hållen = 30 kort) landa i elevens knä samma dag och tränga undan
  * repetitionerna, som är det som faktiskt bygger minnet. Repetitioner går
  * alltid före nya kort i passet.
+ *
+ * Höjt från 10 till 15 (2026-08-31) när luckmeningskorten kom: varje ord
+ * finns nu som både glosekort och mening, så en vecka tar dubbelt så många
+ * kort att introducera. 15 håller fortfarande passet under passtaket på 20.
  */
-export const DAILY_NEW_CARD_CAP = 10;
+export const DAILY_NEW_CARD_CAP = 15;
 /** "Behärskad" = schemalagt intervall minst så här många dagar */
 export const MASTERED_INTERVAL_DAYS = 7;
 
