@@ -10,6 +10,7 @@ import {
   isFlashcardValue,
 } from "@/lib/flashcard";
 import { gradeCloze, parseClozeConfig, type ClozeVerdict } from "@/lib/cloze";
+import { blankCountsAsWrong, isBlank } from "@/lib/blank-answer";
 import { isReleased, releaseNotice } from "@/lib/survey-release";
 
 /**
@@ -116,10 +117,24 @@ export async function POST(
     // Luckfrågornas domar sparas vid sidan av: nära-miss är återkoppling till
     // eleven, inte ett resultat, och har därför ingen kolumn i Answer.
     const clozeVerdicts = new Map<number, ClozeVerdict>();
-    const answerData = answers.map((a) => {
+    const answerData = answers.flatMap((a) => {
       let isCorrect: boolean | null = null;
       let grade: number | null = null;
       const sq = questionMap.get(a.questionId);
+      // Obesvarad fråga. I ett prov är den ett fel på det som rättas mot
+      // facit; i övrigt kastas den som förut. Se blank-answer.ts.
+      if (isBlank(a.value)) {
+        const countsAsWrong =
+          sq !== undefined &&
+          blankCountsAsWrong({
+            type: sq.question.type,
+            isQuiz,
+            flashcardMode: survey.course.flashcardMode,
+          });
+        return countsAsWrong
+          ? [{ questionId: a.questionId, value: "", isCorrect: false, grade: null }]
+          : [];
+      }
       if (sq && sq.question.type === "CLOZE") {
         const config = parseClozeConfig(sq.question.config);
         if (config) {
@@ -147,8 +162,15 @@ export async function POST(
           isCorrect = correctOption ? a.value === correctOption.text : null;
         }
       }
-      return { questionId: a.questionId, value: a.value, isCorrect, grade };
+      return [{ questionId: a.questionId, value: a.value, isCorrect, grade }];
     });
+
+    if (answerData.length === 0) {
+      return NextResponse.json(
+        { error: "Minst ett svar krävs" },
+        { status: 400 }
+      );
+    }
 
     // Idempotensskydd: har eleven nyss lämnat in exakt samma svar på samma
     // enkät, returnera den befintliga inlämningen i stället för att skapa en

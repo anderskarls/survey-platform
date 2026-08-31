@@ -68,6 +68,9 @@ export default function QuizResultsDisplay({
         <div className="space-y-3 mb-6">
           {quizResults.map((r, i) => {
             const isUnsure = r.yourAnswer === "__UNSURE__";
+            // Obesvarad fråga sparas som tom rad med isCorrect=false. Utan
+            // det här fallet stod det bara "Ditt svar:" och sedan ingenting.
+            const isBlank = r.yourAnswer.trim() === "";
             // Flashcard: "ditt svar" är elevens egen skattning av kortet
             const rating = flashcardLabel(r.yourAnswer);
             return (
@@ -90,6 +93,10 @@ export default function QuizResultsDisplay({
                   {isUnsure ? (
                     <p className="text-sm text-accent">
                       Du markerade att du var osäker - bra att du var ärlig!
+                    </p>
+                  ) : isBlank ? (
+                    <p className="text-sm text-muted">
+                      Du lämnade frågan obesvarad - den räknas som fel.
                     </p>
                   ) : rating ? (
                     <p className="text-sm">

@@ -8,6 +8,7 @@ import QuizResultsDisplay from "@/components/QuizResultsDisplay";
 import LockOverlay from "@/components/LockOverlay";
 import type { ClientClozeConfig } from "@/lib/cloze";
 import { enterKeyAction } from "@/lib/form-enter";
+import { submissionAnswers } from "@/lib/blank-answer";
 
 interface SurveyData {
   id: number;
@@ -144,14 +145,16 @@ export default function StudentQuizForm({
     e.preventDefault();
     setError("");
 
-    const answered = survey.questions.filter((q) => answers[q.id]?.trim());
-
     setSubmitting(true);
 
-    const answerList = answered.map((q) => ({
-      questionId: q.id,
-      value: answers[q.id],
-    }));
+    // Varje visad fråga skickas in, även den obesvarade. Servern avgör vad
+    // som blir en rad: i ett prov är det tomma ett fel på det som rättas mot
+    // facit, i övrigt kastas det. Förr filtrerades det bort här, och en
+    // hoppad fråga försvann ur både täljare och nämnare.
+    const answerList = submissionAnswers(
+      survey.questions.map((q) => q.id),
+      answers
+    );
 
     try {
       const res = await fetch(`/api/surveys/${survey.id}/respond`, {

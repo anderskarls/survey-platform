@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireSurveyAccess } from "@/lib/require-auth";
+import { answerLabel } from "@/lib/blank-answer";
 
 export async function GET(
   _request: NextRequest,
@@ -68,7 +69,9 @@ export async function GET(
       r.answers
         .filter((a) => a.questionId === q.id)
         .map((a) => ({
-          value: a.value,
+          // Obesvarade frågor sparas som tomma rader - i sammanställningen
+          // ska de synas som "(inget svar)", inte som en tom sträng.
+          value: answerLabel(a.value),
           studentNumber: r.student.number,
           isCorrect: a.isCorrect,
         }))

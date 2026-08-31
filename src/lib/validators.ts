@@ -22,7 +22,10 @@ export const respondSchema = z.object({
     .array(
       z.object({
         questionId: z.number().int().positive(),
-        value: z.string().min(1, "Svar krävs").max(20000, "Svaret är för långt"),
+        // Tomt värde tillåts: formuläret skickar varje visad fråga, även de
+        // obesvarade, så att servern kan rätta det tomma som fel i ett prov.
+        // Se blank-answer.ts - vad som faktiskt sparas avgörs där, inte här.
+        value: z.string().max(20000, "Svaret är för långt"),
       })
     )
     .min(1, "Minst ett svar krävs"),

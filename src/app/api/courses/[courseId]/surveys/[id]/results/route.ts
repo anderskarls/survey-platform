@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { answerLabel } from "@/lib/blank-answer";
 import { requireCourseAccess } from "@/lib/require-auth";
 
 export async function GET(
@@ -54,7 +55,8 @@ export async function GET(
         .filter((a) => a.questionId === q.id)
         .map((a) => ({
           studentNumber: r.student.number,
-          value: a.value,
+          // Tom rad = obesvarad fråga. Se blank-answer.ts.
+          value: answerLabel(a.value),
           isCorrect: a.isCorrect,
         }))
     );

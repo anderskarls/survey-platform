@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { answerLabel } from "@/lib/blank-answer";
 import { requireSurveyAccess } from "@/lib/require-auth";
 
 export async function GET(
@@ -106,7 +107,8 @@ async function getDetailed(surveyId: number) {
       r.answers
         .filter((a) => a.questionId === q.id)
         .map((a) => ({
-          value: a.value,
+          // Se summary-routen: tomma rader är obesvarade frågor.
+          value: answerLabel(a.value),
           studentNumber: r.student.number,
           isCorrect: a.isCorrect,
         }))

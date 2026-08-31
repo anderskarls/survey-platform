@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { answerLabel } from "@/lib/blank-answer";
 import { requireCourseAccess } from "@/lib/require-auth";
 
 // Markdown teacher-report for a whole moment: completion per assignment,
@@ -68,7 +69,8 @@ export async function GET(
         r.answers
           .filter((a) => a.questionId === q.id)
           .map((a) => ({
-            value: a.value,
+            // Tom rad = obesvarad fråga. Se blank-answer.ts.
+            value: answerLabel(a.value),
             n: r.student.number,
             isCorrect: a.isCorrect,
             feedback: a.feedback,

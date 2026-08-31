@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { answerLabel } from "@/lib/blank-answer";
 import { requireCourseAccess } from "@/lib/require-auth";
 
 export async function GET(
@@ -50,7 +51,8 @@ export async function GET(
         questionId: a.question.id,
         questionText: a.question.text,
         questionType: a.question.type,
-        value: a.value,
+        // Tom rad = obesvarad fråga. Se blank-answer.ts.
+        value: answerLabel(a.value),
         isCorrect: a.isCorrect,
         feedback: a.feedback,
       })),
