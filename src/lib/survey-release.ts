@@ -36,6 +36,26 @@ export function isReleased(survey: Releasable, now: Date = new Date()): boolean 
 }
 
 /**
+ * Går enkäten från stängd till öppen med den här ändringen?
+ *
+ * Släppet är ögonblicket då veckans ord blir elevens - och sedan 2026-08-31
+ * öppnas veckans övning i samma andetag (se openPracticeForRelease i
+ * survey-edit.ts). Skälet är ett fynd i Veckotest 01: ingen vecka var öppen
+ * för övning, så testet mätte förkunskap i stället för inlärning.
+ *
+ * Bara övergången räknas. Ett redan släppt test som får en ny titel ska inte
+ * öppna någonting på nytt, och ett test som skjuts framåt stänger ingenting -
+ * en gång släppt förblir släppt, och samma återvändo gäller övningen.
+ */
+export function isBeingReleased(
+  before: Releasable,
+  after: Releasable,
+  now: Date = new Date()
+): boolean {
+  return !isReleased(before, now) && isReleased(after, now);
+}
+
+/**
  * Tidpunkten som betyder "läraren öppnar själv". Skrivs av lärardashboarden;
  * läses via isManualRelease, aldrig genom jämförelse på det här värdet.
  */

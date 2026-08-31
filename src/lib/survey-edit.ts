@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import type { UpdateSurveyInput } from "@/lib/validators";
+import { isBeingReleased } from "@/lib/survey-release";
 
 export class SurveyEditError extends Error {
   status: number;
@@ -55,6 +56,8 @@ export interface SurveyEditImpact {
   hiddenAnswers: number;
   /** Inlämningar som saknar svar på de nytillagda frågorna. */
   responsesMissingNew: number;
+  /** Veckor vars övning öppnades av att enkäten släpptes. */
+  openedPracticeTopics: number;
 }
 
 export interface SurveyUpdatePlan {
@@ -69,6 +72,55 @@ export interface SurveyUpdatePlan {
   changedFields: string[];
   /** Icke-null när ändringen döljer svar som eleverna redan lämnat. */
   confirmationMessage: string | null;
+}
+
+/**
+ * Öppnar veckans övning när veckans test släpps.
+ *
+ * Veckotest 01 kördes 2026-08-31 med `practiceOpen = false` på samtliga
+ * veckor i alla tre engelskakurserna. Eleverna hade alltså ingen väg att öva
+ * orden innan de mättes på dem, och testet mätte förkunskap. Kopplingen finns
+ * för att det inte ska kunna hända igen genom förbiseende: släpper läraren
+ * testet är övningen med.
+ *
+ * **Bara kurser i kortform.** `Topic.practiceOpen` styr inflödet av nya kort,
+ * och i en kurs utan `flashcardMode` skulle ett öppnat topic börja mata in
+ * flervalsfrågor som eleven aldrig mött - en förändring för historiekurserna
+ * som ingen bett om. Grinden är därför kursens eget kortläge.
+ *
+ * **Öppnar bara, stänger aldrig.** Läraren kan fortfarande stänga en vecka
+ * eller öppna den i förväg med reglaget på /admin/courses/<id>/practice.
+ *
+ * Känd lucka: ett SCHEMALAGT släpp passerar av sig själv när klockan går, utan
+ * att någon route rörs, och då öppnas ingen övning. Alla tre engelskakurserna
+ * står i manuellt läge sedan 2026-08-27, så vägen hit går alltid via en PATCH.
+ * Läggs schemalagda släpp tillbaka behöver kopplingen flytta till lästid.
+ */
+async function openPracticeForRelease(
+  tx: Prisma.TransactionClient,
+  courseId: number,
+  questionIds: number[]
+): Promise<number> {
+  if (questionIds.length === 0) return 0;
+
+  const course = await tx.course.findUnique({
+    where: { id: courseId },
+    select: { flashcardMode: true },
+  });
+  if (!course?.flashcardMode) return 0;
+
+  const questions = await tx.question.findMany({
+    where: { id: { in: questionIds } },
+    select: { topicId: true },
+  });
+  const topicIds = [...new Set(questions.map((q) => q.topicId))];
+  if (topicIds.length === 0) return 0;
+
+  const { count } = await tx.topic.updateMany({
+    where: { id: { in: topicIds }, courseId, practiceOpen: false },
+    data: { practiceOpen: true },
+  });
+  return count;
 }
 
 function sameDate(a: Date | null, b: Date | null): boolean {
@@ -271,6 +323,7 @@ export async function applySurveyUpdate(
   }
 
   const surveyId = existing.id;
+  let openedPracticeTopics = 0;
 
   const survey = await prisma.$transaction(async (tx) => {
     if (plan.nextQuestionIds) {
@@ -316,16 +369,27 @@ export async function applySurveyUpdate(
     if (input.unitId !== undefined)
       data.unit = input.unitId === null ? { disconnect: true } : { connect: { id: input.unitId } };
 
-    return tx.survey.update({
+    const updated = await tx.survey.update({
       where: { id: surveyId },
       data,
       include: surveyEditInclude,
     });
+
+    if (isBeingReleased(existing, updated)) {
+      openedPracticeTopics = await openPracticeForRelease(
+        tx,
+        updated.courseId,
+        updated.questions.map((q) => q.questionId)
+      );
+    }
+
+    return updated;
   }, { timeout: 20_000 });
 
   return {
     survey,
     impact: {
+      openedPracticeTopics,
       changedFields: plan.changedFields,
       addedQuestions: plan.added.length,
       removedQuestions: plan.removed.length,

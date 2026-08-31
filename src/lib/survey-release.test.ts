@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   compareTitles,
+  isBeingReleased,
   isManualRelease,
   MANUAL_RELEASE_AT,
   releaseNotice,
@@ -246,5 +247,34 @@ describe("manuellt släpp", () => {
     expect(releaseNotice(manuell)).toBe("Öppnas när läraren släpper den");
     expect(releaseNotice({ openAt: null })).toBe("Öppen");
     expect(releaseNotice({ openAt: new Date("2026-09-07T06:00:00Z") })).toMatch(/^Öppnar /);
+  });
+});
+
+describe("isBeingReleased", () => {
+  const now = new Date("2026-08-31T10:00:00.000Z");
+  const framtid = { openAt: new Date("2026-09-07T06:00:00.000Z") };
+  const manuellt = { openAt: MANUAL_RELEASE_AT };
+  const oppen = { openAt: null };
+  const slappt = { openAt: new Date("2026-08-24T06:00:00.000Z") };
+
+  it("manuellt släpp: sentinel -> null räknas som släpp", () => {
+    expect(isBeingReleased(manuellt, oppen, now)).toBe(true);
+  });
+
+  it("schemalagt som flyttas bakåt förbi nu räknas som släpp", () => {
+    expect(isBeingReleased(framtid, slappt, now)).toBe(true);
+  });
+
+  it("redan öppen enkät släpps inte igen", () => {
+    expect(isBeingReleased(oppen, oppen, now)).toBe(false);
+    expect(isBeingReleased(slappt, oppen, now)).toBe(false);
+  });
+
+  it("stängd som förblir stängd är inget släpp", () => {
+    expect(isBeingReleased(manuellt, framtid, now)).toBe(false);
+  });
+
+  it("att skjuta en släppt enkät framåt räknas inte som släpp", () => {
+    expect(isBeingReleased(slappt, framtid, now)).toBe(false);
   });
 });

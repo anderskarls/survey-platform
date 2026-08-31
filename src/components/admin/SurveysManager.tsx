@@ -117,7 +117,15 @@ export default function SurveysManager({
         body: JSON.stringify({ openAt: null }),
       });
       if (!res.ok) throw new Error("Patch failed");
-      showToast("Enkäten är öppen");
+      // Släppet öppnar också veckans övning i kortkurserna - säg det, annars
+      // ser läraren en tyst sidoeffekt på övningssidan.
+      const data = await res.json().catch(() => null);
+      const oppnade = data?.impact?.openedPracticeTopics ?? 0;
+      showToast(
+        oppnade > 0
+          ? `Enkäten är öppen - och veckans övning öppnades`
+          : "Enkäten är öppen"
+      );
       loadSurveys();
     } catch {
       showToast("Kunde inte öppna enkäten", "error");
