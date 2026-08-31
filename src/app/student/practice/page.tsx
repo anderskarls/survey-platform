@@ -9,6 +9,7 @@ import {
 } from "@/lib/relearning";
 import PracticeRunner from "@/components/PracticeRunner";
 import { toPracticeQuestion } from "@/lib/practice-question";
+import { shuffle } from "@/lib/shuffle";
 import {
   loadWeekPracticeTopics,
   loadDoneToday,
@@ -122,15 +123,23 @@ export default async function PracticePage() {
     },
   });
   const byId = new Map(dbQuestions.map((q) => [q.id, q]));
-  const questions = setIds
-    .map((id) => byId.get(id))
-    .filter((q): q is NonNullable<typeof q> => q !== undefined)
-    .map((q) =>
-      // Kursetikett behövs inte: passet innehåller bara den egna kursens
-      // frågor sedan övningen kursavgränsades.
-      toPracticeQuestion(q, null, q.topic.course.flashcardMode)
-    )
-    .filter((q): q is NonNullable<typeof q> => q !== null);
+  // Blandad ordning, inte den ordning urvalet råkade lämna dem i. Utan den
+  // här raden kom passets nya kort i frågebankens ordning - alltså i den
+  // ordning de skapades, vilket för en glosvecka betyder alfabetiskt och
+  // med alla kort av samma sort i klump. Urvalet är orört: vilka frågor som
+  // ingår avgörs fortfarande av retrievability och dagens tak, det är bara
+  // ordningen eleven möter dem i som slumpas.
+  const questions = shuffle(
+    setIds
+      .map((id) => byId.get(id))
+      .filter((q): q is NonNullable<typeof q> => q !== undefined)
+      .map((q) =>
+        // Kursetikett behövs inte: passet innehåller bara den egna kursens
+        // frågor sedan övningen kursavgränsades.
+        toPracticeQuestion(q, null, q.topic.course.flashcardMode)
+      )
+      .filter((q): q is NonNullable<typeof q> => q !== null)
+  );
 
   return (
     <div className="animate-fade-in">

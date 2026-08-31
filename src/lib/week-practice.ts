@@ -24,6 +24,7 @@
  */
 
 import type { QuestionPracticeState } from "@/lib/relearning";
+import { shuffle } from "@/lib/shuffle";
 import { compareTitles } from "@/lib/survey-release";
 
 /** Ett ämne (en vecka) som eleven kan öva, med elevens läge i det */
@@ -115,21 +116,25 @@ export function remainingToday(
  */
 export function orderWeekQuestions(
   questionIds: number[],
-  states: Map<number, QuestionPracticeState>
+  states: Map<number, QuestionPracticeState>,
+  random: () => number = Math.random
 ): number[] {
   function rank(id: number): number {
     const state = states.get(id);
     if (!state) return 1; // aldrig mött
     return state.isDue ? 0 : 2; // due först, vilande sist
   }
-  return [...questionIds].sort((a, b) => {
+  // Blanda först, sortera sedan stabilt: det som behöver arbete ligger kvar
+  // först, men inom varje läge är ordningen slumpad. Tie-brytaren var förut
+  // frågans id, vilket för en glosvecka betyder den ordning korten skapades -
+  // alltså alfabetiskt, och med varje sort i klump.
+  return shuffle(questionIds, random).sort((a, b) => {
     const ra = rank(a);
     const rb = rank(b);
     if (ra !== rb) return ra - rb;
     const da = states.get(a)?.daysUntilDue ?? 0;
     const db = states.get(b)?.daysUntilDue ?? 0;
-    if (da !== db) return da - db;
-    return a - b; // stabil ordning: frågornas egen ordning i banken
+    return da - db;
   });
 }
 

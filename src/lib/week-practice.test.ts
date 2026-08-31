@@ -11,6 +11,15 @@ import type { QuestionPracticeState } from "./relearning";
 // En vecka eleven aldrig rört ska se orörd ut - inte klar - och drillen ska
 // lägga det som behöver arbete först.
 
+/** Deterministisk slumpkälla, så ordningstesterna inte flaxar. */
+function seeded(seed: number): () => number {
+  let s = seed;
+  return () => {
+    s = (s * 1103515245 + 12345) % 2147483648;
+    return s / 2147483648;
+  };
+}
+
 function state(
   questionId: number,
   opts: Partial<QuestionPracticeState> = {}
@@ -91,8 +100,33 @@ describe("orderWeekQuestions", () => {
     expect(ordning).toEqual([42, 41, 43, 40]);
   });
 
-  it("behåller frågornas egen ordning när statusen är lika", () => {
-    expect(orderWeekQuestions([5, 3, 4], states([]))).toEqual([3, 4, 5]);
+  it("blandar inom samma läge i stället för att följa frågornas id", () => {
+    // Id-ordning är den ordning korten skapades - för en glosvecka
+    // alfabetiskt, med varje sort i klump. Med lika status ska ordningen
+    // vara slumpad, inte 3-4-5.
+    const ids = [10, 11, 12, 13, 14, 15, 16, 17];
+    const ordning = orderWeekQuestions(ids, states([]), seeded(11));
+    expect([...ordning].sort((a, b) => a - b)).toEqual(ids);
+    expect(ordning).not.toEqual(ids);
+  });
+
+  it("blandningen flyttar inte det som behöver arbete ur första ledet", () => {
+    // Samma uppsättning som ovan, men med lägen: due ska ligga först och
+    // det vilande sist hur slumpen än faller.
+    for (let seed = 1; seed <= 20; seed++) {
+      const ordning = orderWeekQuestions(
+        [40, 41, 42, 43],
+        states([
+          state(40, { daysUntilDue: 5 }),
+          state(42, { isDue: true, daysUntilDue: 0 }),
+          state(43, { daysUntilDue: 2 }),
+        ]),
+        seeded(seed)
+      );
+      expect(ordning[0]).toBe(42); // due
+      expect(ordning[1]).toBe(41); // aldrig mött
+      expect(ordning.slice(2)).toEqual([43, 40]); // vilande, närmast först
+    }
   });
 
   it("rör inte listan den fick", () => {
