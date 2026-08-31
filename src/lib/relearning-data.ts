@@ -8,6 +8,7 @@ import {
   countIntroducedToday,
   summarizeStates,
 } from "@/lib/relearning";
+import { CARD_TYPES } from "@/lib/flashcard";
 
 export interface LinkedAccount {
   studentId: number;
@@ -115,7 +116,7 @@ export async function loadRelearningData(
     prisma.answer.findMany({
       where: {
         response: { studentId: { in: studentIds } },
-        question: { type: "MULTIPLE_CHOICE", topic: { courseId: self.courseId } },
+        question: { type: { in: [...CARD_TYPES] }, topic: { courseId: self.courseId } },
       },
       select: {
         questionId: true,
@@ -193,14 +194,14 @@ export async function loadRelearningData(
     })
   );
 
-  // Nya kort: flervalsfrågor ur öppnade topics som eleven aldrig mött.
+  // Nya kort: korttypade frågor ur öppnade topics som eleven aldrig mött.
   // Ordningen är topicets namn ("Vecka 01" före "Vecka 02") och därefter
   // frågans id, så introduktionen följer kursens gång och är deterministisk.
   const courseIds = [self.courseId];
   const seen = new Set(states.keys());
   const newQuestions = await prisma.question.findMany({
     where: {
-      type: "MULTIPLE_CHOICE",
+      type: { in: [...CARD_TYPES] },
       id: { notIn: Array.from(seen) },
       topic: { practiceOpen: true, courseId: { in: courseIds } },
     },
@@ -281,7 +282,7 @@ export async function loadCourseRelearningOverview(
       where: {
         // Lärarens provkonto hör inte till klassens siffror
         response: { student: { courseId, isTest: false } },
-        question: { type: "MULTIPLE_CHOICE" },
+        question: { type: { in: [...CARD_TYPES] } },
       },
       select: {
         questionId: true,

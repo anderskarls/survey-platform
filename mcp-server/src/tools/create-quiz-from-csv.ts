@@ -1,6 +1,7 @@
 import { prisma } from "../prisma.js";
 import { nanoid } from "nanoid";
 import Papa from "papaparse";
+import { optionCreateData, parseQuestionRow } from "../lib/csv-question.js";
 
 export type SurveyMode = "SURVEY" | "QUIZ";
 
@@ -17,6 +18,10 @@ export type SurveyMode = "SURVEY" | "QUIZ";
  * ___ i texten dar ordet ska sta:
  *   topic,type,text,config
  *   "Vecka 01",CLOZE,"Her ___ on me was huge.","{""answer"":""influence""}"
+ *
+ * Luckmeningskort (type=CLOZE_CARD) har samma format men vands i stallet for
+ * att skrivas: framsidan ar meningen med luckan, baksidan samma mening med
+ * ordet ifyllt, och eleven skattar sig sjalv.
  *
  * Fragornas ordning i enkaten foljer raderna i CSV:n.
  */
@@ -38,74 +43,23 @@ export async function createQuizFromCsv(
       const questionIds: number[] = [];
 
       for (const row of rows) {
-        const topicName = row.topic?.trim() || "Övrigt";
-        const text = row.text?.trim();
-        if (!text) continue;
-
-        const rawType = row.type?.trim().toUpperCase();
-        const type =
-          rawType === "FREE_TEXT"
-            ? "FREE_TEXT"
-            : rawType === "REFLECTION"
-              ? "REFLECTION"
-              : rawType === "CLOZE"
-                ? "CLOZE"
-                : "MULTIPLE_CHOICE";
-
-        // Luckfrågor bär facit i config-kolumnen: {"answer","accept","hint"}.
-        // Raden avvisas hellre än importeras orättbar - en luckfråga utan
-        // facit ser normal ut för eleven men kan aldrig rättas.
-        let config: unknown;
-        if (type === "CLOZE") {
-          if (!row.config?.trim()) {
-            throw new Error(
-              `Luckfrågan "${text}" saknar config med facit (answer).`
-            );
-          }
-          try {
-            config = JSON.parse(row.config);
-          } catch {
-            throw new Error(`Ogiltig JSON i config för luckfrågan "${text}".`);
-          }
-          const answer = (config as { answer?: unknown })?.answer;
-          if (typeof answer !== "string" || answer.trim() === "") {
-            throw new Error(`Luckfrågan "${text}" saknar facit (answer).`);
-          }
-          if (!text.includes("___")) {
-            throw new Error(
-              `Luckfrågan "${text}" saknar markören ___ där ordet ska stå.`
-            );
-          }
-        }
-
-        const options: string[] = [];
-        for (let i = 1; i <= 10; i++) {
-          const val = row[`option${i}`]?.trim();
-          if (val) options.push(val);
-        }
-        const correctAnswer = row.correctAnswer?.trim();
+        const parsed = parseQuestionRow(row);
+        if (!parsed) continue;
 
         const topic = await tx.topic.upsert({
-          where: { courseId_name: { courseId, name: topicName } },
+          where: { courseId_name: { courseId, name: parsed.topicName } },
           update: {},
-          create: { name: topicName, courseId },
+          create: { name: parsed.topicName, courseId },
         });
 
         const question = await tx.question.create({
           data: {
-            text,
-            type,
+            text: parsed.text,
+            type: parsed.type,
             topicId: topic.id,
-            config: config === undefined ? undefined : (config as never),
-            options:
-              type === "MULTIPLE_CHOICE" && options.length > 0
-                ? {
-                    create: options.map((o) => ({
-                      text: o,
-                      isCorrect: correctAnswer ? o === correctAnswer : false,
-                    })),
-                  }
-                : undefined,
+            config:
+              parsed.config === undefined ? undefined : (parsed.config as never),
+            options: optionCreateData(parsed),
           },
         });
 

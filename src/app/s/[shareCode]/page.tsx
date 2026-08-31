@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import SurveyForm from "@/components/SurveyForm";
 import { getStudentSession } from "@/lib/student-session";
 import { toClientClozeConfig } from "@/lib/cloze";
+import { cardBack } from "@/lib/flashcard";
 import { isReleased, releaseNotice } from "@/lib/survey-release";
 import Link from "next/link";
 
@@ -68,11 +69,9 @@ export default async function PublicSurveyPage({
       text: sq.question.text,
       type: sq.question.type,
       options: sq.question.options.map((o) => o.text),
-      // Baksidan följer bara med i flashcardläge - i vanliga enkäter får
-      // facit aldrig nå klienten före svaret.
-      answer: flashcard
-        ? sq.question.options.find((o) => o.isCorrect)?.text ?? null
-        : null,
+      // Baksidan följer med för kort - i vanliga enkäter får facit aldrig
+      // nå klienten före svaret. Se cardBack.
+      answer: cardBack(sq.question, flashcard),
       // Luckfrågans ledtråd. Facit stannar på servern - se toClientClozeConfig.
       cloze: toClientClozeConfig(sq.question.type, sq.question.config),
     })),

@@ -1,7 +1,7 @@
 import Papa from "papaparse";
 import { Prisma } from "@prisma/client";
 import { SUBSKILLS, exemplarsSchema, sortingConfigSchema } from "@/lib/formaga";
-import { CLOZE_GAP, clozeConfigSchema, hasGap } from "@/lib/cloze";
+import { CLOZE_GAP, clozeConfigSchema, hasGap, isClozeType } from "@/lib/cloze";
 
 export interface CsvQuestionRow {
   topic: string;
@@ -19,7 +19,13 @@ export interface CsvQuestionRow {
   jsonError?: string;
 }
 
-const KNOWN_TYPES = ["FREE_TEXT", "REFLECTION", "SORTING", "CLOZE"] as const;
+const KNOWN_TYPES = [
+  "FREE_TEXT",
+  "REFLECTION",
+  "SORTING",
+  "CLOZE",
+  "CLOZE_CARD",
+] as const;
 
 export function parseCsvContent(csvContent: string): CsvQuestionRow[] {
   const result = Papa.parse(csvContent, {
@@ -98,7 +104,7 @@ export function validateCsvRows(rows: CsvQuestionRow[]): string[] {
         );
       }
     }
-    if (row.type === "CLOZE") {
+    if (isClozeType(row.type)) {
       const parsed = clozeConfigSchema.safeParse(row.config);
       if (!parsed.success) {
         errors.push(
@@ -138,7 +144,7 @@ export function questionCreateData(
     type: row.type,
     subskill,
     config:
-      row.type === "SORTING" || row.type === "CLOZE"
+      row.type === "SORTING" || isClozeType(row.type)
         ? (row.config as Prisma.InputJsonValue)
         : undefined,
     exemplars:

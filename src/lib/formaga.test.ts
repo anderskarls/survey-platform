@@ -179,6 +179,28 @@ describe("CSV med förmågefält", () => {
     expect(errors.some((e) => e.includes("saknar markören"))).toBe(true);
   });
 
+  it("parsar CLOZE_CARD-rad med samma facitformat som luckfrågan", () => {
+    const csv =
+      `topic,type,text,config
+` +
+      `"Vecka 01",CLOZE_CARD,"Her ___ on the team was obvious.","{""answer"":""influence""}"`;
+    const rows = parseCsvContent(csv);
+    expect(rows[0].type).toBe("CLOZE_CARD");
+    expect(validateCsvRows(rows)).toEqual([]);
+    const data = questionCreateData(rows[0]);
+    expect(data.type).toBe("CLOZE_CARD");
+    expect(data.config).toMatchObject({ answer: "influence" });
+  });
+
+  it("avvisar luckmeningskort utan baksida", () => {
+    const csv =
+      `topic,type,text,config
+` +
+      `"Vecka 01",CLOZE_CARD,"Her ___ was obvious.","{""hint"":""bara ledtråd""}"`;
+    const errors = validateCsvRows(parseCsvContent(csv));
+    expect(errors.length).toBeGreaterThan(0);
+  });
+
   it("hanterar vanliga flervalsrader som tidigare", () => {
     const csv = `topic,type,text,option1,option2,correctAnswer\nMatematik,MULTIPLE_CHOICE,Vad är 2+2?,3,4,4`;
     const rows = parseCsvContent(csv);

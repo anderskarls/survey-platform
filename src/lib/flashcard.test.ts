@@ -5,7 +5,10 @@ import {
   flashcardGrade,
   flashcardIsCorrect,
   flashcardLabel,
+  isCardType,
   isFlashcardValue,
+  cardBack,
+  rendersAsCard,
 } from "./flashcard";
 import { gradeForAttempt, type AttemptRecord } from "./relearning";
 import { toPracticeQuestion } from "./practice-question";
@@ -110,5 +113,59 @@ describe("kort i övningen läcker inte baksidan", () => {
     const free = { ...mc, type: "FREE_TEXT", options: [] };
     const q = toPracticeQuestion(free, null, true);
     expect(q!.flashcard).toBe(false);
+  });
+});
+
+describe("korttyper", () => {
+  it("räknar glosekort och luckmeningskort som kort, inte veckotestets luckfrågor", () => {
+    expect(isCardType("MULTIPLE_CHOICE")).toBe(true);
+    expect(isCardType("CLOZE_CARD")).toBe(true);
+    // CLOZE är mätning och ska stanna utanför övningspoolen
+    expect(isCardType("CLOZE")).toBe(false);
+    expect(isCardType("FREE_TEXT")).toBe(false);
+  });
+
+  it("gör flervalsfrågan till kort bara i flashcardläge", () => {
+    expect(rendersAsCard("MULTIPLE_CHOICE", true)).toBe(true);
+    expect(rendersAsCard("MULTIPLE_CHOICE", false)).toBe(false);
+  });
+
+  it("gör luckmeningskortet till kort oavsett kursens läge", () => {
+    expect(rendersAsCard("CLOZE_CARD", false)).toBe(true);
+    expect(rendersAsCard("CLOZE_CARD", true)).toBe(true);
+  });
+
+  it("gör aldrig luckfrågan eller fritexten till kort", () => {
+    expect(rendersAsCard("CLOZE", true)).toBe(false);
+    expect(rendersAsCard("FREE_TEXT", true)).toBe(false);
+  });
+});
+
+describe("kortets baksida", () => {
+  const mcQuestion = {
+    type: "MULTIPLE_CHOICE",
+    options: [
+      { text: "fel", isCorrect: false },
+      { text: "rätt", isCorrect: true },
+    ],
+  };
+
+  it("är det rätta alternativet i flashcardläge - och inget alls utanför", () => {
+    expect(cardBack(mcQuestion, true)).toBe("rätt");
+    expect(cardBack(mcQuestion, false)).toBeNull();
+  });
+
+  it("är ordet ur configen för luckmeningskortet", () => {
+    const card = { type: "CLOZE_CARD", config: { answer: "influence" } };
+    expect(cardBack(card, false)).toBe("influence");
+  });
+
+  it("är null när kortet saknar giltig config - hellre baksideslöst än kraschat", () => {
+    expect(cardBack({ type: "CLOZE_CARD", config: null }, true)).toBeNull();
+  });
+
+  it("lämnar veckotestets luckfrågor utan baksida", () => {
+    const cloze = { type: "CLOZE", config: { answer: "influence" } };
+    expect(cardBack(cloze, true)).toBeNull();
   });
 });

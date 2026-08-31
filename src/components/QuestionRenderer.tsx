@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import FlagButton from "@/components/FlagButton";
-import { FLASHCARD_RATINGS } from "@/lib/flashcard";
+import ClozeCardFace from "@/components/ClozeCardFace";
+import { FLASHCARD_RATINGS, rendersAsCard } from "@/lib/flashcard";
 import { splitAtGap, type ClientClozeConfig } from "@/lib/cloze";
 
 interface Question {
@@ -10,7 +11,10 @@ interface Question {
   text: string;
   type: string;
   options: string[];
-  /** Kortets baksida. Skickas bara med i flashcardläge. */
+  /**
+   * Kortets baksida: det rätta alternativet i flashcardläge, ordet som
+   * fyller luckan för CLOZE_CARD. Null för allt som inte är ett kort.
+   */
   answer?: string | null;
   /** Luckfrågans ledtråd. Facit ingår aldrig - det stannar på servern. */
   cloze?: ClientClozeConfig | null;
@@ -52,6 +56,7 @@ function FlashcardCard({
 }) {
   // Redan skattade kort visas vända, så eleven ser sitt svar när den backar.
   const [revealed, setRevealed] = useState(chosen !== undefined);
+  const isClozeCard = question.type === "CLOZE_CARD";
 
   function rate(value: string) {
     onAnswer(question.id, value);
@@ -62,7 +67,9 @@ function FlashcardCard({
     <div className="card p-6 mb-4">
       <div className="flex items-center justify-between gap-2 mb-6">
         <span className="text-xs font-semibold uppercase tracking-wider text-muted">
-          Kort {index + 1}
+          {isClozeCard
+            ? `Kort ${index + 1} - fyll luckan i huvudet`
+            : `Kort ${index + 1}`}
         </span>
         {flaggedIds !== undefined && (
           <FlagButton
@@ -72,20 +79,37 @@ function FlashcardCard({
         )}
       </div>
 
-      <p className="text-center text-xl font-semibold tracking-tight px-2">
-        {question.text}
-      </p>
+      {isClozeCard ? (
+        // Meningen byts på plats när kortet vänds - aria-live gör att
+        // skärmläsaren läser upp den ifyllda versionen i stället för att
+        // tiga om att något hände.
+        <div aria-live="polite">
+          <ClozeCardFace
+            text={question.text}
+            hint={question.cloze?.hint}
+            answer={revealed ? question.answer : null}
+          />
+        </div>
+      ) : (
+        <p className="text-center text-xl font-semibold tracking-tight px-2">
+          {question.text}
+        </p>
+      )}
 
       {revealed ? (
-        <>
-          <div className="border-t border-border-light my-6" />
-          <p
-            className="text-center text-2xl font-bold text-primary px-2"
-            role="status"
-          >
-            {question.answer}
-          </p>
-        </>
+        // Luckmeningskortet vänder meningen på plats ovan - då vore en
+        // upprepning av ordet under strecket bara brus.
+        isClozeCard ? null : (
+          <>
+            <div className="border-t border-border-light my-6" />
+            <p
+              className="text-center text-2xl font-bold text-primary px-2"
+              role="status"
+            >
+              {question.answer}
+            </p>
+          </>
+        )
       ) : (
         <div className="mt-8 flex justify-center">
           <button
@@ -101,7 +125,8 @@ function FlashcardCard({
       {revealed && (
         <div className="mt-8">
           <p className="text-sm text-muted mb-2 text-center">
-            Hur gick det? Ditt svar styr när ordet kommer tillbaka.
+            Hur gick det? Ditt svar styr när{" "}
+            {isClozeCard ? "meningen" : "ordet"} kommer tillbaka.
           </p>
           <div className="grid grid-cols-4 gap-2">
             {FLASHCARD_RATINGS.map((r) => (
@@ -201,7 +226,7 @@ export default function QuestionRenderer({
   return (
     <>
       {questions.map((q, i) =>
-        flashcard && q.type === "MULTIPLE_CHOICE" ? (
+        rendersAsCard(q.type, flashcard) ? (
           <FlashcardCard
             key={q.id}
             question={q}

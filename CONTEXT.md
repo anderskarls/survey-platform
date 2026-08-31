@@ -29,6 +29,14 @@ _Avoid_: Publicering, schemaläggning (om själva tidpunkten), deadline
 Ett FSRS-kort per elev och fråga, härlett ur elevens hela försökshistorik (skarpa quizsvar och övningsförsök). Grunden för all ominlärning.
 _Avoid_: Card, flashcard
 
+**Luckfråga**:
+En mening med ett ord borttaget som eleven skriver in själv (`CLOZE`). Rättas exakt på stavning av servern - mätning, och ligger därför utanför övningen.
+_Avoid_: Cloze (i svensk text), lucktest
+
+**Luckmeningskort**:
+Samma mening med lucka, men vänd som ett kort: framsidan är meningen med luckan tom, baksidan samma mening med ordet ifyllt, och eleven skattar sig själv (`CLOZE_CARD`). Träning, och ligger därför i övningspoolen tillsammans med glosekorten. Se `docs/ovning/05-kortformer.md`.
+_Avoid_: Clozekort, luckkort
+
 **Elevkonto**:
 En elevs inloggning i **en** kurs. En elev som läser två kurser har två elevkonton, bundna till samma fysiska person av en delad personnyckel (`personKey`). Ominlärningen slår ihop kontona; sessionen gäller ett konto i taget.
 _Avoid_: Användare, konto (utan led)

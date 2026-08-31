@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { dayKey } from "@/lib/relearning";
+import { CARD_TYPES } from "@/lib/flashcard";
 import { releasedWhere } from "@/lib/survey-release";
 import type { WeekTopicInput } from "@/lib/week-practice";
 
@@ -39,15 +40,16 @@ export async function loadWeekPracticeTopics(
   const releasedTopicIds = released.map((q) => q.topicId);
   if (releasedTopicIds.length === 0) return [];
 
-  // Korten: bara flervalsfrågor: det är de som visas i kortform. Luckfrågorna
-  // i veckotestet hålls utanför övningen, precis som i det dagliga passet.
+  // Korten: glosekort (flerval) och luckmeningskort - de typer som visas i
+  // kortform. Veckotestets luckfrågor (CLOZE) hålls utanför övningen, precis
+  // som i det dagliga passet: de är mätning, inte träning.
   const topics = await prisma.topic.findMany({
     where: { courseId, id: { in: releasedTopicIds } },
     select: {
       id: true,
       name: true,
       questions: {
-        where: { type: "MULTIPLE_CHOICE" },
+        where: { type: { in: [...CARD_TYPES] } },
         select: { id: true },
         orderBy: { id: "asc" },
       },

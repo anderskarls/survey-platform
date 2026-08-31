@@ -4,6 +4,7 @@ import { respondSchema } from "@/lib/validators";
 import { handleApiError } from "@/lib/api-helpers";
 import { getStudentSession } from "@/lib/student-session";
 import {
+  cardBack,
   flashcardGrade,
   flashcardIsCorrect,
   isFlashcardValue,
@@ -128,6 +129,11 @@ export async function POST(
         }
         // Saknas configen är frågan orättbar. Den lämnas orättad (null)
         // i stället för att räknas som fel - felet är lärarens, inte elevens.
+      } else if (sq && sq.question.type === "CLOZE_CARD") {
+        // Luckmeningskortet vänds och skattas - servern rättar ingenting.
+        // Facit i configen är kortets baksida, inte ett rättningsunderlag.
+        isCorrect = flashcardIsCorrect(a.value);
+        grade = flashcardGrade(a.value);
       } else if (sq && sq.question.type === "MULTIPLE_CHOICE") {
         if (isFlashcardValue(a.value)) {
           // Flashcardläge: svaret ÄR elevens självskattning. Betyget bär
@@ -208,8 +214,13 @@ export async function POST(
         questionType: sq?.question.type,
         yourAnswer: a.value,
         isCorrect: a.isCorrect,
-        // Luckfrågans facit kommer ur config, inte ur alternativen.
-        correctAnswer: cloze ? cloze.answer : correctOption?.text || null,
+        // Luckformernas facit kommer ur config, inte ur alternativen -
+        // luckfrågans genom domen, luckmeningskortets rakt ur configen.
+        correctAnswer: cloze
+          ? cloze.answer
+          : (sq ? cardBack(sq.question, true) : null) ??
+            correctOption?.text ??
+            null,
         // Fel svar som bara var några bokstäver bort - eleven kan ordet men
         // inte stavningen, och det är en annan sak att säga till hen.
         nearMiss: cloze?.nearMiss ?? false,

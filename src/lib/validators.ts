@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { SUBSKILLS, exemplarsSchema, sortingConfigSchema } from "@/lib/formaga";
-import { clozeConfigSchema, hasGap } from "@/lib/cloze";
+import { clozeConfigSchema, hasGap, isClozeType } from "@/lib/cloze";
 
 export const QUESTION_TYPES = [
   "MULTIPLE_CHOICE",
@@ -8,6 +8,7 @@ export const QUESTION_TYPES = [
   "REFLECTION",
   "SORTING",
   "CLOZE",
+  "CLOZE_CARD",
 ] as const;
 
 // Sorterings- och luckfrågor delar config-kolumn men har olika form. Unionen
@@ -147,7 +148,7 @@ export const createQuestionSchema = z.object({
   config: questionConfigSchema.optional(),
   exemplars: exemplarsSchema.optional(),
 }).superRefine((data, ctx) => {
-  if (data.type !== "CLOZE") return;
+  if (!isClozeType(data.type)) return;
   const parsed = clozeConfigSchema.safeParse(data.config);
   if (!parsed.success) {
     ctx.addIssue({

@@ -16,6 +16,23 @@ import { z } from "zod";
 /** Markören i frågetexten som byts mot inmatningsfältet. */
 export const CLOZE_GAP = "___";
 
+/**
+ * De två luckformerna delar allt utom vad eleven gör med luckan.
+ *
+ * CLOZE: eleven skriver in ordet och servern rättar stavningen - mätning.
+ * CLOZE_CARD: eleven fyller luckan i huvudet, vänder kortet och skattar sig
+ * själv - övning. Samma text, samma config, samma facitfält; skillnaden är
+ * presentationen och vem som dömer. Att hålla dem isär som typer är hela
+ * poängen: veckotestets luckfrågor ska inte börja självskattas för att
+ * kursen också har kort.
+ */
+export const CLOZE_TYPES = ["CLOZE", "CLOZE_CARD"] as const;
+
+/** Bär frågan en lucka med facit i config - oavsett om den skrivs eller vänds? */
+export function isClozeType(type: string): boolean {
+  return (CLOZE_TYPES as readonly string[]).includes(type);
+}
+
 export const clozeConfigSchema = z.object({
   /** Det ord som ska stå i luckan. */
   answer: z
@@ -61,6 +78,19 @@ export function splitAtGap(text: string): { before: string; after: string } {
     before: text.slice(0, i),
     after: text.slice(i + CLOZE_GAP.length),
   };
+}
+
+/**
+ * Meningen med ordet på plats - kortets baksida. Delarna hålls isär i stället
+ * för att sättas ihop till en sträng, så renderaren kan framhäva ordet utan
+ * att leta rätt på det i texten igen.
+ */
+export function fillGap(
+  text: string,
+  answer: string
+): { before: string; answer: string; after: string } {
+  const { before, after } = splitAtGap(text);
+  return { before, answer, after };
 }
 
 /**
@@ -157,7 +187,7 @@ export function toClientClozeConfig(
   type: string,
   config: unknown
 ): ClientClozeConfig | null {
-  if (type !== "CLOZE") return null;
+  if (!isClozeType(type)) return null;
   const parsed = parseClozeConfig(config);
   if (!parsed) return null;
   return parsed.hint === undefined ? {} : { hint: parsed.hint };

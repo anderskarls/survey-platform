@@ -10,6 +10,32 @@
  * Värdena följer samma mönster som "__UNSURE__" i den vanliga renderingen.
  */
 
+import { parseClozeConfig } from "@/lib/cloze";
+
+/**
+ * Frågetyper som visas i kortform och därmed hör hemma i övningspoolen.
+ *
+ * MULTIPLE_CHOICE blir kort bara i kurser med flashcardMode - i övriga kurser
+ * är den en vanlig alternativlista. CLOZE_CARD är kort i kraft av sin typ:
+ * en mening med lucka som eleven fyller i huvudet. Listan används av
+ * relearning-data och week-practice-data för att avgöra vad som är ett kort,
+ * och håller samtidigt veckotestets CLOZE utanför övningen.
+ */
+export const CARD_TYPES = ["MULTIPLE_CHOICE", "CLOZE_CARD"] as const;
+
+/** Kan frågetypen över huvud taget visas som kort? */
+export function isCardType(type: string): boolean {
+  return (CARD_TYPES as readonly string[]).includes(type);
+}
+
+/**
+ * Ska den här frågan renderas som kort just nu? Luckmeningskortet alltid;
+ * flervalsfrågan bara där kursen kör flashcardläge.
+ */
+export function rendersAsCard(type: string, flashcardMode: boolean): boolean {
+  return type === "CLOZE_CARD" || (flashcardMode && type === "MULTIPLE_CHOICE");
+}
+
 export interface FlashcardRating {
   /** Sparas som Answer.value / PracticeAttempt.value */
   value: string;
@@ -34,6 +60,29 @@ export const FLASHCARD_RATINGS: readonly FlashcardRating[] = [
  * här försöket var ett kort.
  */
 export const FLASHCARD_REVEAL = "__FC_REVEAL__";
+
+/**
+ * Kortets baksida till klienten - eller null när frågan inte är ett kort.
+ *
+ * Baksidan följer med enkäten från början, av samma skäl som glosekortens
+ * facit gör det: kortet ska vändas i webbläsaren utan ett extra anrop, och
+ * eleven skattar sig ändå själv. I övningen gäller motsatt regel - där
+ * lämnar facit servern först efter att försöket är sparat.
+ */
+export function cardBack(
+  question: {
+    type: string;
+    config?: unknown;
+    options?: { text: string; isCorrect: boolean }[];
+  },
+  flashcardMode: boolean
+): string | null {
+  if (question.type === "CLOZE_CARD") {
+    return parseClozeConfig(question.config)?.answer ?? null;
+  }
+  if (!flashcardMode || question.type !== "MULTIPLE_CHOICE") return null;
+  return question.options?.find((o) => o.isCorrect)?.text ?? null;
+}
 
 const BY_VALUE = new Map(FLASHCARD_RATINGS.map((r) => [r.value, r]));
 

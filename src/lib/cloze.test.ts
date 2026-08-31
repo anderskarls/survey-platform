@@ -5,8 +5,10 @@ import {
   toClientClozeConfig,
   clozeConfigSchema,
   editDistance,
+  fillGap,
   gradeCloze,
   hasGap,
+  isClozeType,
   normalizeCloze,
   parseClozeConfig,
   splitAtGap,
@@ -151,6 +153,57 @@ describe("configen som når klienten", () => {
     // Kortläget gäller bara flerval - luckan förblir en lucka
     expect(q!.flashcard).toBe(false);
     expect(q!.cloze).toEqual({ hint: "Inflytande / Påverkan" });
+    expect(JSON.stringify(q)).not.toContain("influence");
+  });
+});
+
+describe("luckmeningskortet (CLOZE_CARD)", () => {
+  const text = "Her ___ on the whole group was obvious.";
+
+  it("räknas som en luckform, till skillnad från flerval", () => {
+    expect(isClozeType("CLOZE")).toBe(true);
+    expect(isClozeType("CLOZE_CARD")).toBe(true);
+    expect(isClozeType("MULTIPLE_CHOICE")).toBe(false);
+  });
+
+  it("fyller luckan utan att sätta ihop meningen till en sträng", () => {
+    expect(fillGap(text, "influence")).toEqual({
+      before: "Her ",
+      answer: "influence",
+      after: " on the whole group was obvious.",
+    });
+  });
+
+  it("lägger ordet sist när markören saknas - meningen går inte förlorad", () => {
+    expect(fillGap("Ingen markör här.", "influence")).toEqual({
+      before: "Ingen markör här.",
+      answer: "influence",
+      after: "",
+    });
+  });
+
+  it("skickar ledtråden men aldrig facit till klienten", () => {
+    const config = { answer: "influence", hint: "Inflytande / Påverkan" };
+    const client = toClientClozeConfig("CLOZE_CARD", config);
+    expect(client).toEqual({ hint: "Inflytande / Påverkan" });
+    expect(JSON.stringify(client)).not.toContain("influence");
+  });
+
+  it("blir ett kort i övningen även utan flashcardläge på kursen", () => {
+    const q = toPracticeQuestion(
+      {
+        id: 11,
+        text,
+        type: "CLOZE_CARD",
+        config: { answer: "influence" },
+        options: [],
+      },
+      null,
+      false
+    );
+    expect(q).not.toBeNull();
+    expect(q!.flashcard).toBe(true);
+    // Baksidan hämtas först när kortet vänds - den får inte ligga i sidan
     expect(JSON.stringify(q)).not.toContain("influence");
   });
 });

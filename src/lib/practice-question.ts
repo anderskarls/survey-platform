@@ -1,5 +1,6 @@
 import { sortingConfigSchema, stripSortingFacit } from "@/lib/formaga";
 import { toClientClozeConfig } from "@/lib/cloze";
+import { rendersAsCard } from "@/lib/flashcard";
 import type { PracticeQuestion } from "@/components/PracticeRunner";
 
 interface DbQuestionLike {
@@ -35,7 +36,7 @@ export function toPracticeQuestion(
       courseName,
     };
   }
-  const asCard = flashcard && q.type === "MULTIPLE_CHOICE";
+  const asCard = rendersAsCard(q.type, flashcard);
   return {
     id: q.id,
     text: q.text,

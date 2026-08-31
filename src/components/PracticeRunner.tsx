@@ -3,13 +3,14 @@
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import ExemplarPanel, { ExemplarView } from "@/components/ExemplarPanel";
+import ClozeCardFace from "@/components/ClozeCardFace";
 import { FLASHCARD_REVEAL } from "@/lib/flashcard";
 import { splitAtGap, type ClientClozeConfig } from "@/lib/cloze";
 
 export interface PracticeQuestion {
   id: number;
   text: string;
-  /** MULTIPLE_CHOICE | SORTING | FREE_TEXT (förmågeövning) | CLOZE */
+  /** MULTIPLE_CHOICE | SORTING | FREE_TEXT (förmågeövning) | CLOZE | CLOZE_CARD */
   type: string;
   options: string[];
   /** SORTING: konfiguration utan facit */
@@ -214,6 +215,9 @@ export default function PracticeRunner({
   const isFreeText = question?.type === "FREE_TEXT";
   const isFlashcard = question?.flashcard === true;
   const isCloze = question?.type === "CLOZE";
+  // Luckmeningskortet: vänds som ett kort, men visar meningen på båda
+  // sidorna i stället för en fras på framsidan och ett ord på baksidan.
+  const isClozeCard = question?.type === "CLOZE_CARD";
 
   function buildValue(): string | null {
     // Kortet har inget att fylla i - att vända det ÄR svaret, och baksidan
@@ -366,7 +370,15 @@ export default function PracticeRunner({
             {question.courseName}
           </span>
         )}
-        {isCloze ? (
+        {isClozeCard ? (
+          <div className="py-4" aria-live="polite">
+            <ClozeCardFace
+              text={question.text}
+              hint={question.cloze?.hint}
+              answer={showFeedback ? result.correctAnswer : null}
+            />
+          </div>
+        ) : isCloze ? (
           <ClozePractice
             question={question}
             value={freeText}
@@ -385,7 +397,8 @@ export default function PracticeRunner({
           </p>
         )}
 
-        {isCloze ? null : isFlashcard ? (
+        {/* Luckmeningskortet vänder meningen på plats ovan - ingen egen baksida. */}
+        {isCloze || isClozeCard ? null : isFlashcard ? (
           showFeedback && (
             <>
               <div className="border-t border-border-light mb-6" />
@@ -570,9 +583,11 @@ export default function PracticeRunner({
         result.selfAssess ? (
           <div>
             <p className="text-sm text-muted mb-2 text-center">
-              {isFlashcard
-                ? "Hur gick det? Ditt svar styr när ordet kommer tillbaka."
-                : "Jämför med exempelsvaren: hur väl stod sig ditt resonemang?"}
+              {isClozeCard
+                ? "Hur gick det? Ditt svar styr när meningen kommer tillbaka."
+                : isFlashcard
+                  ? "Hur gick det? Ditt svar styr när ordet kommer tillbaka."
+                  : "Jämför med exempelsvaren: hur väl stod sig ditt resonemang?"}
             </p>
             <div className="grid grid-cols-4 gap-2">
               <button

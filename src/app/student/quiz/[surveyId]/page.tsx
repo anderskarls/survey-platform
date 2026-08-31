@@ -10,6 +10,7 @@ import { getRelearningData } from "@/lib/relearning-data";
 import StudentQuizForm from "@/components/StudentQuizForm";
 import Link from "next/link";
 import { toClientClozeConfig } from "@/lib/cloze";
+import { cardBack } from "@/lib/flashcard";
 import { isReleased } from "@/lib/survey-release";
 
 export default async function StudentQuizPage({
@@ -91,11 +92,9 @@ export default async function StudentQuizPage({
       text: sq.question.text,
       type: sq.question.type,
       options: sq.question.options.map((o) => o.text),
-      // Baksidan skickas bara i flashcardläge, där eleven ändå ska vända
-      // kortet. I vanliga quiz får facit aldrig lämna servern före svaret.
-      answer: flashcard
-        ? sq.question.options.find((o) => o.isCorrect)?.text ?? null
-        : null,
+      // Baksidan skickas bara för kort, där eleven ändå ska vända kortet.
+      // I vanliga quiz får facit aldrig lämna servern före svaret.
+      answer: cardBack(sq.question, flashcard),
       // Luckfrågans ledtråd. Facit stannar på servern - se toClientClozeConfig.
       cloze: toClientClozeConfig(sq.question.type, sq.question.config),
     }));

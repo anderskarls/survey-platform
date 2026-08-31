@@ -1,7 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import type { UpdateQuestionInput } from "@/lib/validators";
-import { hasGap, parseClozeConfig } from "@/lib/cloze";
+import { hasGap, isClozeType, parseClozeConfig } from "@/lib/cloze";
 
 // Metakognitiva "Jag är inte säker" - varken rätt eller fel, se respond-routen.
 const UNSURE = "__UNSURE__";
@@ -138,9 +138,9 @@ export function planQuestionUpdate(
     );
   }
 
-  if (nextType === "CLOZE") {
-    // Facit ligger i config. Byts typen till CLOZE utan att en config skickas
-    // med finns inget att rätta mot, och frågan hade tyst blivit orättad.
+  if (isClozeType(nextType)) {
+    // Facit ligger i config. Byts typen till en luckform utan att en config
+    // skickas med finns inget att rätta mot - och för kortet ingen baksida.
     if (!parseClozeConfig(input.config ?? existing.config)) {
       throw new QuestionEditError(
         "Luckfrågor kräver config med facit (answer)",

@@ -18,7 +18,7 @@ import {
 } from "@/lib/formaga";
 import { Rating } from "ts-fsrs";
 import { gradeCloze, parseClozeConfig } from "@/lib/cloze";
-import { FLASHCARD_RATINGS, FLASHCARD_REVEAL } from "@/lib/flashcard";
+import { FLASHCARD_RATINGS, FLASHCARD_REVEAL, isCardType } from "@/lib/flashcard";
 
 /** Hela försökshistoriken för en fråga hos ett elevkonto (quiz + övning) */
 async function loadQuestionHistory(
@@ -105,9 +105,9 @@ export async function POST(request: NextRequest) {
 
     const fritext = isFormagaFritext(question);
     const flashcardReveal =
-      question.type === "MULTIPLE_CHOICE" && value === FLASHCARD_REVEAL;
+      isCardType(question.type) && value === FLASHCARD_REVEAL;
     if (
-      question.type !== "MULTIPLE_CHOICE" &&
+      !isCardType(question.type) &&
       question.type !== "SORTING" &&
       question.type !== "CLOZE" &&
       !fritext
@@ -153,6 +153,24 @@ export async function POST(request: NextRequest) {
       }
       sorting = gradeSorting(config.data, placements);
       isCorrect = sorting.allCorrect;
+    } else if (question.type === "CLOZE_CARD") {
+      const config = parseClozeConfig(question.config);
+      if (!config) {
+        return NextResponse.json(
+          { error: "Kortet saknar giltig baksida" },
+          { status: 400 }
+        );
+      }
+      if (!flashcardReveal) {
+        return NextResponse.json(
+          { error: "Luckmeningskortet besvaras genom att vändas" },
+          { status: 400 }
+        );
+      }
+      // Baksidan lämnar servern först nu, efter att försöket är sparat -
+      // samma regel som för sorteringsfacit och luckfrågornas facit.
+      // isCorrect förblir null: eleven skattar sig själv i fas 2.
+      correctAnswer = config.answer;
     } else if (question.type === "CLOZE") {
       const config = parseClozeConfig(question.config);
       if (!config) {

@@ -1,5 +1,6 @@
 import { prisma } from "../prisma.js";
 import Papa from "papaparse";
+import { optionCreateData, parseQuestionRow } from "../lib/csv-question.js";
 
 export async function importQuestions(courseId: number, csvContent: string): Promise<string> {
   const result = Papa.parse(csvContent, { header: true, skipEmptyLines: true });
@@ -10,44 +11,23 @@ export async function importQuestions(courseId: number, csvContent: string): Pro
   await prisma.$transaction(
     async (tx) => {
       for (const row of rows) {
-        const topicName = row.topic?.trim() || "Övrigt";
-        const text = row.text?.trim();
-        if (!text) continue;
-
-        const rawType = row.type?.trim().toUpperCase();
-        const type =
-          rawType === "FREE_TEXT"
-            ? "FREE_TEXT"
-            : rawType === "REFLECTION"
-              ? "REFLECTION"
-              : "MULTIPLE_CHOICE";
-
-        const options: string[] = [];
-        for (let i = 1; i <= 10; i++) {
-          const val = row[`option${i}`]?.trim();
-          if (val) options.push(val);
-        }
-        const correctAnswer = row.correctAnswer?.trim();
+        const parsed = parseQuestionRow(row);
+        if (!parsed) continue;
 
         const topic = await tx.topic.upsert({
-          where: { courseId_name: { courseId, name: topicName } },
+          where: { courseId_name: { courseId, name: parsed.topicName } },
           update: {},
-          create: { name: topicName, courseId },
+          create: { name: parsed.topicName, courseId },
         });
 
         await tx.question.create({
           data: {
-            text,
-            type,
+            text: parsed.text,
+            type: parsed.type,
             topicId: topic.id,
-            options: type === "MULTIPLE_CHOICE" && options.length > 0
-              ? {
-                  create: options.map((o) => ({
-                    text: o,
-                    isCorrect: correctAnswer ? o === correctAnswer : false,
-                  })),
-                }
-              : undefined,
+            config:
+              parsed.config === undefined ? undefined : (parsed.config as never),
+            options: optionCreateData(parsed),
           },
         });
         imported++;
