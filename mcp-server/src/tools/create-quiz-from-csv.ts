@@ -59,6 +59,11 @@ export async function createQuizFromCsv(
             topicId: topic.id,
             config:
               parsed.config === undefined ? undefined : (parsed.config as never),
+            subskill: parsed.subskill,
+            exemplars:
+              parsed.exemplars === undefined
+                ? undefined
+                : (parsed.exemplars as never),
             options: optionCreateData(parsed),
           },
         });

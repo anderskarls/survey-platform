@@ -27,6 +27,11 @@ export async function importQuestions(courseId: number, csvContent: string): Pro
             topicId: topic.id,
             config:
               parsed.config === undefined ? undefined : (parsed.config as never),
+            subskill: parsed.subskill,
+            exemplars:
+              parsed.exemplars === undefined
+                ? undefined
+                : (parsed.exemplars as never),
             options: optionCreateData(parsed),
           },
         });
