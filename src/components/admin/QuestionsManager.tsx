@@ -139,7 +139,11 @@ export default function QuestionsManager({ apiBase, showCorrectAnswers = false }
       });
       const data = await res.json();
       if (res.ok) {
-        showToast(`${data.imported} frågor importerade!`);
+        showToast(
+          data.updated
+            ? `${data.imported} nya frågor, ${data.updated} uppdaterade`
+            : `${data.imported} frågor importerade!`
+        );
         setCsvContent("");
         setShowImport(false);
         loadData();

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { parseCsvContent, questionCreateData, validateCsvRows } from "@/lib/csv";
+import { parseCsvContent, validateCsvRows } from "@/lib/csv";
+import { importQuestionRows } from "@/lib/import-questions";
 import { importCsvSchema } from "@/lib/validators";
 import { handleApiError } from "@/lib/api-helpers";
 import { requireCourseAccess } from "@/lib/require-auth";
@@ -37,34 +38,12 @@ export async function POST(
       );
     }
 
-    let imported = 0;
+    const result = await prisma.$transaction(
+      (tx) => importQuestionRows(tx, cId, rows),
+      { timeout: 30_000 }
+    );
 
-    await prisma.$transaction(async (tx) => {
-      // Upsert all unique topics first
-      const uniqueTopics = [...new Set(rows.map((r) => r.topic))];
-      const topicMap = new Map<string, number>();
-      for (const name of uniqueTopics) {
-        const topic = await tx.topic.upsert({
-          where: { courseId_name: { courseId: cId, name } },
-          update: {},
-          create: { name, courseId: cId },
-        });
-        topicMap.set(name, topic.id);
-      }
-
-      // Create all questions
-      for (const row of rows) {
-        await tx.question.create({
-          data: {
-            ...questionCreateData(row),
-            topicId: topicMap.get(row.topic)!,
-          },
-        });
-        imported++;
-      }
-    }, { timeout: 30_000 });
-
-    return NextResponse.json({ imported });
+    return NextResponse.json(result);
   } catch (error) {
     return handleApiError(error);
   }

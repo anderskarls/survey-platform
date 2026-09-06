@@ -203,7 +203,9 @@ paths:
       summary: Bulk-import questions from CSV
       description: |
         Parses CSV content and creates questions under the given course,
-        upserting topics as needed. Expected columns: `topic`, `text`,
+        upserting topics as needed. A question is identified by (topic, text):
+        a row matching an existing question updates it in place (keeping its
+        id and practice history) instead of creating a duplicate. Expected columns: `topic`, `text`,
         `type` (MULTIPLE_CHOICE or FREE_TEXT), `option1`..`option10`,
         `correctAnswer`.
       operationId: importQuestions
@@ -1445,11 +1447,14 @@ components:
 
     ImportQuestionsResponse:
       type: object
-      required: [imported]
+      required: [imported, updated]
       properties:
         imported:
           type: integer
-          description: Number of questions successfully imported
+          description: Number of new questions created
+        updated:
+          type: integer
+          description: Number of existing questions (same topic and text) updated in place
 
     OkResponse:
       type: object
