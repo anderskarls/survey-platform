@@ -1,7 +1,19 @@
+import type { Prisma } from "@prisma/client";
 import { sortingConfigSchema, stripSortingFacit } from "@/lib/formaga";
+import { stripTimelineFacit, timelineConfigSchema } from "@/lib/tidslinje";
 import { toClientClozeConfig } from "@/lib/cloze";
 import { rendersAsCard } from "@/lib/flashcard";
 import type { PracticeQuestion } from "@/components/PracticeRunner";
+
+/**
+ * Vilka frågor som hör till förmågeträningen (/student/formagor): allt med
+ * delfärdighet, plus typerna som övas där utan en. Låg som tre likadana
+ * literaler i layouten, listan och topic-sidan - en ny typ ska bara behöva
+ * läggas till här.
+ */
+export const FORMAGA_QUESTION_WHERE: Prisma.QuestionWhereInput = {
+  OR: [{ subskill: { not: null } }, { type: { in: ["SORTING", "TIMELINE"] } }],
+};
 
 interface DbQuestionLike {
   id: number;
@@ -33,6 +45,19 @@ export function toPracticeQuestion(
       type: q.type,
       options: [],
       sorting: stripSortingFacit(config.data),
+      courseName,
+    };
+  }
+  if (q.type === "TIMELINE") {
+    const config = timelineConfigSchema.safeParse(q.config);
+    if (!config.success) return null;
+    return {
+      id: q.id,
+      text: q.text,
+      type: q.type,
+      options: [],
+      sorting: null,
+      timeline: stripTimelineFacit(config.data),
       courseName,
     };
   }

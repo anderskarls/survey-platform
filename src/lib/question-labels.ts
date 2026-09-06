@@ -11,6 +11,7 @@ export const QUESTION_TYPE_LABELS: Record<string, string> = {
   FREE_TEXT: "Fritext",
   REFLECTION: "Reflektion",
   SORTING: "Sortering",
+  TIMELINE: "Tidslinje",
   CLOZE: "Lucka",
   CLOZE_CARD: "Luckkort",
 };

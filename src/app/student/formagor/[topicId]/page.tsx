@@ -1,7 +1,7 @@
 import { getStudentSession } from "@/lib/student-session";
 import { redirect, notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { toPracticeQuestion } from "@/lib/practice-question";
+import { FORMAGA_QUESTION_WHERE, toPracticeQuestion } from "@/lib/practice-question";
 import PracticeRunner from "@/components/PracticeRunner";
 
 /** Max övningar per förmågepass - kort och tätt slår långt och sällan */
@@ -31,7 +31,7 @@ export default async function FormagaTopicPage({
   const dbQuestions = await prisma.question.findMany({
     where: {
       topicId: tId,
-      OR: [{ subskill: { not: null } }, { type: "SORTING" }],
+      ...FORMAGA_QUESTION_WHERE,
     },
     include: { options: true },
     orderBy: { id: "asc" },

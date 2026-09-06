@@ -201,6 +201,30 @@ describe("CSV med förmågefält", () => {
     expect(errors.length).toBeGreaterThan(0);
   });
 
+  it("parsar TIMELINE-rad med config och avvisar en utan mål", () => {
+    const config = JSON.stringify({
+      form: "placera",
+      fran: -520,
+      till: 500,
+      epoker: [{ namn: "Antiken", fran: -800, till: 500 }],
+      handelser: [{ ar: -44, rubrik: "Caesar mördas" }],
+      ankare: ["Caesar mördas"],
+      mal: [{ ar: -27, rubrik: "Augustus blir ensam härskare" }],
+      tolerans: 31,
+    });
+    const csv = `topic,type,text,config\nRom,TIMELINE,"Placera på axeln: Augustus blir ensam härskare","${config.replace(/"/g, '""')}"`;
+    const rows = parseCsvContent(csv);
+    expect(rows[0].type).toBe("TIMELINE");
+    expect(validateCsvRows(rows)).toEqual([]);
+    expect(questionCreateData(rows[0]).config).toMatchObject({ form: "placera" });
+
+    const trasig = parseCsvContent(
+      `topic,type,text,config\nRom,TIMELINE,"Placera","{""form"":""placera"",""fran"":0,""till"":100,""mal"":[]}"`
+    );
+    expect(validateCsvRows(trasig).length).toBe(1);
+    expect(validateCsvRows(trasig)[0]).toContain("tidslinjekonfiguration");
+  });
+
   it("hanterar vanliga flervalsrader som tidigare", () => {
     const csv = `topic,type,text,option1,option2,correctAnswer\nMatematik,MULTIPLE_CHOICE,Vad är 2+2?,3,4,4`;
     const rows = parseCsvContent(csv);

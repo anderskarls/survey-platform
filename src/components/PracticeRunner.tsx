@@ -6,15 +6,24 @@ import ExemplarPanel, { ExemplarView } from "@/components/ExemplarPanel";
 import ClozeCardFace from "@/components/ClozeCardFace";
 import { FLASHCARD_REVEAL } from "@/lib/flashcard";
 import { splitAtGap, type ClientClozeConfig } from "@/lib/cloze";
+import TimelineQuestion from "@/components/TimelineQuestion";
+import {
+  beskrivTimelineResultat,
+  type ClientTimelineConfig,
+  type TimelineAnswer,
+  type TimelineResult,
+} from "@/lib/tidslinje";
 
 export interface PracticeQuestion {
   id: number;
   text: string;
-  /** MULTIPLE_CHOICE | SORTING | FREE_TEXT (förmågeövning) | CLOZE | CLOZE_CARD */
+  /** MULTIPLE_CHOICE | SORTING | TIMELINE | FREE_TEXT (förmågeövning) | CLOZE | CLOZE_CARD */
   type: string;
   options: string[];
   /** SORTING: konfiguration utan facit */
   sorting?: { categories: string[]; items: string[] } | null;
+  /** TIMELINE: tidslinjen utan facit - målets prick och rubrikerna hålls tillbaka */
+  timeline?: ClientTimelineConfig | null;
   /** CLOZE: ledtråden. Facit ligger kvar på servern. */
   cloze?: ClientClozeConfig | null;
   courseName?: string | null;
@@ -41,6 +50,8 @@ interface AttemptResult {
     total: number;
     allCorrect: boolean;
   } | null;
+  /** TIMELINE: facit och avstånd, lämnar servern först nu */
+  timeline?: TimelineResult | null;
   exemplars: ExemplarView[] | null;
   /** Fritextövning: eleven sätter hela betyget själv efter exempelsvaren */
   selfAssess: boolean;
@@ -197,6 +208,7 @@ export default function PracticeRunner({
   const [queue, setQueue] = useState<PracticeQuestion[]>(questions);
   const [selected, setSelected] = useState<string | null>(null);
   const [placements, setPlacements] = useState<Record<string, string>>({});
+  const [timelineAnswer, setTimelineAnswer] = useState<TimelineAnswer | null>(null);
   const [freeText, setFreeText] = useState("");
   const [result, setResult] = useState<AttemptResult | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -212,6 +224,7 @@ export default function PracticeRunner({
   const finished = question === undefined;
 
   const isSorting = question?.type === "SORTING";
+  const isTimeline = question?.type === "TIMELINE";
   const isFreeText = question?.type === "FREE_TEXT";
   const isFlashcard = question?.flashcard === true;
   const isCloze = question?.type === "CLOZE";
@@ -227,6 +240,16 @@ export default function PracticeRunner({
       const items = question.sorting?.items ?? [];
       if (items.some((i) => !placements[i])) return null;
       return JSON.stringify(placements);
+    }
+    if (isTimeline) {
+      if (!timelineAnswer) return null;
+      const antal = question.timeline?.antal ?? 1;
+      if (question.timeline?.form === "ordna") {
+        if ((timelineAnswer.ordning?.length ?? 0) < antal) return null;
+      } else if (timelineAnswer.ar === undefined) {
+        return null;
+      }
+      return JSON.stringify(timelineAnswer);
     }
     if (isFreeText || isCloze) {
       const trimmed = freeText.trim();
@@ -274,6 +297,7 @@ export default function PracticeRunner({
     if (!requeue) setCompletedCount((c) => c + 1);
     setSelected(null);
     setPlacements({});
+    setTimelineAnswer(null);
     setFreeText("");
     setResult(null);
   }
@@ -461,6 +485,14 @@ export default function PracticeRunner({
               );
             })}
           </div>
+        ) : isTimeline && question.timeline ? (
+          <TimelineQuestion
+            config={question.timeline}
+            value={timelineAnswer}
+            onChange={setTimelineAnswer}
+            disabled={showFeedback}
+            result={result?.timeline ?? null}
+          />
         ) : isFreeText ? (
           <textarea
             value={freeText}
@@ -550,6 +582,11 @@ export default function PracticeRunner({
                 {result.sorting.correctCount} av {result.sorting.total} rätt
                 placerade. Titta på de markerade - frågan återkommer senare i
                 passet.
+              </p>
+            ) : result.timeline ? (
+              <p className="font-semibold">
+                {beskrivTimelineResultat(result.timeline)} Frågan återkommer
+                senare i passet.
               </p>
             ) : isCloze ? (
               <p className="font-semibold">

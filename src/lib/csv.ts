@@ -2,6 +2,7 @@ import Papa from "papaparse";
 import { Prisma } from "@prisma/client";
 import { SUBSKILLS, exemplarsSchema, sortingConfigSchema } from "@/lib/formaga";
 import { CLOZE_GAP, clozeConfigSchema, hasGap, isClozeType } from "@/lib/cloze";
+import { timelineConfigSchema } from "@/lib/tidslinje";
 
 export interface CsvQuestionRow {
   topic: string;
@@ -11,7 +12,7 @@ export interface CsvQuestionRow {
   correctAnswer?: string;
   /** Förmågeträning: delfärdighet (kategorisera | kedjor | forgrena | vikta | kritisera) */
   subskill?: string;
-  /** SORTING: JSON-kolumn "config" med { categories, items: [{ text, category }] } */
+  /** SORTING: JSON-kolumn "config" med { categories, items: [{ text, category }] }. TIMELINE: se tidslinje.ts */
   config?: unknown;
   /** JSON-kolumn "exemplars" med [{ level: E|C|A, text, kommentar }] */
   exemplars?: unknown;
@@ -23,6 +24,7 @@ const KNOWN_TYPES = [
   "FREE_TEXT",
   "REFLECTION",
   "SORTING",
+  "TIMELINE",
   "CLOZE",
   "CLOZE_CARD",
 ] as const;
@@ -104,6 +106,14 @@ export function validateCsvRows(rows: CsvQuestionRow[]): string[] {
         );
       }
     }
+    if (row.type === "TIMELINE") {
+      const parsed = timelineConfigSchema.safeParse(row.config);
+      if (!parsed.success) {
+        errors.push(
+          `Ogiltig tidslinjekonfiguration för "${row.text}": ${parsed.error.issues[0]?.message ?? "okänt fel"}`
+        );
+      }
+    }
     if (isClozeType(row.type)) {
       const parsed = clozeConfigSchema.safeParse(row.config);
       if (!parsed.success) {
@@ -144,7 +154,7 @@ export function questionCreateData(
     type: row.type,
     subskill,
     config:
-      row.type === "SORTING" || isClozeType(row.type)
+      row.type === "SORTING" || row.type === "TIMELINE" || isClozeType(row.type)
         ? (row.config as Prisma.InputJsonValue)
         : undefined,
     exemplars:

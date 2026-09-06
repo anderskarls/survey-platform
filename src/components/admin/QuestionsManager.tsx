@@ -403,7 +403,7 @@ export default function QuestionsManager({ apiBase, showCorrectAnswers = false }
           <p className="text-sm text-muted mb-3">
             Format: topic, type, text, option1, option2, option3, option4.
             Förmågeövningar: kolumnerna subskill, config (JSON) och exemplars
-            (JSON) för typerna SORTING och FREE_TEXT.
+            (JSON) för typerna SORTING, TIMELINE och FREE_TEXT.
           </p>
           {needsCourseSelect && (
             <select
@@ -675,6 +675,11 @@ export default function QuestionsManager({ apiBase, showCorrectAnswers = false }
                               <p className="text-sm text-muted self-center">
                                 Sorteringsfråga - kategorier och kort redigeras via
                                 CSV-import.
+                              </p>
+                            ) : q.type === "TIMELINE" ? (
+                              <p className="text-sm text-muted self-center">
+                                Tidslinjefråga - genereras av tidslinjen och
+                                uppdateras via CSV-import.
                               </p>
                             ) : (
                               <select

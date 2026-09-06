@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { SUBSKILLS, exemplarsSchema, sortingConfigSchema } from "@/lib/formaga";
 import { clozeConfigSchema, hasGap, isClozeType } from "@/lib/cloze";
+import { timelineConfigSchema } from "@/lib/tidslinje";
 
 export const QUESTION_TYPES = [
   "MULTIPLE_CHOICE",
@@ -9,13 +10,18 @@ export const QUESTION_TYPES = [
   "SORTING",
   "CLOZE",
   "CLOZE_CARD",
+  "TIMELINE",
 ] as const;
 
-// Sorterings- och luckfrågor delar config-kolumn men har olika form. Unionen
+// Sorterings-, tidslinje- och luckfrågor delar config-kolumn men har olika form. Unionen
 // avgör vilken det är på innehållet; superRefine nedan kontrollerar sedan att
 // formen matchar frågans typ, så en luckfråga inte kan sparas med en
 // sorteringskonfiguration.
-const questionConfigSchema = z.union([sortingConfigSchema, clozeConfigSchema]);
+const questionConfigSchema = z.union([
+  sortingConfigSchema,
+  timelineConfigSchema,
+  clozeConfigSchema,
+]);
 
 export const respondSchema = z.object({
   answers: z
@@ -151,6 +157,13 @@ export const createQuestionSchema = z.object({
   config: questionConfigSchema.optional(),
   exemplars: exemplarsSchema.optional(),
 }).superRefine((data, ctx) => {
+  if (data.type === "TIMELINE" && !timelineConfigSchema.safeParse(data.config).success) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["config"],
+      message: "Tidslinjefrågor kräver en config med spann, prickar och mål",
+    });
+  }
   if (!isClozeType(data.type)) return;
   const parsed = clozeConfigSchema.safeParse(data.config);
   if (!parsed.success) {

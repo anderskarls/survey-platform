@@ -1,4 +1,5 @@
 import { getStudentSession } from "@/lib/student-session";
+import { FORMAGA_QUESTION_WHERE } from "@/lib/practice-question";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
@@ -58,7 +59,7 @@ export default async function FormagorPage() {
   const questions = await prisma.question.findMany({
     where: {
       topic: { courseId: { in: courseIds } },
-      OR: [{ subskill: { not: null } }, { type: "SORTING" }],
+      ...FORMAGA_QUESTION_WHERE,
     },
     select: {
       id: true,

@@ -1,4 +1,5 @@
 import { getStudentSession } from "@/lib/student-session";
+import { FORMAGA_QUESTION_WHERE } from "@/lib/practice-question";
 import { prisma } from "@/lib/prisma";
 import { getRelearningData } from "@/lib/relearning-data";
 import { summarizePracticeReady } from "@/lib/relearning";
@@ -39,7 +40,7 @@ export default async function StudentLayout({
       ? prisma.question.count({
           where: {
             topic: { courseId: session.courseId },
-            OR: [{ subskill: { not: null } }, { type: "SORTING" }],
+            ...FORMAGA_QUESTION_WHERE,
           },
         })
       : Promise.resolve(0),

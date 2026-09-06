@@ -20,6 +20,7 @@ const KNOWN_TYPES = [
   "FREE_TEXT",
   "REFLECTION",
   "SORTING",
+  "TIMELINE",
   "CLOZE",
   "CLOZE_CARD",
   "MULTIPLE_CHOICE",
@@ -51,6 +52,47 @@ const sortingConfigSchema = z
           message: `Objektet "${item.text}" har kategorin "${item.category}" som inte finns i categories`,
         });
       }
+    }
+  });
+
+/**
+ * Tidslinjefrågans facit ligger i config, som sorteringens. Speglar
+ * timelineConfigSchema i webbappens src/lib/tidslinje.ts - den är kanonisk;
+ * ändras den ska den här följa med. Här kontrolleras formen; sambanden
+ * (mål bland prickar, ankare finns, spannet) rättas av webbappens schema
+ * när frågan visas, men en fråga som inte ens har formen ska inte in.
+ */
+const timelineHandelseSchema = z.object({
+  ar: z.number().int(),
+  rubrik: z.string().min(1).max(200),
+  cirka: z.boolean().optional(),
+});
+const timelineConfigSchema = z
+  .object({
+    form: z.enum(["placera", "peka", "ordna", "epok"]),
+    fran: z.number().int(),
+    till: z.number().int(),
+    epoker: z
+      .array(z.object({ namn: z.string().min(1), fran: z.number().int(), till: z.number().int() }))
+      .max(12)
+      .default([]),
+    handelser: z.array(timelineHandelseSchema).max(60).default([]),
+    ankare: z.array(z.string().min(1)).max(4).default([]),
+    mal: z.array(timelineHandelseSchema.extend({ kommentar: z.string().optional() })).min(1).max(8),
+    tolerans: z.number().int().min(0).optional(),
+  })
+  .superRefine((c, ctx) => {
+    if (c.till <= c.fran) {
+      ctx.addIssue({ code: "custom", message: "till måste vara större än fran" });
+    }
+    if (c.form !== "ordna" && c.mal.length !== 1) {
+      ctx.addIssue({ code: "custom", message: `${c.form} ska ha exakt ett mål` });
+    }
+    if (c.form === "placera" && c.tolerans === undefined) {
+      ctx.addIssue({ code: "custom", message: "placera kräver tolerans (år)" });
+    }
+    if (c.form === "epok" && c.epoker.length === 0) {
+      ctx.addIssue({ code: "custom", message: "epok kräver epoker" });
     }
   });
 
@@ -139,6 +181,26 @@ export function parseQuestionRow(
     if (!check.success) {
       throw new Error(
         `Ogiltig config för sorteringsfrågan "${text}": ` +
+          check.error.issues.map((i) => i.message).join("; ")
+      );
+    }
+  }
+
+  // Tidslinjefrågan: samma regel som sorteringen - utan giltig config är den
+  // orättbar och skulle annars falla igenom till MULTIPLE_CHOICE.
+  if (type === "TIMELINE") {
+    if (!row.config?.trim()) {
+      throw new Error(`Tidslinjefrågan "${text}" saknar config med spann, prickar och mål.`);
+    }
+    try {
+      config = JSON.parse(row.config);
+    } catch {
+      throw new Error(`Ogiltig JSON i config för tidslinjefrågan "${text}".`);
+    }
+    const check = timelineConfigSchema.safeParse(config);
+    if (!check.success) {
+      throw new Error(
+        `Ogiltig config för tidslinjefrågan "${text}": ` +
           check.error.issues.map((i) => i.message).join("; ")
       );
     }

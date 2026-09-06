@@ -300,6 +300,13 @@ export default function QuestionRenderer({
                 <span className="text-base text-muted">Jag är inte säker</span>
               </label>
             </div>
+          ) : q.type === "TIMELINE" ? (
+            // Tidslinjefrågan kräver klick i en tidslinje och rättas i
+            // övningen. I en enkät skulle den annars falla igenom till en
+            // textruta - synlig, omöjlig att svara rätt på.
+            <p className="text-sm text-muted">
+              Den här frågan övas i förmågeträningen och kan inte besvaras här.
+            </p>
           ) : q.type === "REFLECTION" ? (
             <div>
               <p className="text-sm text-muted mb-2">

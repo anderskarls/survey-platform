@@ -50,6 +50,12 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
+    if (type === "TIMELINE" && !config) {
+      return NextResponse.json(
+        { error: "Tidslinjefrågor kräver config med spann, prickar och mål" },
+        { status: 400 }
+      );
+    }
 
     const question = await prisma.question.create({
       data: {

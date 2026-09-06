@@ -137,6 +137,12 @@ export function planQuestionUpdate(
       400
     );
   }
+  if (nextType === "TIMELINE" && !input.config && !existing.config) {
+    throw new QuestionEditError(
+      "Tidslinjefrågor kräver config med spann, prickar och mål",
+      400
+    );
+  }
 
   if (isClozeType(nextType)) {
     // Facit ligger i config. Byts typen till en luckform utan att en config

@@ -18,6 +18,12 @@ import {
 } from "@/lib/formaga";
 import { Rating } from "ts-fsrs";
 import { gradeCloze, parseClozeConfig } from "@/lib/cloze";
+import {
+  gradeTimeline,
+  timelineAnswerSchema,
+  timelineConfigSchema,
+  type TimelineResult,
+} from "@/lib/tidslinje";
 import { FLASHCARD_RATINGS, FLASHCARD_REVEAL, isCardType } from "@/lib/flashcard";
 
 /** Hela försökshistoriken för en fråga hos ett elevkonto (quiz + övning) */
@@ -109,6 +115,7 @@ export async function POST(request: NextRequest) {
     if (
       !isCardType(question.type) &&
       question.type !== "SORTING" &&
+      question.type !== "TIMELINE" &&
       question.type !== "CLOZE" &&
       !fritext
     ) {
@@ -122,6 +129,7 @@ export async function POST(request: NextRequest) {
     let isCorrect: boolean | null = null;
     let correctAnswer: string | null = null;
     let sorting: SortingResult | null = null;
+    let timeline: TimelineResult | null = null;
     let nearMiss = false;
 
     if (question.type === "MULTIPLE_CHOICE") {
@@ -153,6 +161,27 @@ export async function POST(request: NextRequest) {
       }
       sorting = gradeSorting(config.data, placements);
       isCorrect = sorting.allCorrect;
+    } else if (question.type === "TIMELINE") {
+      const config = timelineConfigSchema.safeParse(question.config);
+      if (!config.success) {
+        return NextResponse.json(
+          { error: "Frågan saknar giltig tidslinjekonfiguration" },
+          { status: 400 }
+        );
+      }
+      let answer;
+      try {
+        answer = timelineAnswerSchema.parse(JSON.parse(value));
+      } catch {
+        return NextResponse.json(
+          { error: "Ogiltigt svarsformat för tidslinjefråga" },
+          { status: 400 }
+        );
+      }
+      // Facit (mal med rubriker och kommentar) lämnar servern först i
+      // resultatet - efter att försöket är sparat, som för sorteringen.
+      timeline = gradeTimeline(config.data, answer);
+      isCorrect = timeline.isCorrect;
     } else if (question.type === "CLOZE_CARD") {
       const config = parseClozeConfig(question.config);
       if (!config) {
@@ -242,6 +271,7 @@ export async function POST(request: NextRequest) {
         correctAnswer,
         nearMiss,
         sorting,
+        timeline,
         exemplars: exemplars.success ? exemplars.data : null,
         selfAssess: fritext || flashcardReveal,
         appliedGrade,
