@@ -3,8 +3,18 @@ import { redirect, notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { FORMAGA_QUESTION_WHERE, toPracticeQuestion } from "@/lib/practice-question";
 import PracticeRunner from "@/components/PracticeRunner";
+import { shuffle } from "@/lib/shuffle";
 
-/** Max övningar per förmågepass - kort och tätt slår långt och sällan */
+/**
+ * Max övningar per förmågepass - kort och tätt slår långt och sällan.
+ *
+ * Urvalet blandas innan det kapas. Togs förut de första åtta på id, vilket
+ * betydde att ett område med många sorteringsfrågor aldrig visade sina
+ * tidslinjefrågor (de importerades senare och har högre id) - "Hela kursen"
+ * hade tolv sorteringar och noll klickfrågor i passet. Att shuffle här styr
+ * urvalet är avsiktligt: förmågeträningen har inget schema att skydda, passet
+ * är ett stickprov ur området, och varje nytt pass får vara ett nytt stickprov.
+ */
 const FORMAGA_SET_CAP = 8;
 
 export default async function FormagaTopicPage({
@@ -34,13 +44,13 @@ export default async function FormagaTopicPage({
       ...FORMAGA_QUESTION_WHERE,
     },
     include: { options: true },
-    orderBy: { id: "asc" },
-    take: FORMAGA_SET_CAP,
   });
 
-  const questions = dbQuestions
-    .map((q) => toPracticeQuestion(q))
-    .filter((q): q is NonNullable<typeof q> => q !== null);
+  const questions = shuffle(
+    dbQuestions
+      .map((q) => toPracticeQuestion(q))
+      .filter((q): q is NonNullable<typeof q> => q !== null)
+  ).slice(0, FORMAGA_SET_CAP);
 
   if (questions.length === 0) notFound();
 
