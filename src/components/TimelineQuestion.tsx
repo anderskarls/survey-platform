@@ -11,13 +11,17 @@ import {
 } from "@/lib/tidslinje";
 
 /**
- * Tidslinjen eleven klickar i. Ritas som SVG i pixelmått (inte viewBox), så
- * att texten är lika stor på en telefon som på en projektor - bredden mäts
- * från behållaren, höjden är fast.
+ * Tidslinjen eleven klickar i, ritad som ett mätinstrument ("Linjal"):
+ * en graderad axel med huvud- och understreck, händelserna som
+ * flaggstänger med huvud, epokerna som en tunn färgremsa längs
+ * överkanten, och elevens val som en nål med avläsning.
  *
- * Före svar visas bara ankarnas rubriker; efter svar ritas facit in och
- * rubrikerna avslöjas. Toleransen sitter i år på servern, så eleven kan
- * trycka, se sitt val och trycka igen innan hen svarar.
+ * Ritas i pixelmått (inte viewBox), så att texten är lika stor på en
+ * telefon som på en projektor - bredden mäts från behållaren, höjden är
+ * fast. Före svar visas bara ankarnas rubriker; efter svar ritas facit in
+ * som grön flagga och det eleven valde färgas rött eller grönt.
+ * Toleransen sitter i år på servern, så eleven kan trycka, se sitt val
+ * och trycka igen innan hen svarar.
  */
 
 interface Props {
@@ -28,33 +32,69 @@ interface Props {
   result: TimelineResult | null;
 }
 
-// Lodrät layout, uppifrån: epokband, remsa för markörpiller (två rader),
-// två etikettrader ovanför baslinjen, baslinjen, två etikettrader nedanför,
-// årsstrecken. Etikettraderna ligger 36 px isär så år och rubrik får plats.
-const HOJD = 288;
-const BAND = 26; // epokbandets höjd
-const EPOKNAMN_Y = BAND + 12; // epoknamn som inte får plats i bandet skrivs under det
-const PILL_Y = BAND + 30; // första pillraden
-const BAS = 180; // baslinjen
-const AXEL_TEXT = 280;
-const RAD_AVSTAND = 36;
+// Lodrät layout, uppifrån: epokremsa, epoknamn, etikettrader (tre
+// stånghöjder), baslinjen med gradering, årtalen. Måtten är komponentbladets.
+const HOJD = 262;
+const REMSA = 8; // epokremsans höjd
+const REMSA_VALD = 12; // vald epok, före svar
+const EPOKNAMN_Y = 26;
+const BAS = 196; // baslinjen
+const ARTAL_Y = BAS + 32;
+const WASH_H = HOJD; // epokfältets wash täcker hela ytan
+const TOPPAR = [150, 108, 66]; // stångtoppar för etiketterade händelser, rad 0-2
+const TOPP_KONTEXT = 150; // prick utan etikett
+const TOPP_KONTEXT_ALT = 126; // nära granne till en sådan
+const NARA_GRANNE = 12; // px i sidled som räknas som nära
+const NAL_TOPP = 44; // nålen före svar, med avläsningsruta
+const NAL_TOPP_EFTER = 120; // nålen efter svar - rutan är borta, flaggorna får plats
+const RUTA_Y = 30;
 const KANT = 12; // marginal i sidled så en prick vid spannets ände inte klipps
 const PRICK_RACKVIDD = 22; // px i sidled inom vilka ett tryck räknas som en prick
 
-interface Etikett {
-  x: number;
-  ar: string;
-  rubrik: string;
-  ton: "ankare" | "ratt" | "fel" | "neutral";
+const MONO = "var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace";
+
+const FARG = {
+  val: "var(--accent)",
+  valText: "var(--accent-hover)",
+  valWash: "var(--accent-light)",
+  ratt: "var(--success-dark)",
+  rattWash: "var(--success-light)",
+  fel: "var(--error)",
+  felWash: "var(--error-light)",
+  stang: "var(--primary)",
+  text: "var(--foreground, #1c1917)",
+  muted: "var(--muted)",
+  mutedLight: "var(--muted-light)",
+  border: "var(--border)",
+  borderLight: "var(--border-light)",
+  yta: "var(--surface)",
+} as const;
+
+/** Epokremsans ton: samma ljushet och kroma, olika kulör per epok. */
+const EPOK_HUE: Record<string, number> = {
+  Antiken: 75,
+  Medeltiden: 150,
+  "Nya tiden": 240,
+  "Moderna tiden": 350,
+};
+function epokFarg(namn: string, i: number): string {
+  const hue = EPOK_HUE[namn] ?? (75 + i * 73) % 360;
+  return `oklch(72% 0.06 ${hue})`;
 }
 
-/** Fyra rader: ovanför nära, nedanför nära, ovanför långt, nedanför långt. */
-const RADER: { sida: -1 | 1; rad: number }[] = [
-  { sida: -1, rad: 0 },
-  { sida: 1, rad: 0 },
-  { sida: -1, rad: 1 },
-  { sida: 1, rad: 1 },
-];
+type Ton = "ankare" | "ratt" | "fel";
+
+interface Stang {
+  ar: number;
+  /** Rubrik och årtal ovanför huvudet. Saknas för kontextprickar. */
+  etikett: { rubrik: string; ar: string; ton: Ton } | null;
+  /** Stångens och huvudets färg när den inte styrs av etiketten. */
+  farg: string;
+  /** Ordna: numret i kvadraten. */
+  nummer: { n: number; farg: string } | null;
+  /** Peka: ring runt huvudet. */
+  ring: string | null;
+}
 
 function textBredd(s: string, px: number): number {
   return s.length * px * 0.56;
@@ -65,21 +105,24 @@ function klamd(x: number, w: number, W: number): number {
   return Math.min(Math.max(x, w / 2 + 4), Math.max(W - w / 2 - 4, w / 2 + 4));
 }
 
-/** Ger varje etikett en rad utan överlapp i sidled, i x-ordning. Samma
- * algoritm som tidslinjens egen: den som inte får plats ritas utan text.
- * Räknar på den klämda positionen - två etiketter vid samma kant hamnar
- * annars på samma rad och ovanpå varandra. */
-function fordelaRader(etiketter: Etikett[], W: number): (number | null)[] {
-  const upptaget: [number, number][][] = RADER.map(() => []);
-  return etiketter.map((e) => {
-    const w = Math.max(textBredd(e.rubrik, 13), textBredd(e.ar, 12)) + 12;
-    const cx = klamd(e.x, w, W);
+/** Ger varje etiketterad stång en rad (topp) utan överlapp i sidled, i
+ * x-ordning. Räknar på den klämda positionen - två etiketter vid samma
+ * kant hamnar annars på samma rad och ovanpå varandra. Den som inte får
+ * plats på någon rad ritas som kontextprick. */
+function fordelaToppar(
+  stanger: { x: number; rubrik: string; ar: string }[],
+  W: number
+): (number | null)[] {
+  const upptaget: [number, number][][] = TOPPAR.map(() => []);
+  return stanger.map((s) => {
+    const w = Math.max(textBredd(s.rubrik, 13), textBredd(s.ar, 11)) + 12;
+    const cx = klamd(s.x, w, W);
     const v = cx - w / 2;
     const h = cx + w / 2;
-    for (let i = 0; i < RADER.length; i++) {
+    for (let i = 0; i < TOPPAR.length; i++) {
       if (upptaget[i].every(([a, b]) => h < a || v > b)) {
         upptaget[i].push([v, h]);
-        return i;
+        return TOPPAR[i];
       }
     }
     return null;
@@ -159,86 +202,118 @@ export default function TimelineQuestion({
     onChange(rest.length ? { ordning: rest } : null);
   }
 
-  // --- Vad som ska ritas ---
+  // --- Epoker ---
   const epoker = config.epoker
     .filter((e) => e.till > fran && e.fran < till)
     .sort((a, b) => a.fran - b.fran);
-
-  const steg = stegval(spann, inre);
-  const ticks: number[] = [];
-  for (let a = Math.ceil(fran / steg) * steg; a <= till; a += steg) ticks.push(a);
-
-  // Prickar: handelser plus, efter svar, målen som inte fanns bland dem.
-  const prickar = config.handelser.map((h) => ({ ...h, mal: false }));
-  const malPrickar =
-    result && (form === "placera" || form === "epok")
-      ? result.mal.map((m) => ({ ar: m.ar, etikett: m.rubrik, cirka: m.cirka, mal: true }))
-      : [];
-
-  const etiketter: Etikett[] = [];
-  for (const h of config.handelser) {
-    if (h.etikett) {
-      etiketter.push({ x: X(h.ar), ar: formatAr(h.ar, h.cirka), rubrik: h.etikett, ton: "ankare" });
-    }
-  }
-  if (result) {
-    const avslojade = new Set(etiketter.map((e) => e.x));
-    const lagg = (ar: number, rubrik: string, cirka: boolean | undefined, ton: Etikett["ton"]) => {
-      const x = X(ar);
-      if (avslojade.has(x)) return;
-      avslojade.add(x);
-      etiketter.push({ x, ar: formatAr(ar, cirka), rubrik, ton });
-    };
-    for (const m of result.mal) lagg(m.ar, m.rubrik, m.cirka, "ratt");
-    if (result.klickad && !result.isCorrect) {
-      lagg(result.klickad.ar, result.klickad.rubrik, result.klickad.cirka, "fel");
-    }
-    if (result.ordning) {
-      for (const o of result.ordning) lagg(o.ar, o.rubrik, undefined, o.ratt ? "ratt" : "fel");
-    }
-  }
-  etiketter.sort((a, b) => a.x - b.x);
-  const rader = fordelaRader(etiketter, W);
-
-  // Markörer: lodräta linjer med en liten pil för valt år och facit.
-  const markorer: { ar: number; text: string; ton: "val" | "ratt" | "fel" }[] = [];
-  if (form === "placera") {
-    const valt = result ? result.klick : value?.ar;
-    if (valt !== undefined && valt !== null) {
-      const ton = !result ? "val" : result.isCorrect ? "ratt" : "fel";
-      markorer.push({ ar: valt, text: `Du: ${formatAr(valt)}`, ton });
-    }
-    if (result && !result.isCorrect) {
-      markorer.push({ ar: result.mal[0].ar, text: formatAr(result.mal[0].ar, result.mal[0].cirka), ton: "ratt" });
-    }
-  }
-  // Epok: valet visas som markerat band, ingen pill - bandet ÄR svaret.
+  // Epok: valet visas som markerat fält, ingen nål - fältet ÄR svaret.
   const valdEpok =
-    form === "epok" && !result && value?.ar !== undefined ? epokFor(value.ar, config.epoker) : null;
+    form === "epok" && !svarat && value?.ar !== undefined ? epokFor(value.ar, config.epoker) : null;
+
+  // --- Gradering ---
+  const steg = stegval(spann, inre);
+  const understeg = steg / 5;
+  const streck: { ar: number; stor: boolean }[] = [];
+  for (let a = Math.ceil(fran / understeg) * understeg; a <= till + 1e-9; a += understeg) {
+    streck.push({ ar: a, stor: Math.abs(a / steg - Math.round(a / steg)) < 1e-9 });
+  }
+
+  // --- Vad som avslöjas efter svar: år -> rubrik och ton ---
+  const avslojat = new Map<number, { rubrik: string; cirka?: boolean; ton: "ratt" | "fel" }>();
+  if (result) {
+    if (form !== "ordna") {
+      const m = result.mal[0];
+      avslojat.set(m.ar, { rubrik: m.rubrik, cirka: m.cirka, ton: "ratt" });
+      if (form === "peka" && result.klickad && result.klickad.ar !== m.ar) {
+        avslojat.set(result.klickad.ar, { ...result.klickad, ton: "fel" });
+      }
+    } else if (result.ordning) {
+      for (const o of result.ordning) {
+        avslojat.set(o.ar, { rubrik: o.rubrik, ton: o.ratt ? "ratt" : "fel" });
+      }
+    }
+  }
 
   // Ordna: nummer per vald prick; efter svar färgade efter rätt plats.
-  const nummer = new Map<number, { n: number; ton: "val" | "ratt" | "fel" }>();
+  const nummer = new Map<number, { n: number; farg: string }>();
   if (form === "ordna") {
     const folj = result?.ordning ?? valdOrdning.map((ar) => ({ ar, ratt: undefined }));
     folj.forEach((o, i) =>
-      nummer.set(o.ar, { n: i + 1, ton: o.ratt === undefined ? "val" : o.ratt ? "ratt" : "fel" })
+      nummer.set(o.ar, {
+        n: i + 1,
+        farg: o.ratt === undefined ? FARG.val : o.ratt ? FARG.ratt : FARG.fel,
+      })
     );
   }
 
-  const FARG = {
-    val: "var(--accent)",
-    ratt: "var(--success-dark)",
-    fel: "var(--error)",
-    ankare: "var(--foreground, #1c1917)",
-    neutral: "var(--muted)",
-  } as const;
+  // --- Stängerna: händelserna plus, efter svar, målen som inte fanns bland dem ---
+  const valdPrick = form === "peka" && !svarat ? value?.ar : undefined;
+  const alla = new Map<number, { etikett: string | null; cirka?: boolean }>();
+  for (const h of config.handelser) alla.set(h.ar, h);
+  for (const [ar] of avslojat) if (!alla.has(ar)) alla.set(ar, { etikett: null });
 
-  const valdPrick = form === "peka" ? (result ? result.klick : value?.ar) : undefined;
+  const stanger: Stang[] = [...alla.entries()]
+    .sort(([a], [b]) => a - b)
+    .map(([ar, h]) => {
+      const av = avslojat.get(ar);
+      const etikett = av
+        ? { rubrik: av.rubrik, ar: formatAr(ar, av.cirka), ton: av.ton }
+        : h.etikett
+          ? { rubrik: h.etikett, ar: formatAr(ar, h.cirka), ton: "ankare" as Ton }
+          : null;
+      const num = nummer.get(ar) ?? null;
+      const farg = av ? FARG[av.ton] : FARG.stang;
+      const ring = av?.ton === "fel" ? FARG.fel : valdPrick === ar ? FARG.val : null;
+      return { ar, etikett, farg, nummer: num, ring };
+    });
+
+  // Etiketterade får rad efter plats; kontextprickar som står tätt får
+  // olika höjd så båda går att se - och peka på.
+  const etiketterade = stanger.filter((s) => s.etikett);
+  const toppar = fordelaToppar(
+    etiketterade.map((s) => ({ x: X(s.ar), rubrik: s.etikett!.rubrik, ar: s.etikett!.ar })),
+    W
+  );
+  const toppFor = new Map<number, number>();
+  const visaEtikett = new Set<number>();
+  etiketterade.forEach((s, i) => {
+    toppFor.set(s.ar, toppar[i] ?? TOPP_KONTEXT);
+    if (toppar[i] !== null) visaEtikett.add(s.ar);
+  });
+  let forraX: number | null = null;
+  let forraTopp = TOPP_KONTEXT_ALT;
+  for (const s of stanger) {
+    if (visaEtikett.has(s.ar)) continue;
+    const x = X(s.ar);
+    forraTopp =
+      forraX !== null && x - forraX < NARA_GRANNE
+        ? forraTopp === TOPP_KONTEXT
+          ? TOPP_KONTEXT_ALT
+          : TOPP_KONTEXT
+        : TOPP_KONTEXT;
+    toppFor.set(s.ar, forraTopp);
+    forraX = x;
+  }
+
+  // --- Nålen (placera) ---
+  const nal =
+    form === "placera"
+      ? svarat
+        ? result.klick !== null
+          ? { ar: result.klick, farg: result.isCorrect ? FARG.ratt : FARG.fel, ruta: false }
+          : null
+        : value?.ar !== undefined
+          ? { ar: value.ar, farg: FARG.val, ruta: true }
+          : null
+      : null;
+
   const cursor = disabled || svarat ? "default" : enPrick ? "pointer" : "crosshair";
 
   let ledtext: string;
-  if (svarat) ledtext = "";
-  else if (form === "placera")
+  if (svarat) {
+    ledtext =
+      form === "placera" && result.klick !== null ? mening(`Du tryckte på ${formatAr(result.klick)}`) : "";
+  } else if (form === "placera")
     ledtext =
       value?.ar !== undefined
         ? `${mening(`Ditt val: ${formatAr(value.ar)}`)} Tryck igen för att flytta, eller svara.`
@@ -258,6 +333,14 @@ export default function TimelineQuestion({
 
   const kommentar = result?.mal.find((m) => m.kommentar)?.kommentar;
 
+  // Vit halo bakom etikettext så den tål att korsa en stång.
+  const halo = {
+    paintOrder: "stroke" as const,
+    stroke: FARG.yta,
+    strokeWidth: 3,
+    strokeLinejoin: "round" as const,
+  };
+
   return (
     <div ref={ref} className="w-full">
       <svg
@@ -269,153 +352,208 @@ export default function TimelineQuestion({
         style={{ cursor, display: "block", touchAction: "manipulation", userSelect: "none" }}
         className="rounded-xl border border-border-light bg-surface"
       >
-        {/* Epokband */}
+        {/* Epokremsa och epokfält */}
         {epoker.map((e, i) => {
           const x1 = X(Math.max(e.fran, fran));
           const x2 = X(Math.min(e.till, till));
-          const vald = result && form === "epok" && result.epokVald === e.namn && !result.isCorrect;
-          const ratt = result && form === "epok" && result.epokRatt === e.namn;
-          const fyll = ratt
-            ? "var(--success-light)"
-            : vald
-              ? "var(--error-light)"
-              : valdEpok === e.namn
-                ? "var(--accent-light)"
-                : i % 2
-                  ? "var(--surface-muted)"
-                  : "transparent";
-          const namn = e.namn.toUpperCase();
-          const namnBredd = textBredd(namn, 11) * 1.12 + 8;
-          const farPlats = x2 - x1 >= namnBredd;
-          // Smala band får namnet under bandet, varannat på en rad längre ned,
-          // så att alla epoker går att läsa också på en telefon - annars går
-          // epokfrågan inte att svara på.
-          const nx = klamd((x1 + x2) / 2, namnBredd, W);
+          const ratt = svarat && form === "epok" && result.epokRatt === e.namn;
+          const fel = svarat && form === "epok" && result.epokVald === e.namn && !ratt;
+          const vald = valdEpok === e.namn;
+          const remsa = ratt ? FARG.ratt : fel ? FARG.fel : vald ? FARG.val : epokFarg(e.namn, i);
+          const namn = ratt ? FARG.ratt : fel ? FARG.fel : vald ? FARG.valText : FARG.muted;
+          const wash = ratt ? FARG.rattWash : fel ? FARG.felWash : vald ? FARG.valWash : null;
           return (
             <g key={e.namn}>
+              {wash && <rect x={x1} y={0} width={Math.max(x2 - x1, 0)} height={WASH_H} fill={wash} />}
               <rect
                 x={x1}
                 y={0}
                 width={Math.max(x2 - x1, 0)}
-                height={BAND}
-                fill={fyll}
-                stroke={valdEpok === e.namn ? "var(--accent)" : "none"}
-                strokeWidth={2}
+                height={vald ? REMSA_VALD : REMSA}
+                fill={remsa}
               />
-              {i > 0 && <line x1={x1} x2={x1} y1={0} y2={AXEL_TEXT - 14} stroke="var(--border)" />}
+              {i > 0 && (
+                <line x1={x1} x2={x1} y1={REMSA} y2={BAS} stroke={FARG.border} strokeDasharray="2 3" />
+              )}
               <text
-                x={farPlats ? (x1 + x2) / 2 : nx}
-                y={farPlats ? 17 : EPOKNAMN_Y + (i % 2) * 12}
-                textAnchor="middle"
-                fontSize={farPlats ? 11 : 9.5}
-                letterSpacing="0.12em"
-                fill="var(--muted)"
+                x={x1 + 6}
+                y={EPOKNAMN_Y}
+                fontSize={10}
+                letterSpacing="0.16em"
+                fill={namn}
+                style={{ fontFamily: MONO }}
               >
-                {namn}
+                {e.namn.toUpperCase()}
               </text>
             </g>
           );
         })}
-        {/* Årsstreck */}
-        {ticks.map((a) => (
-          <g key={a}>
-            <line x1={X(a)} x2={X(a)} y1={BAND} y2={AXEL_TEXT - 14} stroke="var(--border-light)" />
-            <text
-              x={Math.min(Math.max(X(a), textBredd(formatAr(a), 11) / 2 + 2), W - textBredd(formatAr(a), 11) / 2 - 2)}
-              y={AXEL_TEXT}
-              textAnchor="middle"
-              fontSize={11}
-              fill="var(--muted)"
-            >
-              {formatAr(a)}
-            </text>
-          </g>
-        ))}
-        <line x1={KANT} x2={W - KANT} y1={BAS} y2={BAS} stroke="var(--border)" strokeWidth={1.5} />
 
-        {/* Markörer */}
-        {markorer.map((m, i) => (
-          <g key={`${m.ar}-${m.ton}`} pointerEvents="none">
-            <line x1={X(m.ar)} x2={X(m.ar)} y1={BAND} y2={AXEL_TEXT - 14} stroke={FARG[m.ton]} strokeWidth={2} />
-            <rect
-              x={Math.min(Math.max(X(m.ar) - textBredd(m.text, 12) / 2 - 8, 2), W - textBredd(m.text, 12) - 18)}
-              y={PILL_Y + (i % 2) * 22}
-              rx={9}
-              width={textBredd(m.text, 12) + 16}
-              height={18}
-              fill={FARG[m.ton]}
+        {/* Gradering */}
+        {streck.map((s) => (
+          <line
+            key={s.ar}
+            x1={X(s.ar)}
+            x2={X(s.ar)}
+            y1={BAS}
+            y2={BAS + (s.stor ? 14 : 6)}
+            stroke={s.stor ? FARG.muted : FARG.mutedLight}
+            strokeWidth={1}
+          />
+        ))}
+        {streck
+          .filter((s) => s.stor)
+          .map((s) => {
+            const t = formatAr(s.ar);
+            const w = textBredd(t, 11);
+            return (
+              <text
+                key={s.ar}
+                x={Math.min(Math.max(X(s.ar), w / 2 + 2), W - w / 2 - 2)}
+                y={ARTAL_Y}
+                textAnchor="middle"
+                fontSize={11}
+                fill={FARG.muted}
+                style={{ fontFamily: MONO }}
+              >
+                {t}
+              </text>
+            );
+          })}
+        <line x1={KANT} x2={W - KANT} y1={BAS} y2={BAS} stroke={FARG.text} strokeWidth={1.5} />
+
+        {/* Nålen */}
+        {nal && (
+          <g pointerEvents="none">
+            <line
+              x1={X(nal.ar)}
+              x2={X(nal.ar)}
+              y1={nal.ruta ? NAL_TOPP : NAL_TOPP_EFTER}
+              y2={BAS + 18}
+              stroke={nal.farg}
+              strokeWidth={1.5}
+            />
+            <path
+              d={`M${X(nal.ar) - 5},${BAS + 18} L${X(nal.ar) + 5},${BAS + 18} L${X(nal.ar)},${BAS + 10} Z`}
+              fill={nal.farg}
+            />
+            {nal.ruta &&
+              (() => {
+                const t = formatAr(nal.ar);
+                const w = textBredd(t, 12) + 18;
+                const bx = Math.min(Math.max(X(nal.ar) - w / 2, 2), W - w - 2);
+                return (
+                  <>
+                    <rect x={bx} y={RUTA_Y} width={w} height={22} rx={2} fill={FARG.yta} stroke={nal.farg} strokeWidth={1.5} />
+                    <text
+                      x={bx + w / 2}
+                      y={RUTA_Y + 15}
+                      textAnchor="middle"
+                      fontSize={12}
+                      fontWeight={600}
+                      fill={FARG.valText}
+                      style={{ fontFamily: MONO }}
+                    >
+                      {t}
+                    </text>
+                  </>
+                );
+              })()}
+          </g>
+        )}
+
+        {/* Epok efter svar: var eleven tryckte */}
+        {svarat && form === "epok" && result.klick !== null && (
+          <g pointerEvents="none">
+            <line
+              x1={X(result.klick)}
+              x2={X(result.klick)}
+              y1={NAL_TOPP}
+              y2={BAS}
+              stroke={FARG.fel}
+              strokeWidth={1.5}
+              strokeDasharray="4 3"
             />
             <text
-              x={Math.min(Math.max(X(m.ar), textBredd(m.text, 12) / 2 + 10), W - textBredd(m.text, 12) / 2 - 10)}
-              y={PILL_Y + 13 + (i % 2) * 22}
+              x={X(result.klick)}
+              y={NAL_TOPP - 4}
               textAnchor="middle"
-              fontSize={12}
+              fontSize={11}
               fontWeight={600}
-              fill="#fff"
+              fill={FARG.fel}
+              style={{ fontFamily: MONO }}
             >
-              {m.text}
+              DITT VAL
             </text>
           </g>
-        ))}
+        )}
 
-        {/* Etiketter */}
-        {etiketter.map((e, i) => {
-          const r = rader[i];
-          if (r === null) return null;
-          const { sida, rad } = RADER[r];
-          const w = Math.max(textBredd(e.rubrik, 13), textBredd(e.ar, 12)) + 12;
-          const x = klamd(e.x, w, W);
-          const yRubrik = sida < 0 ? BAS - 22 - rad * RAD_AVSTAND : BAS + 40 + rad * RAD_AVSTAND;
-          const yAr = yRubrik - 15;
-          const yLinje1 = sida < 0 ? yRubrik + 4 : BAS + 8;
-          const yLinje2 = sida < 0 ? BAS - 8 : yAr - 12;
-          const farg = e.ton === "ankare" ? FARG.ankare : FARG[e.ton];
+        {/* Flaggstänger */}
+        {stanger.map((s) => {
+          const x = X(s.ar);
+          const topp = toppFor.get(s.ar) ?? TOPP_KONTEXT;
+          const etikett = visaEtikett.has(s.ar) ? s.etikett : null;
+          const farg = s.nummer ? s.nummer.farg : s.farg;
+          const arFarg = etikett?.ton === "ankare" ? FARG.val : farg;
+          const ur = config.handelser.some((h) => h.ar === s.ar);
           return (
-            <g key={`${e.x}-${e.rubrik}`} pointerEvents="none">
-              <line x1={e.x} x2={e.x} y1={yLinje1} y2={yLinje2} stroke="var(--border)" />
-              <text x={x} y={yAr} textAnchor="middle" fontSize={12} fontWeight={600} fill="var(--accent)">
-                {e.ar}
-              </text>
-              <text x={x} y={yRubrik} textAnchor="middle" fontSize={13} fontWeight={600} fill={farg}>
-                {e.rubrik}
-              </text>
-            </g>
-          );
-        })}
-
-        {/* Prickar */}
-        {[...prickar, ...malPrickar].map((h) => {
-          const x = X(h.ar);
-          const num = nummer.get(h.ar);
-          const vald = valdPrick === h.ar;
-          const ring = h.mal
-            ? FARG.ratt
-            : result && form === "peka" && result.mal[0].ar === h.ar
-              ? FARG.ratt
-              : vald
-                ? result
-                  ? FARG.fel
-                  : FARG.val
-                : num
-                  ? FARG[num.ton]
-                  : null;
-          return (
-            <g key={`${h.ar}-${h.mal ? "mal" : "h"}`} data-ar={h.mal ? undefined : h.ar}>
+            <g key={s.ar} data-ar={ur ? s.ar : undefined}>
               {/* Träffyta för tumme */}
               <circle cx={x} cy={BAS} r={18} fill="transparent" />
-              {ring && !num && <circle cx={x} cy={BAS} r={12} fill="none" stroke={ring} strokeWidth={2.5} />}
-              {num ? (
-                // Ordningsnumret sitter i pricken: ovanför eller nedanför
-                // krockar det med etikettraderna på en smal skärm.
+              <line x1={x} x2={x} y1={topp} y2={BAS} stroke={farg} strokeWidth={1.25} />
+              {s.nummer ? (
+                // Ordningsnumret sitter i stångens topp som en kvadrat.
                 <>
-                  <circle cx={x} cy={BAS} r={11} fill={FARG[num.ton]} stroke="var(--surface)" strokeWidth={2} />
-                  <text x={x} y={BAS + 4} textAnchor="middle" fontSize={11} fontWeight={700} fill="#fff">
-                    {num.n}
+                  <rect x={x - 9} y={topp - 9} width={18} height={18} rx={2} fill={farg} />
+                  <text
+                    x={x}
+                    y={topp + 4}
+                    textAnchor="middle"
+                    fontSize={11}
+                    fontWeight={600}
+                    fill="#fff"
+                    style={{ fontFamily: MONO }}
+                  >
+                    {s.nummer.n}
                   </text>
                 </>
               ) : (
-                <circle cx={x} cy={BAS} r={7} fill={h.mal ? FARG.ratt : "var(--primary)"} stroke="var(--surface)" strokeWidth={2} />
+                <circle cx={x} cy={topp} r={4.5} fill={farg} />
               )}
+              {s.ring && !s.nummer && (
+                <circle cx={x} cy={topp} r={9} fill="none" stroke={s.ring} strokeWidth={2} />
+              )}
+              {etikett &&
+                (() => {
+                  const w = Math.max(textBredd(etikett.rubrik, 13), textBredd(etikett.ar, 11)) + 12;
+                  const lx = klamd(x, w, W);
+                  return (
+                    <g pointerEvents="none">
+                      <text
+                        x={lx}
+                        y={topp - 22}
+                        textAnchor="middle"
+                        fontSize={11}
+                        fill={arFarg}
+                        style={{ fontFamily: MONO }}
+                        {...halo}
+                      >
+                        {etikett.ar}
+                      </text>
+                      <text
+                        x={lx}
+                        y={topp - 8}
+                        textAnchor="middle"
+                        fontSize={13}
+                        fontWeight={600}
+                        fill={etikett.ton === "ankare" ? FARG.text : farg}
+                        {...halo}
+                      >
+                        {etikett.rubrik}
+                      </text>
+                    </g>
+                  );
+                })()}
             </g>
           );
         })}
