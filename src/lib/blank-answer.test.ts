@@ -66,6 +66,18 @@ describe("blankCountsAsWrong", () => {
     ).toBe(false);
   });
 
+  it("tidslinjefrågan i ett prov rättas som fel - en hoppad fråga får inte höja procenten", () => {
+    expect(
+      blankCountsAsWrong({ type: "TIMELINE", isQuiz: true, flashcardMode: false })
+    ).toBe(true);
+  });
+
+  it("tidslinjefrågan i en enkät lämnas orörd", () => {
+    expect(
+      blankCountsAsWrong({ type: "TIMELINE", isQuiz: false, flashcardMode: false })
+    ).toBe(false);
+  });
+
   it("orättade typer får inga tomma rader", () => {
     for (const type of ["FREE_TEXT", "REFLECTION", "SORTING"]) {
       expect(

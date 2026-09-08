@@ -209,6 +209,72 @@ export function beskrivTimelineResultat(r: TimelineResult): string {
   }
 }
 
+/**
+ * Rättar ett tidslinjesvar rakt ur det som ligger i databasen; null om frågan
+ * eller svaret inte går att tolka.
+ *
+ * Motsvarigheten för sortering är `rattaSortering` i respond-routen. Den här
+ * ligger i biblioteket i stället, eftersom tre ställen behöver den: enkätens
+ * inlämning och de två resultatrouterna (som är två kopior av samma vy). När
+ * rättningen bodde i routen var det just kopieringen som gjorde att en typ
+ * kunde vara rättad i det ena flödet och orättad i det andra.
+ */
+export function rattaTidslinje(
+  config: unknown,
+  value: string
+): TimelineResult | null {
+  const parsedConfig = timelineConfigSchema.safeParse(config);
+  if (!parsedConfig.success) return null;
+  let rått: unknown;
+  try {
+    rått = JSON.parse(value);
+  } catch {
+    return null;
+  }
+  const answer = timelineAnswerSchema.safeParse(rått);
+  if (!answer.success) return null;
+  return gradeTimeline(parsedConfig.data, answer.data);
+}
+
+/**
+ * Elevens tidslinjesvar som läsbar text i lärarens vyer.
+ *
+ * Rådatan är JSON - `{"ar":-3000}` eller `{"ordning":[...]}` - och utan den
+ * här skulle läraren få sin egen datastruktur uppläst som elevens svar, vilket
+ * är precis felet `formateraSorteringssvar` finns till för att undvika.
+ * Returnerar null när värdet inte är ett tidslinjesvar, så anroparen kan falla
+ * tillbaka på råtexten.
+ */
+export function formateraTidslinjesvar(value: string): string | null {
+  let rått: unknown;
+  try {
+    rått = JSON.parse(value);
+  } catch {
+    return null;
+  }
+  const answer = timelineAnswerSchema.safeParse(rått);
+  if (!answer.success) return null;
+  if (answer.data.ordning !== undefined) {
+    if (answer.data.ordning.length === 0) return null;
+    return answer.data.ordning.map((ar) => formatAr(ar)).join(" · ");
+  }
+  if (answer.data.ar === undefined) return null;
+  return formatAr(answer.data.ar);
+}
+
+/**
+ * Facit som en rad i lärarens resultatvy: "Antiken börjar (3000 f.Kr.)".
+ * Null när configen inte går att tolka - då har frågan inget facit att visa.
+ * Bara för lärarvyer; det här får aldrig med i det eleven ser före svaret.
+ */
+export function beskrivTimelineFacit(config: unknown): string | null {
+  const parsed = timelineConfigSchema.safeParse(config);
+  if (!parsed.success) return null;
+  return parsed.data.mal
+    .map((m) => `${m.rubrik} (${formatAr(m.ar, m.cirka)})`)
+    .join(" · ");
+}
+
 export function gradeTimeline(
   config: TimelineConfig,
   answer: TimelineAnswer

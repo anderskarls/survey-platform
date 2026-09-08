@@ -6,6 +6,8 @@ import ClozeCardFace from "@/components/ClozeCardFace";
 import { FLASHCARD_RATINGS, rendersAsCard } from "@/lib/flashcard";
 import { splitAtGap } from "@/lib/cloze";
 import SortingBoard from "@/components/SortingBoard";
+import TimelineQuestion from "@/components/TimelineQuestion";
+import { timelineAnswerSchema, type TimelineAnswer } from "@/lib/tidslinje";
 import { OSAKER, arOsaker } from "@/lib/svarsvarden";
 import type { EnkatFraga } from "@/lib/enkatfraga";
 
@@ -221,6 +223,21 @@ function lasPlaceringar(value: string | undefined): Record<string, string> {
   }
 }
 
+/**
+ * Tidslinjesvaret bärs likadant: `{"ar":-3000}` eller `{"ordning":[...]}` som
+ * sträng i `answers`. Ogiltig JSON ger null, vilket komponenten läser som
+ * "inget val gjort än" - eleven får en tom tidslinje i stället för en krasch.
+ */
+function lasTidslinjesvar(value: string | undefined): TimelineAnswer | null {
+  if (!value) return null;
+  try {
+    const parsed = timelineAnswerSchema.safeParse(JSON.parse(value));
+    return parsed.success ? parsed.data : null;
+  } catch {
+    return null;
+  }
+}
+
 export default function QuestionRenderer({
   questions,
   answers,
@@ -308,12 +325,23 @@ export default function QuestionRenderer({
               </label>
             </div>
           ) : q.type === "TIMELINE" ? (
-            // Tidslinjefrågan kräver klick i en tidslinje och rättas i
-            // övningen. I en enkät skulle den annars falla igenom till en
-            // textruta - synlig, omöjlig att svara rätt på.
-            <p className="text-sm text-muted">
-              Den här frågan övas i förmågeträningen och kan inte besvaras här.
-            </p>
+            q.timeline ? (
+              // Svaret lagras som JSON i samma strängfält som alla andra svar,
+              // precis som sorteringens placeringar. Rättningen sker på
+              // servern mot facit i configen - klienten ser aldrig målet.
+              <TimelineQuestion
+                config={q.timeline}
+                value={lasTidslinjesvar(answers[q.id])}
+                onChange={(v) => onAnswer(q.id, v ? JSON.stringify(v) : "")}
+                disabled={false}
+                result={null}
+              />
+            ) : (
+              <p className="text-sm text-error">
+                Den här tidslinjefrågan är felaktigt uppsatt och går inte att
+                visa. Säg till din lärare - du kan hoppa över den.
+              </p>
+            )
           ) : q.type === "SORTING" ? (
             q.sorting ? (
               <SortingBoard

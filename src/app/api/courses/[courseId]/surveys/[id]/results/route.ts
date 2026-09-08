@@ -5,11 +5,12 @@ import { requireCourseAccess } from "@/lib/require-auth";
 import { senasteSvarPerElev } from "@/lib/svarsurval";
 import { raknaSvarsalternativ } from "@/lib/svarsvarden";
 import { formateraSorteringssvar } from "@/lib/formaga";
+import { beskrivTimelineFacit, formateraTidslinjesvar } from "@/lib/tidslinje";
 
-// Ett sorteringssvar är JSON i databasen. Läraren ska läsa "Ångmaskinen:
-// Teknik", inte datastrukturen.
+// Ett sorterings- eller tidslinjesvar är JSON i databasen. Läraren ska läsa
+// "Ångmaskinen: Teknik" respektive "3000 f.Kr.", inte datastrukturen.
 function lasbart(value: string): string {
-  return formateraSorteringssvar(value) ?? value;
+  return formateraSorteringssvar(value) ?? formateraTidslinjesvar(value) ?? value;
 }
 
 
@@ -92,6 +93,25 @@ export async function GET(
         correctAnswer: isQuiz ? correctOption?.text || null : null,
         studentAnswers: answersWithStudent,
         answeredBy,
+      };
+    }
+
+    // Tidslinjefrågan rättas mot facit precis som flervalsfrågan, men har inga
+    // alternativ att fördela svaren över. Läraren får antalet rätt och facit i
+    // klartext i stället för ett stapeldiagram.
+    if (q.type === "TIMELINE") {
+      return {
+        id: q.id,
+        text: q.text,
+        type: q.type,
+        ratt: answersWithStudent.filter((a) => a.isCorrect === true).length,
+        correctAnswer: beskrivTimelineFacit(q.config),
+        answeredBy,
+        studentAnswers: answersWithStudent.map((a) => ({
+          studentNumber: a.studentNumber,
+          value: lasbart(a.value),
+          isCorrect: a.isCorrect,
+        })),
       };
     }
 

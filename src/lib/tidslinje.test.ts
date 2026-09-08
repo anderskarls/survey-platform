@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  beskrivTimelineFacit,
   epokFor,
   formatAr,
+  formateraTidslinjesvar,
   gradeTimeline,
+  rattaTidslinje,
   stripTimelineFacit,
   timelineConfigSchema,
   type TimelineConfig,
@@ -173,6 +176,40 @@ describe("gradeTimeline ordna", () => {
 
   it("ofullständig följd är fel", () => {
     expect(gradeTimeline(ORDNA, { ordning: [-509] }).isCorrect).toBe(false);
+  });
+});
+
+describe("enkätflödets hjälpare", () => {
+  it("rattaTidslinje rättar rå config och rått svarsvärde", () => {
+    expect(rattaTidslinje(PLACERA, JSON.stringify({ ar: -27 }))?.isCorrect).toBe(true);
+    expect(rattaTidslinje(PLACERA, JSON.stringify({ ar: 400 }))?.isCorrect).toBe(false);
+  });
+
+  it("rattaTidslinje ger null i stället för att kasta på skräp", () => {
+    expect(rattaTidslinje(PLACERA, "inte json")).toBeNull();
+    expect(rattaTidslinje(PLACERA, JSON.stringify({ ar: "1492" }))).toBeNull();
+    expect(rattaTidslinje({ form: "trasig" }, JSON.stringify({ ar: -27 }))).toBeNull();
+  });
+
+  it("formateraTidslinjesvar gör JSON läsbar för läraren", () => {
+    expect(formateraTidslinjesvar(JSON.stringify({ ar: -3000 }))).toBe("3000 f.Kr.");
+    expect(formateraTidslinjesvar(JSON.stringify({ ar: 1492 }))).toBe("1492");
+    expect(formateraTidslinjesvar(JSON.stringify({ ordning: [-509, -44, 476] }))).toBe(
+      "509 f.Kr. · 44 f.Kr. · 476"
+    );
+  });
+
+  it("formateraTidslinjesvar ger null för allt som inte är ett tidslinjesvar", () => {
+    expect(formateraTidslinjesvar("(inget svar)")).toBeNull();
+    expect(formateraTidslinjesvar(JSON.stringify({ ordning: [] }))).toBeNull();
+    expect(formateraTidslinjesvar("{}")).toBeNull();
+  });
+
+  it("beskrivTimelineFacit ger målet i klartext, med år", () => {
+    expect(beskrivTimelineFacit(PLACERA)).toBe(
+      "Augustus blir ensam härskare (27 f.Kr.)"
+    );
+    expect(beskrivTimelineFacit({ form: "trasig" })).toBeNull();
   });
 });
 

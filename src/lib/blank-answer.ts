@@ -18,13 +18,17 @@
  *     inte" för ett kort som aldrig visades.
  *
  * Kvar blir det som rättas objektivt mot ett facit: flervalsfrågan i vanlig
- * form och luckfrågan. Fritext, reflektion och sortering rättas inte alls -
- * för dem skulle en tom rad bara vara brus i lärarens sammanställning.
+ * form, luckfrågan och tidslinjefrågan. Fritext och reflektion rättas inte
+ * alls - för dem skulle en tom rad bara vara brus i lärarens sammanställning.
+ *
+ * Sorteringen står utanför trots att den numera rättas i enkätflödet: ett
+ * halvlagt sorteringssvar är inte tomt, så regeln skulle sällan bita, och
+ * uppgiften är byggd för förmågeträningen där ingen poäng räknas.
  */
 import { rendersAsCard } from "@/lib/flashcard";
 
 /** Frågetyper som rättas mot ett facit och därför kan vara obesvarade-fel. */
-const GRADED_TYPES = ["MULTIPLE_CHOICE", "CLOZE"] as const;
+const GRADED_TYPES = ["MULTIPLE_CHOICE", "CLOZE", "TIMELINE"] as const;
 
 /** Tomt eller bara blanksteg - eleven har inte svarat. */
 export function isBlank(value: string): boolean {

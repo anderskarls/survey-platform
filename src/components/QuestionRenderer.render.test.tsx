@@ -19,6 +19,7 @@ const question = {
   ],
   answer: "Attityd / Inställning",
   sorting: null,
+  timeline: null,
 };
 
 function render(props: Partial<Parameters<typeof QuestionRenderer>[0]> = {}) {
@@ -64,5 +65,62 @@ describe("kortet i quizet", () => {
     expect(html).toContain("Beteende / Uppförande");
     expect(html).toContain("Jag är inte säker");
     expect(html).not.toContain("Visa svar");
+  });
+});
+
+/**
+ * Tidslinjefrågan i enkätflödet.
+ *
+ * Den var spärrad här: renderaren visade "kan inte besvaras här" och hänvisade
+ * till förmågeträningen, eftersom en typ utan egen gren annars faller igenom
+ * till en textruta. Testet håller båda halvorna av öppningen - att tidslinjen
+ * verkligen ritas, och att facit inte följer med in i markupen.
+ */
+const tidslinjefraga = {
+  id: 5,
+  text: "Placera jordbruksrevolutionen på axeln",
+  type: "TIMELINE",
+  options: [],
+  sorting: null,
+  timeline: {
+    form: "placera" as const,
+    fran: -10500,
+    till: 1900,
+    epoker: [{ namn: "Antiken", fran: -3000, till: 476 }],
+    handelser: [
+      { ar: 476, etikett: "Västroms siste kejsare avsätts" },
+      { ar: 1492, etikett: null },
+    ],
+    antal: 1,
+  },
+};
+
+describe("tidslinjefrågan i enkäten", () => {
+  it("ritar tidslinjen i stället för att hänvisa till förmågeträningen", () => {
+    const html = renderToStaticMarkup(
+      <QuestionRenderer
+        questions={[tidslinjefraga]}
+        answers={{}}
+        onAnswer={() => {}}
+      />
+    );
+    expect(html).toContain("<svg");
+    expect(html).toContain("ANTIKEN");
+    expect(html).toContain("Västroms siste kejsare avsätts");
+    expect(html).not.toContain("kan inte besvaras här");
+    // Textrutan som typen föll igenom till förut ska inte finnas kvar.
+    expect(html).not.toContain("<textarea");
+  });
+
+  it("säger till om konfigurationen är trasig i stället för att visa en textruta", () => {
+    const html = renderToStaticMarkup(
+      <QuestionRenderer
+        questions={[{ ...tidslinjefraga, timeline: null }]}
+        answers={{}}
+        onAnswer={() => {}}
+      />
+    );
+    expect(html).toContain("felaktigt uppsatt");
+    expect(html).not.toContain("<textarea");
   });
 });

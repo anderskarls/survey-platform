@@ -38,6 +38,11 @@ import {
   sortingPlacementsSchema,
   type SortingResult,
 } from "@/lib/formaga";
+import {
+  beskrivTimelineResultat,
+  rattaTidslinje,
+  type TimelineResult,
+} from "@/lib/tidslinje";
 
 /** Rättar ett sorteringssvar; null om frågan eller svaret inte går att tolka */
 function rattaSortering(config: unknown, value: string): SortingResult | null {
@@ -151,6 +156,11 @@ export async function POST(
     // Luckfrågornas domar sparas vid sidan av: nära-miss är återkoppling till
     // eleven, inte ett resultat, och har därför ingen kolumn i Answer.
     const clozeVerdicts = new Map<number, ClozeVerdict>();
+    // Tidslinjens facit - målets rubrik, år och kommentar - lämnar servern
+    // först i återkopplingen, efter att svaret är sparat. Samma ordning som i
+    // förmågeträningen, och skälet till att resultatet fångas här i stället
+    // för att rättas om när svaret ska visas.
+    const timelineResults = new Map<number, TimelineResult | null>();
     const answerData = giltigaSvar.flatMap((a) => {
       let isCorrect: boolean | null = null;
       let grade: number | null = null;
@@ -200,6 +210,13 @@ export async function POST(
         // förmågeträningen använder, så en sorteringsfråga inte betyder olika
         // saker beroende på vilket flöde eleven mötte den i.
         isCorrect = rattaSortering(sq.question.config, a.value)?.allCorrect ?? null;
+      } else if (sq && sq.question.type === "TIMELINE") {
+        // Samma rättning som förmågeträningen: `gradeTimeline` mot facit i
+        // configen, med toleransen i år. "Nära" är fel i poängen men sägs till
+        // eleven - se resultatet nedan.
+        const result = rattaTidslinje(sq.question.config, a.value);
+        timelineResults.set(a.questionId, result);
+        isCorrect = result?.isCorrect ?? null;
       }
       return [{ questionId: a.questionId, value: a.value, isCorrect, grade }];
     });
@@ -268,6 +285,7 @@ export async function POST(
       const sq = questionMap.get(a.questionId);
       const correctOption = sq?.question.options.find((o) => o.isCorrect);
       const cloze = clozeVerdicts.get(a.questionId);
+      const timeline = timelineResults.get(a.questionId) ?? null;
       return {
         answerId: answerIdMap.get(a.questionId) ?? null,
         questionId: a.questionId,
@@ -291,6 +309,13 @@ export async function POST(
           sq?.question.type === "SORTING"
             ? rattaSortering(sq.question.config, a.value)?.perItem ?? null
             : null,
+        // Tidslinjesvaret är också JSON. Eleven ska se sitt klick och facit i
+        // tidslinjen, inte `{"ar":-3000}` som text - och "nära" ska sägas även
+        // om det räknas som fel.
+        timeline: timeline ?? null,
+        timelineText: timeline && !timeline.isCorrect
+          ? beskrivTimelineResultat(timeline)
+          : null,
       };
     });
 

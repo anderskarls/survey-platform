@@ -14,6 +14,7 @@ const question = {
   type: "CLOZE",
   options: [],
   sorting: null,
+  timeline: null,
   cloze: { hint: "Inflytande / Påverkan" },
 };
 

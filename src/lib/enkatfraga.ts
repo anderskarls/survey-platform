@@ -5,6 +5,11 @@ import {
 } from "@/lib/formaga";
 import { cardBack } from "@/lib/flashcard";
 import { toClientClozeConfig, type ClientClozeConfig } from "@/lib/cloze";
+import {
+  stripTimelineFacit,
+  timelineConfigSchema,
+  type ClientTimelineConfig,
+} from "@/lib/tidslinje";
 
 /**
  * En fråga som den ser ut för eleven i enkät- och quizflödet.
@@ -22,6 +27,12 @@ export interface EnkatFraga {
   options: string[];
   /** SORTING: konfiguration MED FACIT BORTTAGET; null för övriga typer */
   sorting: ClientSortingConfig | null;
+  /**
+   * TIMELINE: axel, epoker och prickar MED FACIT BORTTAGET - målets år och de
+   * icke-ankrade rubrikerna stannar på servern tills svaret är inne. Null för
+   * övriga typer. Se stripTimelineFacit.
+   */
+  timeline: ClientTimelineConfig | null;
   /**
    * Kortets baksida: det rätta alternativet i flashcardläge, ordet som
    * fyller luckan för CLOZE_CARD. Null för allt som inte är ett kort - i
@@ -50,10 +61,24 @@ export function toEnkatFraga(q: DbFragaLike, flashcard = false): EnkatFraga {
     answer: cardBack(q, flashcard),
     cloze: toClientClozeConfig(q.type, q.config),
   };
-  if (q.type !== "SORTING") return { ...bas, sorting: null };
+  if (q.type === "TIMELINE") {
+    const config = timelineConfigSchema.safeParse(q.config);
+    // Samma regel som för sorteringen: trasig konfiguration ger null, och
+    // renderaren säger rakt ut att uppgiften inte går att visa.
+    return {
+      ...bas,
+      sorting: null,
+      timeline: config.success ? stripTimelineFacit(config.data) : null,
+    };
+  }
+  if (q.type !== "SORTING") return { ...bas, sorting: null, timeline: null };
 
   const config = sortingConfigSchema.safeParse(q.config);
   // Trasig konfiguration ger `sorting: null`; renderaren säger då rakt ut att
   // uppgiften inte går att visa i stället för att lägga fram en textruta.
-  return { ...bas, sorting: config.success ? stripSortingFacit(config.data) : null };
+  return {
+    ...bas,
+    sorting: config.success ? stripSortingFacit(config.data) : null,
+    timeline: null,
+  };
 }

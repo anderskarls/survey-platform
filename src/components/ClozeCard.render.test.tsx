@@ -14,6 +14,7 @@ const card = {
   type: "CLOZE_CARD",
   options: [],
   sorting: null,
+  timeline: null,
   answer: "influence",
   cloze: { hint: "Inflytande / Påverkan" },
 };

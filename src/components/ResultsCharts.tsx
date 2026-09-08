@@ -39,7 +39,76 @@ export interface FTQuestion {
   answeredBy: number;
 }
 
-export type ResultQuestion = MCQuestion | FTQuestion;
+/**
+ * Tidslinjefrågan rättas mot facit men har inga alternativ att fördela svaren
+ * över - ett stapeldiagram skulle bara ha en stapel per klickat årtal. Läraren
+ * får antalet rätt, facit i klartext och samma per-elev-rutnät som flervalet.
+ */
+export interface TLQuestion {
+  id: number;
+  text: string;
+  type: "TIMELINE";
+  /** Antal elever som fick rätt. "Nära" räknas som fel, precis som i poängen. */
+  ratt: number;
+  correctAnswer?: string | null;
+  studentAnswers?: StudentAnswer[];
+  answeredBy: number;
+}
+
+export type ResultQuestion = MCQuestion | FTQuestion | TLQuestion;
+
+/**
+ * Svaren per elev, färgade rätt/fel i quizläge.
+ *
+ * Låg förut inne i flervalsgrenen. Tidslinjefrågan behöver exakt samma vy, och
+ * en kopia hade blivit den fjärde platsen i kodbasen där samma rutnät driver
+ * isär.
+ */
+function PerElevRutnat({
+  studentAnswers,
+  isQuiz,
+}: {
+  studentAnswers: StudentAnswer[];
+  isQuiz: boolean;
+}) {
+  if (studentAnswers.length === 0) return null;
+  return (
+    <details className="mt-3">
+      <summary className="text-sm text-muted cursor-pointer hover:text-foreground transition-colors">
+        Visa per elev ({studentAnswers.length} svar)
+      </summary>
+      <div className="mt-2 grid grid-cols-2 md:grid-cols-4 gap-2">
+        {[...studentAnswers]
+          .sort((a, b) => a.studentNumber - b.studentNumber)
+          .map((sa) => {
+            // "Jag är osäker" är varken rätt eller fel - måla den inte röd
+            const osaker = arOsaker(sa.value);
+            return (
+              <div
+                key={sa.studentNumber}
+                className={`rounded-lg p-2 text-xs ${
+                  !isQuiz || osaker
+                    ? "bg-surface-muted"
+                    : sa.isCorrect
+                      ? "bg-success-light border border-success/20"
+                      : "bg-error-light border border-error/20"
+                }`}
+              >
+                <span className="font-semibold">#{sa.studentNumber}</span>{" "}
+                <span
+                  className={
+                    isQuiz && !osaker && !sa.isCorrect ? "text-error" : "text-muted"
+                  }
+                >
+                  {osaker ? "osäker" : sa.value}
+                </span>
+              </div>
+            );
+          })}
+      </div>
+    </details>
+  );
+}
 
 export default function ResultsCharts({
   questions,
@@ -99,42 +168,25 @@ export default function ResultsCharts({
                   stället för att svara - inte ett fel svar, och ingår inte i fördelningen ovan.
                 </p>
               )}
-              {q.studentAnswers && q.studentAnswers.length > 0 && (
-                <details className="mt-3">
-                  <summary className="text-sm text-muted cursor-pointer hover:text-foreground transition-colors">
-                    Visa per elev ({q.studentAnswers.length} svar)
-                  </summary>
-                  <div className="mt-2 grid grid-cols-2 md:grid-cols-4 gap-2">
-                    {[...q.studentAnswers]
-                      .sort((a, b) => a.studentNumber - b.studentNumber)
-                      .map((sa) => {
-                        // "Jag är osäker" är varken rätt eller fel - måla den inte röd
-                        const osaker = arOsaker(sa.value);
-                        return (
-                          <div
-                            key={sa.studentNumber}
-                            className={`rounded-lg p-2 text-xs ${
-                              !isQuiz || osaker
-                                ? "bg-surface-muted"
-                                : sa.isCorrect
-                                  ? "bg-success-light border border-success/20"
-                                  : "bg-error-light border border-error/20"
-                            }`}
-                          >
-                            <span className="font-semibold">#{sa.studentNumber}</span>{" "}
-                            <span
-                              className={
-                                isQuiz && !osaker && !sa.isCorrect ? "text-error" : "text-muted"
-                              }
-                            >
-                              {osaker ? "osäker" : sa.value}
-                            </span>
-                          </div>
-                        );
-                      })}
-                  </div>
-                </details>
+              <PerElevRutnat
+                studentAnswers={q.studentAnswers ?? []}
+                isQuiz={isQuiz}
+              />
+            </>
+          ) : q.type === "TIMELINE" ? (
+            <>
+              <p className="text-lg font-semibold tracking-tight">
+                {q.ratt} av {q.answeredBy} rätt
+              </p>
+              {isQuiz && q.correctAnswer && (
+                <p className="text-sm text-success mt-1">
+                  Rätt svar: <span className="font-semibold">{q.correctAnswer}</span>
+                </p>
               )}
+              <PerElevRutnat
+                studentAnswers={q.studentAnswers ?? []}
+                isQuiz={isQuiz}
+              />
             </>
           ) : (
             <div className="space-y-2 max-h-80 overflow-y-auto">

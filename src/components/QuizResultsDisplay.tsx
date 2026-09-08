@@ -5,6 +5,7 @@ import FlagButton from "@/components/FlagButton";
 import { flashcardLabel } from "@/lib/flashcard";
 import { arOsaker } from "@/lib/svarsvarden";
 import type { SortingItemResult } from "@/lib/formaga";
+import { formateraTidslinjesvar, type TimelineResult } from "@/lib/tidslinje";
 
 interface Score {
   correct: number;
@@ -24,6 +25,13 @@ export interface QuizResult {
   nearMiss?: boolean;
   /** SORTING: rättning per item, satt i stället för yourAnswer/correctAnswer */
   sorting?: SortingItemResult[] | null;
+  /** TIMELINE: rättningen, satt i stället för yourAnswer/correctAnswer */
+  timeline?: TimelineResult | null;
+  /**
+   * TIMELINE: meningen eleven ska läsa när svaret inte var rätt - facit, och
+   * "Nära!" när klicket låg inom några toleranser. Rätt svar behöver ingen.
+   */
+  timelineText?: string | null;
 }
 
 interface QuizResultsDisplayProps {
@@ -117,6 +125,39 @@ export default function QuizResultsDisplay({
                         </li>
                       ))}
                     </ul>
+                  ) : r.timeline ? (
+                    // Tidslinjesvaret är JSON i databasen. Eleven ska läsa
+                    // "3000 f.Kr.", inte sin egen datastruktur.
+                    <div className="text-sm">
+                      <p>
+                        Ditt svar:{" "}
+                        <span
+                          className={
+                            r.isCorrect
+                              ? "text-success font-semibold"
+                              : "text-muted"
+                          }
+                        >
+                          {formateraTidslinjesvar(r.yourAnswer) ?? "inget val"}
+                        </span>
+                      </p>
+                      {r.timelineText && (
+                        <p
+                          className={
+                            r.timeline.utfall === "nara"
+                              ? "text-warning font-medium"
+                              : "text-success"
+                          }
+                        >
+                          {r.timelineText}
+                        </p>
+                      )}
+                      {r.timeline.mal[0]?.kommentar && (
+                        <p className="text-muted mt-1">
+                          {r.timeline.mal[0].kommentar}
+                        </p>
+                      )}
+                    </div>
                   ) : isUnsure ? (
                     <p className="text-sm text-accent">
                       Du markerade att du var osäker - bra att du var ärlig!
