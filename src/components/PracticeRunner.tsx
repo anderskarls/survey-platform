@@ -233,6 +233,9 @@ export default function PracticeRunner({
   // Luckmeningskortet: vänds som ett kort, men visar meningen på båda
   // sidorna i stället för en fras på framsidan och ett ord på baksidan.
   const isClozeCard = question?.type === "CLOZE_CARD";
+  // Begreppskortets baksida är en förklaring, inte ett ord - den får en
+  // läsbar storlek i stället för glosekortets rubrikstil.
+  const isConceptCard = question?.type === "CONCEPT_CARD";
 
   function buildValue(): string | null {
     // Kortet har inget att fylla i - att vända det ÄR svaret, och baksidan
@@ -429,7 +432,11 @@ export default function PracticeRunner({
             <>
               <div className="border-t border-border-light mb-6" />
               <p
-                className="text-center text-2xl font-bold text-primary px-2"
+                className={
+                  isConceptCard
+                    ? "text-center text-lg text-primary px-2"
+                    : "text-center text-2xl font-bold text-primary px-2"
+                }
                 role="status"
               >
                 {result.correctAnswer}
@@ -597,7 +604,9 @@ export default function PracticeRunner({
             <p className="text-sm text-muted mb-2 text-center">
               {isClozeCard
                 ? "Hur gick det? Ditt svar styr när meningen kommer tillbaka."
-                : isFlashcard
+                : isConceptCard
+                  ? "Hur gick det? Ditt svar styr när begreppet kommer tillbaka."
+                  : isFlashcard
                   ? "Hur gick det? Ditt svar styr när ordet kommer tillbaka."
                   : "Jämför med exempelsvaren: hur väl stod sig ditt resonemang?"}
             </p>

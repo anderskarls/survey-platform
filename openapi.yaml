@@ -531,6 +531,89 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
+  /api/courses/{courseId}/units/{unitId}/begrepp:
+    post:
+      tags: [units]
+      summary: Add concept cards to a moment's practice
+      operationId: addUnitConcepts
+      description: |
+        One line per concept, "Term - explanation" (hyphen/dash with spaces, or
+        a colon). Cards (type CONCEPT_CARD) go into the moment's concept topic
+        "<unit title> - Begrepp", which is created on first use, linked to the
+        moment and opened for practice. A term that already exists in the topic
+        (case- and whitespace-insensitive) gets the new explanation instead of a
+        duplicate. Unparseable lines are returned in `fel`; if no line parses
+        the request fails with 400.
+      parameters:
+        - $ref: "#/components/parameters/CourseId"
+        - $ref: "#/components/parameters/UnitId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [rader]
+              properties:
+                rader:
+                  type: string
+                  example: "Legitimitet - folkets acceptans av makten\nPolis - självstyrande grekisk stadsstat"
+      responses:
+        "201":
+          description: Cards created or updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  topicId: { type: integer }
+                  skapade: { type: integer }
+                  uppdaterade: { type: integer }
+                  oforandrade: { type: integer }
+                  fel:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        rad: { type: integer }
+                        text: { type: string }
+                        orsak: { type: string }
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [units]
+      summary: Remove a concept card no student has met
+      operationId: deleteUnitConcept
+      description: |
+        Refuses with 409 if the card has practice attempts or answers (they
+        would cascade away) or belongs to a survey.
+      parameters:
+        - $ref: "#/components/parameters/CourseId"
+        - $ref: "#/components/parameters/UnitId"
+        - name: questionId
+          in: query
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: The card has student history or is in a survey
+
   /api/courses/{courseId}/surveys/import:
     post:
       tags: [surveys]

@@ -188,9 +188,12 @@ export async function POST(
         }
         // Saknas configen är frågan orättbar. Den lämnas orättad (null)
         // i stället för att räknas som fel - felet är lärarens, inte elevens.
-      } else if (sq && sq.question.type === "CLOZE_CARD") {
-        // Luckmeningskortet vänds och skattas - servern rättar ingenting.
-        // Facit i configen är kortets baksida, inte ett rättningsunderlag.
+      } else if (
+        sq &&
+        (sq.question.type === "CLOZE_CARD" || sq.question.type === "CONCEPT_CARD")
+      ) {
+        // Luckmeningskortet och begreppskortet vänds och skattas - servern
+        // rättar ingenting. Configen är kortets baksida, inte ett facit.
         isCorrect = flashcardIsCorrect(a.value);
         grade = flashcardGrade(a.value);
       } else if (sq && sq.question.type === "MULTIPLE_CHOICE") {

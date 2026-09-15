@@ -14,6 +14,7 @@ export const QUESTION_TYPE_LABELS: Record<string, string> = {
   TIMELINE: "Tidslinje",
   CLOZE: "Lucka",
   CLOZE_CARD: "Luckkort",
+  CONCEPT_CARD: "Begreppskort",
 };
 
 /** Etiketten för en typ, eller typens råa namn om den är okänd. */

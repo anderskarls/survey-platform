@@ -11,29 +11,34 @@
  */
 
 import { parseClozeConfig } from "@/lib/cloze";
+import { CONCEPT_CARD, parseConceptConfig } from "@/lib/begreppskort";
 
 /**
  * Frågetyper som visas i kortform och därmed hör hemma i övningspoolen.
  *
  * MULTIPLE_CHOICE blir kort bara i kurser med flashcardMode - i övriga kurser
- * är den en vanlig alternativlista. CLOZE_CARD är kort i kraft av sin typ:
- * en mening med lucka som eleven fyller i huvudet. Listan används av
- * relearning-data och week-practice-data för att avgöra vad som är ett kort,
- * och håller samtidigt veckotestets CLOZE utanför övningen.
+ * är den en vanlig alternativlista. CLOZE_CARD och CONCEPT_CARD är kort i
+ * kraft av sin typ: en mening med lucka som eleven fyller i huvudet, och ett
+ * begrepp eleven ska minnas betydelsen av. Listan används av relearning-data
+ * och week-practice-data för att avgöra vad som är ett kort, och håller
+ * samtidigt veckotestets CLOZE utanför övningen.
  */
-export const CARD_TYPES = ["MULTIPLE_CHOICE", "CLOZE_CARD"] as const;
+export const CARD_TYPES = ["MULTIPLE_CHOICE", "CLOZE_CARD", CONCEPT_CARD] as const;
 
 /** Kan frågetypen över huvud taget visas som kort? */
 export function isCardType(type: string): boolean {
   return (CARD_TYPES as readonly string[]).includes(type);
 }
 
+/** Korttyper som är kort oavsett kursens flashcardläge. */
+const ALLTID_KORT: readonly string[] = ["CLOZE_CARD", CONCEPT_CARD];
+
 /**
- * Ska den här frågan renderas som kort just nu? Luckmeningskortet alltid;
- * flervalsfrågan bara där kursen kör flashcardläge.
+ * Ska den här frågan renderas som kort just nu? Luckmeningskortet och
+ * begreppskortet alltid; flervalsfrågan bara där kursen kör flashcardläge.
  */
 export function rendersAsCard(type: string, flashcardMode: boolean): boolean {
-  return type === "CLOZE_CARD" || (flashcardMode && type === "MULTIPLE_CHOICE");
+  return ALLTID_KORT.includes(type) || (flashcardMode && type === "MULTIPLE_CHOICE");
 }
 
 export interface FlashcardRating {
@@ -79,6 +84,9 @@ export function cardBack(
 ): string | null {
   if (question.type === "CLOZE_CARD") {
     return parseClozeConfig(question.config)?.answer ?? null;
+  }
+  if (question.type === CONCEPT_CARD) {
+    return parseConceptConfig(question.config)?.explanation ?? null;
   }
   if (!flashcardMode || question.type !== "MULTIPLE_CHOICE") return null;
   return question.options?.find((o) => o.isCorrect)?.text ?? null;

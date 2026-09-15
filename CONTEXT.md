@@ -37,6 +37,10 @@ _Avoid_: Cloze (i svensk text), lucktest
 Samma mening med lucka, men vänd som ett kort: framsidan är meningen med luckan tom, baksidan samma mening med ordet ifyllt, och eleven skattar sig själv (`CLOZE_CARD`). Träning, och ligger därför i övningspoolen tillsammans med glosekorten. Se `docs/ovning/05-kortformer.md`.
 _Avoid_: Clozekort, luckkort
 
+**Begreppskort**:
+Ett begrepp på framsidan och lärarens förklaring på baksidan; eleven försöker minnas betydelsen, vänder kortet och skattar sig själv (`CONCEPT_CARD`). Skrivs i rutan på momentsidan för begrepp som kom upp i klassrummet men inte stod i momentplaneringen, och hamnar i momentets begreppsämne ("Momentnamn - Begrepp"), som är öppet för övning. Kort oavsett kursens flashcardläge. Se `docs/ovning/05-kortformer.md`.
+_Avoid_: Begreppsfråga, glosa (i historie- och samhällskurser)
+
 **Elevkonto**:
 En elevs inloggning i **en** kurs. En elev som läser två kurser har två elevkonton, bundna till samma fysiska person av en delad personnyckel (`personKey`). Ominlärningen slår ihop kontona; sessionen gäller ett konto i taget.
 _Avoid_: Användare, konto (utan led)

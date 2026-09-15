@@ -50,6 +50,7 @@ function FlashcardCard({
   // Redan skattade kort visas vända, så eleven ser sitt svar när den backar.
   const [revealed, setRevealed] = useState(chosen !== undefined);
   const isClozeCard = question.type === "CLOZE_CARD";
+  const isConceptCard = question.type === "CONCEPT_CARD";
 
   function rate(value: string) {
     onAnswer(question.id, value);
@@ -96,7 +97,11 @@ function FlashcardCard({
           <>
             <div className="border-t border-border-light my-6" />
             <p
-              className="text-center text-2xl font-bold text-primary px-2"
+              className={
+                isConceptCard
+                  ? "text-center text-lg text-primary px-2"
+                  : "text-center text-2xl font-bold text-primary px-2"
+              }
               role="status"
             >
               {question.answer}
@@ -119,7 +124,7 @@ function FlashcardCard({
         <div className="mt-8">
           <p className="text-sm text-muted mb-2 text-center">
             Hur gick det? Ditt svar styr när{" "}
-            {isClozeCard ? "meningen" : "ordet"} kommer tillbaka.
+            {isClozeCard ? "meningen" : isConceptCard ? "begreppet" : "ordet"} kommer tillbaka.
           </p>
           <div className="grid grid-cols-4 gap-2">
             {FLASHCARD_RATINGS.map((r) => (

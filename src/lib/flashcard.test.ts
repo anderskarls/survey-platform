@@ -135,6 +135,14 @@ describe("korttyper", () => {
     expect(rendersAsCard("CLOZE_CARD", true)).toBe(true);
   });
 
+  it("gör begreppskortet till kort även i kurser utan flashcardläge", () => {
+    // Historie- och samhällskurserna kör inte flashcardläge - det är där
+    // begreppskorten behövs.
+    expect(isCardType("CONCEPT_CARD")).toBe(true);
+    expect(rendersAsCard("CONCEPT_CARD", false)).toBe(true);
+    expect(rendersAsCard("CONCEPT_CARD", true)).toBe(true);
+  });
+
   it("gör aldrig luckfrågan eller fritexten till kort", () => {
     expect(rendersAsCard("CLOZE", true)).toBe(false);
     expect(rendersAsCard("FREE_TEXT", true)).toBe(false);
@@ -158,6 +166,22 @@ describe("kortets baksida", () => {
   it("är ordet ur configen för luckmeningskortet", () => {
     const card = { type: "CLOZE_CARD", config: { answer: "influence" } };
     expect(cardBack(card, false)).toBe("influence");
+  });
+
+  it("är lärarens förklaring för begreppskortet, oavsett kursens läge", () => {
+    const card = { type: "CONCEPT_CARD", config: { explanation: "självstyrande stadsstat" } };
+    expect(cardBack(card, false)).toBe("självstyrande stadsstat");
+    expect(cardBack({ type: "CONCEPT_CARD", config: null }, false)).toBeNull();
+  });
+
+  it("gör begreppskortet till kort i övningen, utan alternativ", () => {
+    const q = toPracticeQuestion(
+      { id: 9, text: "Polis", type: "CONCEPT_CARD", config: { explanation: "stadsstat" }, options: [] },
+      null,
+      false
+    );
+    expect(q!.flashcard).toBe(true);
+    expect(q!.options).toEqual([]);
   });
 
   it("är null när kortet saknar giltig config - hellre baksideslöst än kraschat", () => {

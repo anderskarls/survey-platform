@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import type { UpdateQuestionInput } from "@/lib/validators";
 import { hasGap, isClozeType, parseClozeConfig } from "@/lib/cloze";
+import { CONCEPT_CARD, parseConceptConfig } from "@/lib/begreppskort";
 
 // Metakognitiva "Jag är inte säker" - varken rätt eller fel, se respond-routen.
 const UNSURE = "__UNSURE__";
@@ -159,6 +160,16 @@ export function planQuestionUpdate(
         400
       );
     }
+  }
+
+  if (
+    nextType === CONCEPT_CARD &&
+    !parseConceptConfig(input.config ?? existing.config)
+  ) {
+    throw new QuestionEditError(
+      "Begreppskort kräver config med förklaring (explanation)",
+      400
+    );
   }
 
   const removed = incoming

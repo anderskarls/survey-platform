@@ -2,7 +2,9 @@ import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import UnitEditor from "@/components/admin/UnitEditor";
+import UnitBegreppskort from "@/components/admin/UnitBegreppskort";
 import type { LessonOutline } from "@/lib/moment-status";
+import { CONCEPT_CARD, conceptTopicName, parseConceptConfig } from "@/lib/begreppskort";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +22,26 @@ export default async function UnitEditPage({
 
   const lessons = (Array.isArray(unit.lessons) ? unit.lessons : []) as unknown as LessonOutline[];
 
+  const conceptQuestions = await prisma.question.findMany({
+    where: {
+      type: CONCEPT_CARD,
+      topic: { courseId: cId, unitId: uId, name: conceptTopicName(unit.title) },
+    },
+    orderBy: { id: "asc" },
+    select: {
+      id: true,
+      text: true,
+      config: true,
+      _count: { select: { practiceAttempts: true, answers: true } },
+    },
+  });
+  const cards = conceptQuestions.map((q) => ({
+    id: q.id,
+    term: q.text,
+    explanation: parseConceptConfig(q.config)?.explanation ?? "",
+    mott: q._count.practiceAttempts + q._count.answers,
+  }));
+
   return (
     <div className="animate-fade-in max-w-2xl">
       <Link href={`/admin/courses/${cId}/units`} className="text-sm text-primary hover:underline">
@@ -35,6 +57,8 @@ export default async function UnitEditPage({
         initialGoals={unit.goals ?? []}
         initialLessons={lessons}
       />
+
+      <UnitBegreppskort courseId={cId} unitId={uId} cards={cards} />
     </div>
   );
 }

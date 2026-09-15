@@ -2,6 +2,7 @@ import { z } from "zod";
 import { SUBSKILLS, exemplarsSchema, sortingConfigSchema } from "@/lib/formaga";
 import { clozeConfigSchema, hasGap, isClozeType } from "@/lib/cloze";
 import { timelineConfigSchema } from "@/lib/tidslinje";
+import { CONCEPT_CARD, conceptConfigSchema } from "@/lib/begreppskort";
 
 export const QUESTION_TYPES = [
   "MULTIPLE_CHOICE",
@@ -10,17 +11,19 @@ export const QUESTION_TYPES = [
   "SORTING",
   "CLOZE",
   "CLOZE_CARD",
+  CONCEPT_CARD,
   "TIMELINE",
 ] as const;
 
-// Sorterings-, tidslinje- och luckfrågor delar config-kolumn men har olika form. Unionen
-// avgör vilken det är på innehållet; superRefine nedan kontrollerar sedan att
-// formen matchar frågans typ, så en luckfråga inte kan sparas med en
-// sorteringskonfiguration.
+// Sorterings-, tidslinje-, luck- och begreppskonfigurationer delar config-kolumn
+// men har olika form. Unionen avgör vilken det är på innehållet; superRefine
+// nedan kontrollerar sedan att formen matchar frågans typ, så en luckfråga inte
+// kan sparas med en sorteringskonfiguration.
 const questionConfigSchema = z.union([
   sortingConfigSchema,
   timelineConfigSchema,
   clozeConfigSchema,
+  conceptConfigSchema,
 ]);
 
 // Postgres kan inte lagra NUL (0x00) i en textkolumn - hela inlämningen dör
@@ -206,6 +209,13 @@ export const createQuestionSchema = z.object({
       code: "custom",
       path: ["config"],
       message: "Tidslinjefrågor kräver en config med spann, prickar och mål",
+    });
+  }
+  if (data.type === CONCEPT_CARD && !conceptConfigSchema.safeParse(data.config).success) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["config"],
+      message: "Begreppskort kräver en config med förklaring (explanation)",
     });
   }
   if (!isClozeType(data.type)) return;

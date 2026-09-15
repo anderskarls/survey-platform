@@ -18,6 +18,7 @@ import {
 } from "@/lib/formaga";
 import { Rating } from "ts-fsrs";
 import { gradeCloze, parseClozeConfig } from "@/lib/cloze";
+import { CONCEPT_CARD, parseConceptConfig } from "@/lib/begreppskort";
 import {
   gradeTimeline,
   timelineAnswerSchema,
@@ -201,6 +202,22 @@ export async function POST(request: NextRequest) {
       // samma regel som för sorteringsfacit och luckfrågornas facit.
       // isCorrect förblir null: eleven skattar sig själv i fas 2.
       correctAnswer = config.answer;
+    } else if (question.type === CONCEPT_CARD) {
+      const config = parseConceptConfig(question.config);
+      if (!config) {
+        return NextResponse.json(
+          { error: "Kortet saknar giltig baksida" },
+          { status: 400 }
+        );
+      }
+      if (!flashcardReveal) {
+        return NextResponse.json(
+          { error: "Begreppskortet besvaras genom att vändas" },
+          { status: 400 }
+        );
+      }
+      // Förklaringen lämnar servern först nu, som luckmeningskortets ord.
+      correctAnswer = config.explanation;
     } else if (question.type === "CLOZE") {
       const config = parseClozeConfig(question.config);
       if (!config) {
