@@ -1,5 +1,5 @@
 import { prisma } from "../prisma.js";
-import { senasteSvarPerElev } from "../svarsurval.js";
+import { gallandeSvarPerElev } from "../svarsurval.js";
 import { arOsaker, raknaSvarsalternativ } from "../svarsvarden.js";
 
 export async function summarizeResults(surveyId: number): Promise<string> {
@@ -22,7 +22,9 @@ export async function summarizeResults(surveyId: number): Promise<string> {
 
   const isQuiz = survey.mode === "QUIZ";
   // Omtag: varje elev väger en gång, precis som i webbappens resultatvyer
-  const responses = senasteSvarPerElev(survey.responses);
+  // Omtag: en elev väger en gång. I prov gäller den mest fullständiga
+  // inlämningen, i enkät den senaste - se svarsurval.ts.
+  const responses = gallandeSvarPerElev(survey.responses, { quiz: isQuiz });
   const lines: string[] = [];
   lines.push(`# Sammanfattning: ${survey.title}`);
   lines.push(`Läge: ${isQuiz ? "Quiz" : "Enkät"}`);

@@ -5,7 +5,7 @@ import { requireSurveyAccess } from "@/lib/require-auth";
 import { CSV_BOM, toCsv } from "@/lib/csv-export";
 import { arOsaker } from "@/lib/svarsvarden";
 import { formateraSorteringssvar } from "@/lib/formaga";
-import { senasteSvarPerElev } from "@/lib/svarsurval";
+import { gallandeSvarPerElev } from "@/lib/svarsurval";
 
 export async function GET(
   _request: NextRequest,
@@ -39,10 +39,13 @@ export async function GET(
     return new Response("Enkät hittades inte", { status: 404 });
   }
 
-  // Omtag: en rad per elev, senaste inlämningen gäller. Utan det får CSV:n två
-  // rader för samma elevnummer och varje medelvärde läraren bygger i
-  // kalkylarket väger den eleven dubbelt - samma skada som provkontots rad.
-  survey.responses = senasteSvarPerElev(survey.responses);
+  // Omtag: en rad per elev. Utan det får CSV:n två rader för samma elevnummer
+  // och varje medelvärde läraren bygger i kalkylarket väger den eleven dubbelt
+  // - samma skada som provkontots rad. Vilken inlämning som gäller står i
+  // svarsurval.ts.
+  survey.responses = gallandeSvarPerElev(survey.responses, {
+    quiz: survey.mode === "QUIZ",
+  });
 
   const questions = survey.questions.map((sq) => sq.question);
 

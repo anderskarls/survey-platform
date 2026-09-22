@@ -1,5 +1,5 @@
 import { prisma } from "../prisma.js";
-import { senasteSvarPerElev } from "../svarsurval.js";
+import { gallandeSvarPerElev } from "../svarsurval.js";
 import { raknaSvarsalternativ } from "../svarsvarden.js";
 
 export async function getMomentReport(unitId: number): Promise<string> {
@@ -26,9 +26,10 @@ export async function getMomentReport(unitId: number): Promise<string> {
 
   if (!unit) return "Moment hittades inte.";
 
-  // Omtag: en elev väger en gång per uppgift, senaste inlämningen gäller
+  // Omtag: en elev väger en gång per uppgift. Vilken inlämning som gäller
+  // beror på uppgiftens läge - se svarsurval.ts.
   for (const s of unit.surveys) {
-    s.responses = senasteSvarPerElev(s.responses);
+    s.responses = gallandeSvarPerElev(s.responses, { quiz: s.mode === "QUIZ" });
   }
 
   const lines: string[] = [];

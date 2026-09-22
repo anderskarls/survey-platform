@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { answerLabel } from "@/lib/blank-answer";
 import { requireSurveyAccess } from "@/lib/require-auth";
-import { senasteSvarPerElev } from "@/lib/svarsurval";
+import { gallandeSvarPerElev } from "@/lib/svarsurval";
 import { raknaSvarsalternativ } from "@/lib/svarsvarden";
 import { formateraSorteringssvar } from "@/lib/formaga";
 import { beskrivTimelineFacit, formateraTidslinjesvar } from "@/lib/tidslinje";
@@ -52,8 +52,11 @@ async function getSummary(surveyId: number) {
     return NextResponse.json({ error: "Enkät hittades inte" }, { status: 404 });
   }
 
-  // Omtag: en elev väger en gång, senaste inlämningen gäller
-  survey.responses = senasteSvarPerElev(survey.responses);
+  // Omtag: en elev väger en gång. I prov gäller den mest fullständiga
+  // inlämningen, i enkät den senaste - se svarsurval.ts.
+  survey.responses = gallandeSvarPerElev(survey.responses, {
+    quiz: survey.mode === "QUIZ",
+  });
 
   const questions = survey.questions.map((sq) => {
     const q = sq.question;
@@ -110,10 +113,11 @@ async function getDetailed(surveyId: number) {
     return NextResponse.json({ error: "Enkät hittades inte" }, { status: 404 });
   }
 
-  // Omtag: en elev väger en gång, senaste inlämningen gäller
-  survey.responses = senasteSvarPerElev(survey.responses);
-
   const isQuiz = survey.mode === "QUIZ";
+
+  // Omtag: en elev väger en gång. I prov gäller den mest fullständiga
+  // inlämningen, i enkät den senaste - se svarsurval.ts.
+  survey.responses = gallandeSvarPerElev(survey.responses, { quiz: isQuiz });
 
   const questions = survey.questions.map((sq) => {
     const q = sq.question;

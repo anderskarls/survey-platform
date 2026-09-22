@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireSurveyAccess } from "@/lib/require-auth";
 import { answerLabel } from "@/lib/blank-answer";
-import { senasteSvarPerElev } from "@/lib/svarsurval";
+import { gallandeSvarPerElev } from "@/lib/svarsurval";
 import { arOsaker, raknaSvarsalternativ } from "@/lib/svarsvarden";
 
 export async function GET(
@@ -37,10 +37,11 @@ export async function GET(
     return NextResponse.json({ error: "Enkät hittades inte" }, { status: 404 });
   }
 
-  // Omtag: en elev väger en gång, senaste inlämningen gäller
-  survey.responses = senasteSvarPerElev(survey.responses);
-
   const isQuiz = survey.mode === "QUIZ";
+
+  // Omtag: en elev väger en gång. I prov gäller den mest fullständiga
+  // inlämningen, i enkät den senaste - se svarsurval.ts.
+  survey.responses = gallandeSvarPerElev(survey.responses, { quiz: isQuiz });
   const lines: string[] = [];
   lines.push(`# Sammanfattning: ${survey.title}`);
   lines.push(`Läge: ${isQuiz ? "Quiz" : "Enkät"}`);

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { answerLabel } from "@/lib/blank-answer";
 import { requireCourseAccess } from "@/lib/require-auth";
-import { senasteSvarPerElev } from "@/lib/svarsurval";
+import { gallandeSvarPerElev } from "@/lib/svarsurval";
 import { raknaSvarsalternativ } from "@/lib/svarsvarden";
 import { formateraSorteringssvar } from "@/lib/formaga";
 import { beskrivTimelineFacit, formateraTidslinjesvar } from "@/lib/tidslinje";
@@ -57,10 +57,11 @@ export async function GET(
     return NextResponse.json({ error: "Enkäten tillhör inte denna kurs" }, { status: 403 });
   }
 
-  // Omtag: en elev väger en gång, senaste inlämningen gäller
-  survey.responses = senasteSvarPerElev(survey.responses);
-
   const isQuiz = survey.mode === "QUIZ";
+
+  // Omtag: en elev väger en gång. I prov gäller den mest fullständiga
+  // inlämningen, i enkät den senaste - se svarsurval.ts.
+  survey.responses = gallandeSvarPerElev(survey.responses, { quiz: isQuiz });
 
   const questions = survey.questions.map((sq) => {
     const q = sq.question;

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { answerLabel } from "@/lib/blank-answer";
 import { requireCourseAccess } from "@/lib/require-auth";
-import { senasteSvarPerElev } from "@/lib/svarsurval";
+import { gallandeSvarPerElev } from "@/lib/svarsurval";
 import { raknaSvarsalternativ } from "@/lib/svarsvarden";
 
 // Markdown teacher-report for a whole moment: completion per assignment,
@@ -48,11 +48,12 @@ export async function GET(
     return NextResponse.json({ error: "Momentet hittades inte" }, { status: 404 });
   }
 
-  // Omtag: en elev väger en gång per uppgift, senaste inlämningen gäller.
-  // Utan det här sa rapporten "7 elever har lämnat in" och redovisade
-  // samtidigt en fördelning byggd på nio svarsrader.
+  // Omtag: en elev väger en gång per uppgift. Utan det här sa rapporten
+  // "7 elever har lämnat in" och redovisade samtidigt en fördelning byggd på
+  // nio svarsrader. Vilken inlämning som gäller beror på uppgiftens läge -
+  // se svarsurval.ts.
   for (const s of unit.surveys) {
-    s.responses = senasteSvarPerElev(s.responses);
+    s.responses = gallandeSvarPerElev(s.responses, { quiz: s.mode === "QUIZ" });
   }
 
   const lines: string[] = [];
