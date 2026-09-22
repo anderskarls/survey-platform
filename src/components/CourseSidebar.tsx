@@ -10,6 +10,13 @@ interface CourseSidebarProps {
   courseName: string;
   adminName: string;
   adminEmail?: string | null;
+  /**
+   * Menypunkterna som bara vissa konton har användning för. Vem som ser vad
+   * avgörs i kursens layout, där behörighetsscopet finns - komponenten tar
+   * emot svaret, den räknar inte ut det.
+   */
+  showMoment?: boolean;
+  showKampanj?: boolean;
 }
 
 /**
@@ -68,18 +75,22 @@ export default function CourseSidebar({
   courseName,
   adminName,
   adminEmail,
+  showMoment = true,
+  showKampanj = true,
 }: CourseSidebarProps) {
   const base = `/admin/courses/${courseId}`;
 
+  // Ordningen är arbetsdagens, inte databasens. Det som döljs tas ur listan
+  // helt - en utgråad punkt hade bara väckt frågan varför den står där.
   const links = [
     { href: base, label: "Dashboard", exact: true },
     { href: `${base}/questions`, label: "Frågebank" },
     { href: `${base}/surveys`, label: "Enkäter" },
-    { href: `${base}/units`, label: "Moment" },
+    ...(showMoment ? [{ href: `${base}/units`, label: "Moment" }] : []),
     { href: `${base}/students`, label: "Elever" },
     { href: `${base}/progress`, label: "Elevöversikt" },
     { href: `${base}/practice`, label: "Övning" },
-    { href: `${base}/kampanj`, label: "Kampanjen" },
+    ...(showKampanj ? [{ href: `${base}/kampanj`, label: "Kampanjen" }] : []),
   ];
 
   return (
