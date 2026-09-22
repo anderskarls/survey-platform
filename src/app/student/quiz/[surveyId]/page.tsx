@@ -1,17 +1,24 @@
 import { getStudentSession } from "@/lib/student-session";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import {
-  calculateMastery,
-  latestAnswers,
-  type AnswerRecord,
-} from "@/lib/question-progress";
-import { getRelearningData } from "@/lib/relearning-data";
 import StudentQuizForm from "@/components/StudentQuizForm";
 import { toEnkatFraga } from "@/lib/enkatfraga";
 import Link from "next/link";
 import { isReleased } from "@/lib/survey-release";
 
+/**
+ * Elevens testvy. Hela testet, varje gång.
+ *
+ * Fram till 2026-09-22 filtrerade den här vyn bort frågor eleven redan
+ * räknades som klar med, så ett omförsök bara ställde det man haft fel på.
+ * Det var rimligt när "Öva igen" var appens enda repetitionsväg, men den
+ * vägen finns numera i övningen, där FSRS avgör vad som ska tillbaka och när.
+ * Kvar blev en mätning som mätte olika saker för olika elever: veckotestet
+ * gav femton ord till den som var ny och tre till den som var nära, och ett
+ * resultat gick inte att jämföra med sig självt en vecka senare.
+ *
+ * Nu gäller en regel: testet är testet. Den som gör om det gör om hela.
+ */
 export default async function StudentQuizPage({
   params,
 }: {
@@ -23,7 +30,7 @@ export default async function StudentQuizPage({
   const session = await getStudentSession();
   if (!session) redirect("/login");
 
-  const { studentId, courseId } = session;
+  const { courseId } = session;
 
   const survey = await prisma.survey.findUnique({
     where: { id: surveyId },
@@ -50,45 +57,13 @@ export default async function StudentQuizPage({
     redirect("/student");
   }
 
-  // Get all surveys in the course for mastery calculation
-  const allSurveys = await prisma.survey.findMany({
-    where: { courseId },
-    select: { id: true },
-  });
-
-  const responses = await prisma.response.findMany({
-    where: { studentId, surveyId: { in: allSurveys.map((s) => s.id) } },
-    include: { answers: true },
-    orderBy: { createdAt: "asc" },
-  });
-
-  const allRecords: AnswerRecord[] = responses.flatMap((r) =>
-    r.answers.map((a) => ({
-      questionId: a.questionId,
-      isCorrect: a.isCorrect,
-      createdAt: r.createdAt,
-    }))
-  );
-
-  // Samma behärskningsmodell som startsidans progressbar: FSRS för det som
-  // finns i övningspoolen, senaste svaret för luckfrågor och fritext. Annars
-  // kunde eleven läsa "12 av 15 klarade" och sedan få alla 15 igen.
-  const { states } = await getRelearningData(studentId);
-  const questionIds = survey.questions.map((sq) => sq.questionId);
-  const { remainingIds } = calculateMastery(
-    questionIds,
-    states,
-    latestAnswers(allRecords)
-  );
-  const remainingSet = new Set(remainingIds);
-
-  // Filter to only non-mastered questions
   const flashcard = survey.course.flashcardMode;
-  const remainingQuestions = survey.questions
-    .filter((sq) => remainingSet.has(sq.questionId))
-    .map((sq) => toEnkatFraga(sq.question, flashcard));
+  const questions = survey.questions.map((sq) =>
+    toEnkatFraga(sq.question, flashcard)
+  );
 
-  if (remainingQuestions.length === 0) {
+  // Ett tomt test är lärarens halvfärdiga utkast, inte något eleven ska möta.
+  if (questions.length === 0) {
     redirect("/student");
   }
 
@@ -105,7 +80,7 @@ export default async function StudentQuizPage({
           title: survey.title,
           description: survey.description,
           mode: survey.mode,
-          questions: remainingQuestions,
+          questions,
         }}
         lockMode={survey.lockMode}
         flashcard={flashcard}

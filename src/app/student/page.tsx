@@ -255,21 +255,25 @@ export default async function StudentDashboard() {
                   </div>
                 </div>
 
-                {!allMastered && (
-                  <div className="flex items-center gap-3">
-                    <Link
-                      href={`/student/quiz/${survey.id}`}
-                      className="btn-primary inline-block"
-                    >
-                      {hasDraft ? "Fortsätt" : hasResponded ? "Öva igen" : "Starta"}
-                    </Link>
-                    {hasDraft && (
-                      <span className="text-xs text-warning">
-                        Sparat utkast
-                      </span>
-                    )}
-                  </div>
-                )}
+                {/* Knappen finns kvar även när allt sitter. Testet ger hela
+                    testet varje gång, och då ska den som klarat det också
+                    kunna göra om det - annars vore "Klar" en stängd dörr.
+                    Se student/quiz/[surveyId]/page.tsx. */}
+                <div className="flex items-center gap-3">
+                  <Link
+                    href={`/student/quiz/${survey.id}`}
+                    className={`${allMastered ? "btn-secondary" : "btn-primary"} inline-block`}
+                  >
+                    {hasDraft
+                      ? "Fortsätt"
+                      : hasResponded
+                        ? "Gör om testet"
+                        : "Starta"}
+                  </Link>
+                  {hasDraft && (
+                    <span className="text-xs text-warning">Sparat utkast</span>
+                  )}
+                </div>
               </div>
             );
           })}

@@ -2,8 +2,8 @@
  * En behärskningsmodell för hela elevvyn.
  *
  * Appen bar länge två modeller som inte visste om varandra. Dashboardens
- * progressbarer och quizvyns filter räknade en fråga som klarad efter två
- * rätt i rad (mastery.ts) - en streakmodell som i praktiken aldrig slog till,
+ * progressbarer räknade en fråga som klarad efter två rätt i rad
+ * (mastery.ts) - en streakmodell som i praktiken aldrig slog till,
  * eftersom de flesta quiz görs en gång. Övningen räknade samtidigt behärskning
  * som FSRS gör det: schemalagt intervall minst en vecka. Samma elev kunde se
  * 0 % på startsidan och "sitter bra" i övningen samma dag.
@@ -51,9 +51,13 @@ export function isQuestionMastered(
 }
 
 /**
- * Delar upp en frågeuppsättning i klarat och kvar. Samma uppdelning driver
- * både progressbaren på startsidan och vilka frågor quizvyn ställer om, så
- * att siffran eleven läser stämmer med vad hen sedan får.
+ * Delar upp en frågeuppsättning i klarat och kvar.
+ *
+ * Driver progressbaren på startsidan - hur mycket av testet som sitter. Den
+ * styrde tidigare också vilka frågor ett omförsök ställde, men sedan
+ * 2026-09-22 ger testet hela testet varje gång (se
+ * student/quiz/[surveyId]/page.tsx). Siffran är alltså en avläsning av
+ * kunnandet, inte ett löfte om hur många frågor eleven får.
  */
 export function calculateMastery(
   questionIds: number[],
