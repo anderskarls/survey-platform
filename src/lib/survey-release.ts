@@ -112,6 +112,32 @@ export function nextRelease<T extends Releasable>(
 }
 
 /**
+ * De enkäter som väntar på att släppas, i tur och ordning.
+ *
+ * Ordningen är den läraren faktiskt släpper i: schemalagda datum först i
+ * tidsföljd, manuella sist - sentineltidpunkten bortom 2090 sorterar dit av
+ * sig själv, utan att funktionen behöver känna till den. Delar två enkäter
+ * tidpunkt, vilket är regel i manuellt läge, avgör titeln som en människa
+ * läser den ("Veckotest 2" före "Veckotest 10").
+ *
+ * Släppta enkäter faller bort helt. Att släppa manuellt sätter `openAt` till
+ * null, så en släppt vecka lämnar kön och kommer aldrig tillbaka - kön är
+ * alltså det som återstår, inte hela terminen.
+ */
+export function releaseQueue<T extends Releasable & { title: string }>(
+  surveys: T[],
+  now: Date = new Date()
+): (T & { openAt: Date })[] {
+  return surveys
+    .filter((s): s is T & { openAt: Date } => !isReleased(s, now))
+    .sort(
+      (a, b) =>
+        a.openAt.getTime() - b.openAt.getTime() ||
+        compareTitles(a.title, b.title)
+    );
+}
+
+/**
  * Startpunkten flyttad ett helt antal veckor framåt: samma veckodag, samma
  * klockslag.
  *

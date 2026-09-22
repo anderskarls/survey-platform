@@ -4,6 +4,7 @@ import { requirePageScope } from "@/lib/page-auth";
 
 const adminLinks = [
   { href: "/admin", label: "Dashboard", exact: true },
+  { href: "/admin/veckotest", label: "Veckans test" },
   { href: "/admin/questions", label: "Frågebank" },
   { href: "/admin/surveys", label: "Enkäter" },
 ];

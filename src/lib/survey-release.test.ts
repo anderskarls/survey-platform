@@ -5,6 +5,7 @@ import {
   isManualRelease,
   MANUAL_RELEASE_AT,
   releaseNotice,
+  releaseQueue,
   isReleased,
   nextRelease,
   numberedReleaseDates,
@@ -276,5 +277,53 @@ describe("isBeingReleased", () => {
 
   it("att skjuta en släppt enkät framåt räknas inte som släpp", () => {
     expect(isBeingReleased(slappt, framtid, now)).toBe(false);
+  });
+});
+
+describe("releaseQueue", () => {
+  const manuell = (title: string) => ({ title, openAt: MANUAL_RELEASE_AT });
+
+  it("släppta enkäter är inte i kön", () => {
+    const queue = releaseQueue(
+      [
+        { title: "Veckotest 01", openAt: null },
+        { title: "Veckotest 02", openAt: new Date("2026-08-24T06:00:00Z") },
+        manuell("Veckotest 03"),
+      ],
+      NOW
+    );
+    expect(queue.map((s) => s.title)).toEqual(["Veckotest 03"]);
+  });
+
+  it("manuella sorteras som en människa läser numren", () => {
+    const queue = releaseQueue(
+      [manuell("Veckotest 10"), manuell("Veckotest 2"), manuell("Veckotest 1")],
+      NOW
+    );
+    expect(queue.map((s) => s.title)).toEqual([
+      "Veckotest 1",
+      "Veckotest 2",
+      "Veckotest 10",
+    ]);
+  });
+
+  it("schemalagda står före manuella, i tidsföljd", () => {
+    const queue = releaseQueue(
+      [
+        manuell("Extratest"),
+        { title: "Veckotest 07", openAt: new Date("2026-09-07T06:00:00Z") },
+        { title: "Veckotest 06", openAt: new Date("2026-08-31T06:00:00Z") },
+      ],
+      NOW
+    );
+    expect(queue.map((s) => s.title)).toEqual([
+      "Veckotest 06",
+      "Veckotest 07",
+      "Extratest",
+    ]);
+  });
+
+  it("tom kurs ger tom kö", () => {
+    expect(releaseQueue([], NOW)).toEqual([]);
   });
 });
