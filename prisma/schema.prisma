@@ -118,11 +118,19 @@ model Survey {
   /// Används för veckotest som ska komma ett i taget - se survey-release.ts.
   /// En gång släppt förblir den öppen; frånvarande elever kan ta igen.
   openAt      DateTime?
+  /// Ny version av ett släppt test: samma ord, nya meningar. Pekar alltid på
+  /// originalet, aldrig på en annan version. Se survey-version.ts.
+  versionOfId   Int?
+  versionOf     Survey?  @relation("SurveyVersions", fields: [versionOfId], references: [id], onDelete: SetNull)
+  versions      Survey[] @relation("SurveyVersions")
+  /// 2, 3, ... - originalet är version 1 och bär inget nummer.
+  versionNumber Int?
   createdAt   DateTime         @default(now())
   questions   SurveyQuestion[]
   responses   Response[]
   drafts      DraftResponse[]
 
+  @@unique([versionOfId, versionNumber])
   @@index([unitId])
   @@index([courseId, openAt])
 }

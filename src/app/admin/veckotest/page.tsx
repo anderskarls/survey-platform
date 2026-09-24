@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { ownCoursesWhere } from "@/lib/authz";
 import { requirePageScope } from "@/lib/page-auth";
 import { releaseQueue } from "@/lib/survey-release";
+import { versionCandidates } from "@/lib/survey-version";
 import VeckotestKort, { VeckotestKurs } from "@/components/admin/VeckotestKort";
 
 export const dynamic = "force-dynamic";
@@ -35,7 +36,12 @@ export default async function VeckotestPage() {
           id: true,
           title: true,
           openAt: true,
+          versionOfId: true,
+          versionNumber: true,
           _count: { select: { questions: true } },
+          questions: {
+            select: { question: { select: { type: true, config: true } } },
+          },
         },
       },
     },
@@ -43,7 +49,10 @@ export default async function VeckotestPage() {
 
   const now = new Date();
   const kurser: VeckotestKurs[] = courses.map((c) => {
-    const queue = releaseQueue(c.surveys, now);
+    // Versionerna är egna enkäter men inte egna veckor - de räknas inte i
+    // "X av Y test är öppna", och de står aldrig i kön (de öppnas direkt).
+    const original = c.surveys.filter((s) => s.versionOfId === null);
+    const queue = releaseQueue(original, now);
     const [next, ...resten] = queue;
     return {
       id: c.id,
@@ -59,13 +68,22 @@ export default async function VeckotestPage() {
         : null,
       sedanStar: resten.slice(0, 3).map((s) => s.title),
       queueLength: queue.length,
-      openCount: c.surveys.length - queue.length,
-      totalCount: c.surveys.length,
+      openCount: original.length - queue.length,
+      totalCount: original.length,
+      versioner: versionCandidates(
+        c.surveys.map((s) => ({
+          ...s,
+          questions: s.questions.map((sq) => sq.question),
+        })),
+        now
+      ),
     };
   });
 
-  const medKo = kurser.filter((k) => k.queueLength > 0);
-  const utanKo = kurser.filter((k) => k.queueLength === 0);
+  // Ett kort behövs så länge det finns något att trycka på: ett test att
+  // öppna eller ett öppnat test som kan skickas ut i en ny version.
+  const medKo = kurser.filter((k) => k.queueLength > 0 || k.versioner.length > 0);
+  const utanKo = kurser.filter((k) => k.queueLength === 0 && k.versioner.length === 0);
 
   return (
     <div className="animate-fade-in">
@@ -74,7 +92,8 @@ export default async function VeckotestPage() {
         <p className="text-muted text-sm mt-1 max-w-prose">
           Nästa oöppnade test i varje kurs. Att öppna ett test visar det för
           klassen och öppnar samtidigt veckans ord för övning. Ett öppnat test
-          ligger kvar - den som varit sjuk kan ta igen.
+          ligger kvar - den som varit sjuk kan ta igen. Ett öppnat test kan
+          också skickas ut igen i en ny version: samma ord, nya meningar.
         </p>
       </div>
 

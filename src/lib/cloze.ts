@@ -52,6 +52,12 @@ export const clozeConfigSchema = z.object({
     .default([]),
   /** Svensk glosa som ledtråd, så eleven vet vilket ord som avses. */
   hint: z.string().max(200).optional(),
+  /**
+   * Andra meningar för samma ord, till nya versioner av veckotestet - se
+   * survey-version.ts. Samma lucka och samma facit; bara sammanhanget byts,
+   * så att eleven inte kan känna igen meningen i stället för ordet.
+   */
+  variants: z.array(z.string().min(1).max(500)).max(10).optional(),
 });
 
 export type ClozeConfig = z.infer<typeof clozeConfigSchema>;

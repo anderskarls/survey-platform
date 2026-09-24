@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/Toast";
 import { isManualRelease } from "@/lib/survey-release";
+import type { VersionCandidate } from "@/lib/survey-version";
 
 export interface VeckotestKurs {
   id: number;
@@ -23,6 +24,8 @@ export interface VeckotestKurs {
   queueLength: number;
   openCount: number;
   totalCount: number;
+  /** Öppnade test som kan skickas ut i en ny version, i titelordning. */
+  versioner: VersionCandidate[];
 }
 
 /**
@@ -169,6 +172,8 @@ export default function VeckotestKort({ kurs }: { kurs: VeckotestKurs }) {
         </p>
       )}
 
+      {kurs.versioner.length > 0 && <NyVersion versioner={kurs.versioner} />}
+
       <div className="mt-auto pt-4 text-xs text-muted">
         <div>
           {kurs.openCount} av {kurs.totalCount} test är öppna
@@ -179,6 +184,106 @@ export default function VeckotestKort({ kurs }: { kurs: VeckotestKurs }) {
             {kurs.queueLength > kurs.sedanStar.length + 1 && " ..."}
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Skicka ut ett redan öppnat test igen: samma ord, nya meningar.
+ *
+ * Förvalt är det senaste öppnade testet i titelordning - det är det läraren
+ * nästan alltid menar ("veckans test en gång till"). Knappen frågar en gång,
+ * av samma skäl som öppningsknappen: versionen öppnas för klassen direkt och
+ * kan inte dras tillbaka härifrån.
+ */
+function NyVersion({ versioner }: { versioner: VersionCandidate[] }) {
+  const { showToast } = useToast();
+  const router = useRouter();
+  const [valdId, setValdId] = useState(versioner[versioner.length - 1].id);
+  const [fragar, setFragar] = useState(false);
+  const [skickar, setSkickar] = useState(false);
+  const vald = versioner.find((v) => v.id === valdId) ?? versioner[versioner.length - 1];
+
+  async function skicka() {
+    setSkickar(true);
+    try {
+      const res = await fetch(`/api/surveys/${vald.id}/versions`, { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showToast(data.error || "Kunde inte skapa versionen", "error");
+        return;
+      }
+      showToast(`${data.survey?.title ?? "Versionen"} är öppen för klassen`);
+      setFragar(false);
+      router.refresh();
+    } catch {
+      showToast(
+        "Kunde inte skapa versionen. Kontrollera din internetanslutning.",
+        "error"
+      );
+    } finally {
+      setSkickar(false);
+    }
+  }
+
+  return (
+    <div className="mt-5 pt-4 border-t border-border">
+      <div className="text-xs uppercase tracking-wide text-muted">
+        Ny version av ett öppnat test
+      </div>
+      <p className="text-sm text-muted mt-0.5">
+        Samma ord, nya meningar. Blir ett eget test bredvid originalet.
+      </p>
+      <div className="mt-3 flex items-center gap-2">
+        <select
+          value={vald.id}
+          onChange={(e) => {
+            setValdId(Number(e.target.value));
+            setFragar(false);
+          }}
+          disabled={skickar}
+          className="input-field flex-1 min-w-0"
+          aria-label="Test att skicka ut igen"
+        >
+          {versioner.map((v) => (
+            <option key={v.id} value={v.id}>
+              {v.title}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="mt-3">
+        {fragar ? (
+          <div className="rounded-lg border border-border bg-surface-muted/50 p-3">
+            <p className="text-sm mb-3">
+              Skicka ut <strong>{vald.title} - version {vald.nextVersion}</strong>{" "}
+              till klassen nu? Det öppnas direkt.
+            </p>
+            <div className="flex items-center gap-2">
+              <button onClick={skicka} disabled={skickar} className="btn-primary">
+                {skickar ? "Skickar..." : "Ja, skicka ut"}
+              </button>
+              <button
+                onClick={() => setFragar(false)}
+                disabled={skickar}
+                className="btn-secondary"
+              >
+                Avbryt
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button onClick={() => setFragar(true)} className="btn-secondary w-full">
+            Skicka ut version {vald.nextVersion}
+          </button>
+        )}
+        <div className="text-xs text-muted mt-1.5">
+          {vald.left === 1
+            ? "Det här är sista versionen som finns meningar till."
+            : `Meningar finns till ${vald.left} versioner till.`}
+        </div>
       </div>
     </div>
   );
