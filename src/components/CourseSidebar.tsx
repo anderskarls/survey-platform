@@ -17,6 +17,8 @@ interface CourseSidebarProps {
    */
   showMoment?: boolean;
   showKampanj?: boolean;
+  /** Bara kurser som är kopplade till ett tidslinjespel har resultat att visa. */
+  showTidslinjespel?: boolean;
 }
 
 /**
@@ -77,6 +79,7 @@ export default function CourseSidebar({
   adminEmail,
   showMoment = true,
   showKampanj = true,
+  showTidslinjespel = false,
 }: CourseSidebarProps) {
   const base = `/admin/courses/${courseId}`;
 
@@ -90,6 +93,7 @@ export default function CourseSidebar({
     { href: `${base}/students`, label: "Elever" },
     { href: `${base}/progress`, label: "Elevöversikt" },
     { href: `${base}/practice`, label: "Övning" },
+    ...(showTidslinjespel ? [{ href: `${base}/tidslinjespel`, label: "Tidslinjespel" }] : []),
     ...(showKampanj ? [{ href: `${base}/kampanj`, label: "Kampanjen" }] : []),
   ];
 

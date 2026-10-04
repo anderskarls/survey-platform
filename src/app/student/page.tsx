@@ -11,6 +11,8 @@ import { summarizePracticeReady } from "@/lib/relearning";
 import Link from "next/link";
 import FlaggedQuestionsList from "@/components/FlaggedQuestionsList";
 import { isReleased, nextRelease, formatRelease } from "@/lib/survey-release";
+import { spelForKurs } from "@/lib/tidslinjespel-db";
+import SpelKort from "@/components/spel/SpelKort";
 
 export default async function StudentDashboard() {
   const session = await getStudentSession();
@@ -90,7 +92,10 @@ export default async function StudentDashboard() {
 
   // Successiv ominlärning: repetitioner som är due plus nya ord som får
   // introduceras idag. Laddningen delas med layouten via React-cachen.
-  const relearning = await getRelearningData(studentId);
+  const [relearning, spel] = await Promise.all([
+    getRelearningData(studentId),
+    spelForKurs(courseId),
+  ]);
   const practiceReady = summarizePracticeReady(relearning.states, {
     candidates: relearning.newCandidates,
     introducedToday: relearning.introducedToday,
@@ -175,6 +180,13 @@ export default async function StudentDashboard() {
               Öva nu
             </Link>
           </div>
+        </div>
+      )}
+
+      {spel.length > 0 && (
+        <div className="mb-8">
+          <h3 className="text-lg font-semibold mb-3 tracking-tight">Spel</h3>
+          <SpelKort spel={spel} />
         </div>
       )}
 

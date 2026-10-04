@@ -23,6 +23,7 @@ model Course {
   units     Unit[]
   campaignSnapshot CampaignSnapshot?
   admins    AdminCourse[]
+  timelineGames TimelineGameCourse[]
 }
 
 model Unit {
@@ -56,6 +57,7 @@ model Student {
   drafts            DraftResponse[]
   assignmentFeedbacks AssignmentFeedback[]
   practiceAttempts   PracticeAttempt[]
+  timelineGameRounds TimelineGameRound[]
 
   @@unique([courseId, number])
   @@index([personKey])
@@ -283,4 +285,50 @@ model RateLimit {
   resetAt DateTime
 
   @@index([resetAt])
+}
+
+/// Tidslinjespelet: ett fristående spel mot en kurs tidslinjekorpus.
+/// Korpusen laddas upp ur tidslinjerepot (spel.py + scripts/ladda-tidslinjespel.mts)
+/// och kan kopplas till flera kurser - samma korpus för alla grupper i ett ämne.
+model TimelineGame {
+  id        Int      @id @default(autoincrement())
+  slug      String   @unique // "hi1b", "israel-palestina"
+  title     String
+  data      Json     // { epoker, handelser } - tidslinjespelDataSchema
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  courses   TimelineGameCourse[]
+  rounds    TimelineGameRound[]
+}
+
+model TimelineGameCourse {
+  gameId   Int
+  game     TimelineGame @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  courseId Int
+  course   Course       @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@id([gameId, courseId])
+  @@index([courseId])
+}
+
+/// En spelomgång. `items` bär uppgifterna med en egen kopia av facit, så att
+/// en senare ändring i korpusen inte skriver om gamla resultat. finishedAt
+/// null = påbörjad men inte avslutad.
+model TimelineGameRound {
+  id           Int          @id @default(autoincrement())
+  gameId       Int
+  game         TimelineGame @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  studentId    Int
+  student      Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  seed         Int
+  items        Json
+  score        Int          @default(0)
+  maxScore     Int
+  correctCount Int          @default(0)
+  answered     Int          @default(0)
+  createdAt    DateTime     @default(now())
+  finishedAt   DateTime?
+
+  @@index([gameId, studentId])
+  @@index([studentId, createdAt])
 }

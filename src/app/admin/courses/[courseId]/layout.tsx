@@ -19,9 +19,10 @@ export default async function CourseLayout({
   // ärver den här kontrollen - läggs en ny sida till behöver den inget eget.
   const scope = await requireCoursePage(Number(courseId));
 
-  const course = await prisma.course.findUnique({
-    where: { id: Number(courseId) },
-  });
+  const [course, tidslinjespel] = await Promise.all([
+    prisma.course.findUnique({ where: { id: Number(courseId) } }),
+    prisma.timelineGameCourse.count({ where: { courseId: Number(courseId) } }),
+  ]);
 
   if (!course) notFound();
 
@@ -45,6 +46,7 @@ export default async function CourseLayout({
         adminEmail={scope.email}
         showMoment={arAgare}
         showKampanj={arAgare}
+        showTidslinjespel={tidslinjespel > 0}
       />
       <main id="main-content" className="flex-1 p-4 md:p-8">{children}</main>
     </div>

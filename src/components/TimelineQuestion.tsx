@@ -32,6 +32,11 @@ interface Props {
   onChange: (value: TimelineAnswer | null) => void;
   disabled: boolean;
   result: TimelineResult | null;
+  /**
+   * Raden under axeln efter svar. Tidslinjespelets skrivuppgift visar facit
+   * på axeln utan att eleven tryckt där, och då stämmer inte "Du tryckte på".
+   */
+  ledtextEfterSvar?: string;
 }
 
 // Lodrät layout uppifrån: epoknamnen, två etikettrader ovanför axeln,
@@ -119,6 +124,7 @@ export default function TimelineQuestion({
   onChange,
   disabled,
   result,
+  ledtextEfterSvar,
 }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const [W, setW] = useState(640);
@@ -306,7 +312,9 @@ export default function TimelineQuestion({
   const cursor = disabled || svarat ? "default" : enPrick ? "pointer" : "crosshair";
 
   let ledtext: string;
-  if (svarat) {
+  if (svarat && ledtextEfterSvar !== undefined) {
+    ledtext = ledtextEfterSvar;
+  } else if (svarat) {
     ledtext =
       form === "placera" && result.klick !== null ? mening(`Du tryckte på ${formatAr(result.klick)}`) : "";
   } else if (form === "placera")

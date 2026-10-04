@@ -26,7 +26,7 @@ export type TimelineForm = (typeof TIMELINE_FORMS)[number];
 /** Nära = inom så här många toleranser. Räknas som fel i schemat men sägs. */
 export const NARA_FAKTOR = 3;
 
-const handelseSchema = z.object({
+export const handelseSchema = z.object({
   ar: z.number().int().min(-10000).max(3000),
   rubrik: z.string().min(1).max(200),
   cirka: z.boolean().optional(),
@@ -39,7 +39,7 @@ const malSchema = handelseSchema.extend({
 });
 export type TimelineMal = z.infer<typeof malSchema>;
 
-const epokSchema = z.object({
+export const epokSchema = z.object({
   namn: z.string().min(1).max(60),
   fran: z.number().int(),
   till: z.number().int(),

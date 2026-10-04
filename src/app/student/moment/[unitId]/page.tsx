@@ -5,6 +5,8 @@ import { buildMomentState, LessonOutline, LessonState, TaskState } from "@/lib/m
 import { quizResult, draftProgress } from "@/lib/moment-scoring";
 import { IconCheck, IconArrowRight, IconFlag, IconClock } from "@/components/moment-icons";
 import Link from "next/link";
+import { spelForKurs } from "@/lib/tidslinjespel-db";
+import SpelKort from "@/components/spel/SpelKort";
 
 // ── helpers ───────────────────────────────────────────────────
 function formatDate(iso?: string): string | null {
@@ -173,7 +175,7 @@ export default async function MomentPage({
   const id = Number(unitId);
   if (isNaN(id)) redirect("/student");
 
-  const [unit, course] = await Promise.all([
+  const [unit, course, spel] = await Promise.all([
     prisma.unit.findUnique({
       where: { id },
       include: {
@@ -181,6 +183,7 @@ export default async function MomentPage({
       },
     }),
     prisma.course.findUnique({ where: { id: courseId } }),
+    spelForKurs(courseId),
   ]);
   if (!unit || unit.courseId !== courseId) redirect("/student");
 
@@ -317,6 +320,12 @@ export default async function MomentPage({
             Du har <strong>{stats.missed} missad uppgift</strong> från en tidigare lektion. Den ligger kvar - du kan ta igen den när som helst.
           </div>
           <Link href={`/student/moment/${id}/att-gora`} className="btn-secondary text-sm shrink-0">Visa →</Link>
+        </div>
+      )}
+
+      {spel.length > 0 && (
+        <div className="mb-8">
+          <SpelKort spel={spel} />
         </div>
       )}
 
