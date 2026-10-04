@@ -24,7 +24,13 @@ export default async function TidslinjespelPage({
   if (!spel) notFound();
 
   const rundor = await prisma.timelineGameRound.findMany({
-    where: { gameId: spel.id, studentId: session.studentId, finishedAt: { not: null } },
+    // Bara fritt spel - de släppta omgångarna har egna resultat.
+    where: {
+      gameId: spel.id,
+      studentId: session.studentId,
+      releaseId: null,
+      finishedAt: { not: null },
+    },
     orderBy: { finishedAt: "desc" },
     select: { score: true },
   });
@@ -32,7 +38,7 @@ export default async function TidslinjespelPage({
   return (
     <main className="min-h-screen">
       <TidslinjespelRunner
-        slug={spel.slug}
+        lage={{ typ: "fritt", slug: spel.slug }}
         titel={spel.title}
         basta={rundor.length ? Math.max(...rundor.map((r) => r.score)) : null}
         senaste={rundor[0]?.score ?? null}

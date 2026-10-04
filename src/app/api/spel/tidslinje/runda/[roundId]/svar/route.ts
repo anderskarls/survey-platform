@@ -37,6 +37,17 @@ export async function POST(
     if (runda.finishedAt || index !== runda.answered) {
       return NextResponse.json({ error: "Uppgiften är redan besvarad" }, { status: 409 });
     }
+    // En stängd lärarsläppt omgång tar inte emot fler svar, inte heller på
+    // ett försök som påbörjades innan den stängdes.
+    if (runda.releaseId !== null) {
+      const omgang = await prisma.timelineGameRelease.findUnique({
+        where: { id: runda.releaseId },
+        select: { closedAt: true },
+      });
+      if (!omgang || omgang.closedAt) {
+        return NextResponse.json({ error: "Omgången är stängd." }, { status: 409 });
+      }
+    }
 
     const items = lasRunda(runda.items);
     const item = items[index];

@@ -28,12 +28,22 @@ interface Rattning {
   klar: boolean;
 }
 
+/**
+ * fritt   hela korpusen, nya uppgifter varje omgång, spela hur många gånger som helst
+ * omgang  en lärarsläppt omgång: samma uppgifter för alla, ett försök, kan återupptas
+ */
+export type Lage =
+  | { typ: "fritt"; slug: string }
+  | { typ: "omgang"; releaseId: number; besvarade: number; antalUppgifter: number };
+
 interface Props {
-  slug: string;
+  lage: Lage;
   titel: string;
-  basta: number | null;
-  senaste: number | null;
-  antalRundor: number;
+  /** fritt spel: elevens tidigare avslutade omgångar */
+  basta?: number | null;
+  senaste?: number | null;
+  antalRundor?: number;
+  tillbaka?: { href: string; text: string };
 }
 
 const UTFALL_TEXT: Record<TimelineUtfall, string> = {
@@ -47,7 +57,14 @@ const UTFALL_KLASS: Record<TimelineUtfall, string> = {
   fel: "text-error",
 };
 
-export default function TidslinjespelRunner({ slug, titel, basta, senaste, antalRundor }: Props) {
+export default function TidslinjespelRunner({
+  lage,
+  titel,
+  basta = null,
+  senaste = null,
+  antalRundor = 0,
+  tillbaka = { href: "/student", text: "Tillbaka till kursen" },
+}: Props) {
   const [fas, setFas] = useState<"start" | "spel" | "summa">("start");
   const [roundId, setRoundId] = useState<number | null>(null);
   const [items, setItems] = useState<KlientItem[]>([]);
@@ -64,16 +81,21 @@ export default function TidslinjespelRunner({ slug, titel, basta, senaste, antal
     setLaddar(true);
     setFel(null);
     try {
-      const res = await fetch(`/api/spel/tidslinje/${encodeURIComponent(slug)}/runda`, { method: "POST" });
+      const url =
+        lage.typ === "fritt"
+          ? `/api/spel/tidslinje/${encodeURIComponent(lage.slug)}/runda`
+          : `/api/spel/tidslinje/omgang/${lage.releaseId}/runda`;
+      const res = await fetch(url, { method: "POST" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Kunde inte starta en omgång");
+      // En släppt omgång kan vara påbörjad: fortsätt vid första obesvarade.
       setRoundId(data.roundId);
       setItems(data.items);
-      setIndex(0);
-      setScore(0);
-      setPoangLista([]);
+      setIndex(data.answered ?? 0);
+      setScore(data.score ?? 0);
+      setPoangLista(data.poang ?? []);
       setRattning(null);
-      setFas("spel");
+      setFas(data.klar ? "summa" : "spel");
     } catch (e) {
       setFel(e instanceof Error ? e.message : "Något gick fel");
     } finally {
@@ -120,7 +142,7 @@ export default function TidslinjespelRunner({ slug, titel, basta, senaste, antal
   return (
     <div className="max-w-3xl mx-auto px-4 py-6 sm:py-10">
       <div className="flex items-center justify-between gap-4 mb-6">
-        <Link href="/student" className="text-sm text-primary hover:underline">
+        <Link href={tillbaka.href} className="text-sm text-primary hover:underline">
           &larr; Tillbaka
         </Link>
         {fas === "spel" && (
@@ -134,18 +156,32 @@ export default function TidslinjespelRunner({ slug, titel, basta, senaste, antal
         <div className="card p-6 sm:p-8">
           <div className="font-mono text-[11px] uppercase tracking-wider text-muted mb-2">Tidslinjespelet</div>
           <h1 className="text-3xl font-bold tracking-tight">{titel}</h1>
-          <p className="text-muted mt-3 max-w-prose">
-            Tio uppgifter per omgång: placera händelser på tidslinjen, skriv årtalet och sätt händelser i rätt
-            ordning. Ju närmare du kommer, desto fler poäng - högst {MAX_POANG} per uppgift.
-          </p>
-          {antalRundor > 0 && (
+          {lage.typ === "fritt" ? (
+            <p className="text-muted mt-3 max-w-prose">
+              Tio uppgifter per omgång: placera händelser på tidslinjen, skriv årtalet och sätt händelser i rätt
+              ordning. Ju närmare du kommer, desto fler poäng - högst {MAX_POANG} per uppgift.
+            </p>
+          ) : (
+            <p className="text-muted mt-3 max-w-prose">
+              {lage.antalUppgifter} uppgifter: placera händelser på tidslinjen, skriv årtalet och sätt händelser i
+              rätt ordning. Alla i klassen får samma uppgifter och du har <strong>ett försök</strong>. Avbryter du
+              kan du fortsätta där du slutade.
+            </p>
+          )}
+          {lage.typ === "fritt" && antalRundor > 0 && (
             <p className="text-sm text-muted mt-4">
               Ditt rekord: <strong className="text-foreground">{rekord}</strong> · senaste omgången: {senaste} ·{" "}
               {antalRundor} {antalRundor === 1 ? "omgång" : "omgångar"} spelade
             </p>
           )}
           <button type="button" onClick={starta} disabled={laddar} className="btn-primary mt-6">
-            {laddar ? "Startar..." : "Starta en omgång"}
+            {laddar
+              ? "Startar..."
+              : lage.typ === "fritt"
+                ? "Starta en omgång"
+                : lage.besvarade > 0
+                  ? `Fortsätt med uppgift ${lage.besvarade + 1} av ${lage.antalUppgifter}`
+                  : "Starta"}
           </button>
         </div>
       )}
@@ -206,11 +242,13 @@ export default function TidslinjespelRunner({ slug, titel, basta, senaste, antal
             ))}
           </div>
           <div className="flex flex-wrap gap-3 mt-6">
-            <button type="button" onClick={starta} disabled={laddar} className="btn-primary">
-              {laddar ? "Startar..." : "Spela igen"}
-            </button>
-            <Link href="/student" className="btn-secondary">
-              Tillbaka till kursen
+            {lage.typ === "fritt" && (
+              <button type="button" onClick={starta} disabled={laddar} className="btn-primary">
+                {laddar ? "Startar..." : "Spela igen"}
+              </button>
+            )}
+            <Link href={tillbaka.href} className="btn-secondary">
+              {tillbaka.text}
             </Link>
           </div>
         </div>

@@ -24,6 +24,59 @@ export async function hamtaSpelForKurs(
   return { ...spel, data: data.data };
 }
 
+export interface ElevOmgang {
+  id: number;
+  title: string;
+  unitId: number | null;
+  status: "oppen" | "stangd";
+  /** null = inte påbörjad */
+  besvarade: number | null;
+  antalUppgifter: number;
+  /** satt när eleven spelat klart */
+  poang: number | null;
+  maxPoang: number;
+}
+
+/**
+ * De släppta omgångarna i elevens kurs med elevens läge i var och en. Dolda
+ * omgångar finns inte för eleven. `unitId` avgränsar till ett moment.
+ */
+export async function omgangarForElev(
+  courseId: number,
+  studentId: number,
+  unitId?: number
+): Promise<ElevOmgang[]> {
+  const omgangar = await prisma.timelineGameRelease.findMany({
+    where: { courseId, releasedAt: { not: null }, ...(unitId !== undefined ? { unitId } : {}) },
+    orderBy: { releasedAt: "desc" },
+    select: {
+      id: true,
+      title: true,
+      unitId: true,
+      closedAt: true,
+      items: true,
+      rounds: {
+        where: { studentId },
+        select: { answered: true, score: true, maxScore: true, finishedAt: true },
+      },
+    },
+  });
+  return omgangar.map((o) => {
+    const r = o.rounds[0];
+    const antal = Array.isArray(o.items) ? o.items.length : 0;
+    return {
+      id: o.id,
+      title: o.title,
+      unitId: o.unitId,
+      status: o.closedAt ? "stangd" : "oppen",
+      besvarade: r ? r.answered : null,
+      antalUppgifter: antal,
+      poang: r?.finishedAt ? r.score : null,
+      maxPoang: r?.maxScore ?? antal * 100,
+    };
+  });
+}
+
 /** Spelen kopplade till en kurs, för länkarna på elevens sidor. */
 export function spelForKurs(courseId: number) {
   return prisma.timelineGame.findMany({

@@ -10,6 +10,9 @@ import {
   poangOrdna,
   rattaItem,
   svarasteHandelser,
+  urval,
+  MIN_URVAL,
+  omgangsStatus,
   tidslinjespelDataSchema,
   toleransFor,
   tolkaArtal,
@@ -258,5 +261,46 @@ describe("svarasteHandelser", () => {
     expect(s.length).toBe(7);
     expect(s.every((x) => x.forsok === 2)).toBe(true);
     if (a[0].form !== "ordna") expect(s[0].rubrik).toBe(a[0].config.mal[0].rubrik);
+  });
+});
+
+describe("omgång ur ett urval", () => {
+  it("tar händelserna i spannet utom de uteslutna", () => {
+    const antiken = urval(HI1B, -3000, 476);
+    expect(antiken.map((h) => h.ar)).toEqual([-3000, -509, -44, 476]);
+    const utanCaesar = urval(HI1B, -3000, 476, [nyckel({ ar: -44, rubrik: "Caesar mördas" })]);
+    expect(utanCaesar.map((h) => h.ar)).toEqual([-3000, -509, 476]);
+  });
+
+  it("krymper omgången med urvalet och håller målen inom urvalet", () => {
+    const mal = urval(HI1B, -3000, 476);
+    expect(mal.length).toBe(MIN_URVAL);
+    const fonster = { fran: -3000, till: 476 };
+    const nycklar = new Set(mal.map(nyckel));
+    for (const seed of SEEDS) {
+      const items = genereraRunda(HI1B, seed, { mal, fonster });
+      const enkla = items.filter((i) => i.form !== "ordna");
+      expect(enkla.length).toBe(4);
+      expect(items.filter((i) => i.form === "ordna").length).toBe(3);
+      for (const item of items) {
+        expect(timelineConfigSchema.safeParse(item.config).success).toBe(true);
+        for (const m of item.config.mal) expect(nycklar.has(nyckel(m))).toBe(true);
+      }
+      // Axeln är omgångens spann plus marginal, inte målets epok.
+      for (const item of enkla) {
+        expect(item.config.fran).toBeLessThanOrEqual(-3000);
+        expect(item.config.till).toBeGreaterThanOrEqual(476);
+        expect(item.config.till).toBeLessThan(1000);
+      }
+    }
+  });
+});
+
+describe("omgangsStatus", () => {
+  const nu = new Date();
+  it("är dold tills den släpps och stängd när closedAt är satt", () => {
+    expect(omgangsStatus({ releasedAt: null, closedAt: null })).toBe("dold");
+    expect(omgangsStatus({ releasedAt: nu, closedAt: null })).toBe("oppen");
+    expect(omgangsStatus({ releasedAt: nu, closedAt: nu })).toBe("stangd");
   });
 });

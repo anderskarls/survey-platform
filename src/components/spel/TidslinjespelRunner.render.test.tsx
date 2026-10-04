@@ -31,11 +31,29 @@ const DATA = tidslinjespelDataSchema.parse({
 describe("TidslinjespelRunner", () => {
   it("visar startskärmen med rekordet", () => {
     const html = renderToStaticMarkup(
-      <TidslinjespelRunner slug="hi1b" titel="Historia 1b" basta={720} senaste={650} antalRundor={3} />
+      <TidslinjespelRunner
+        lage={{ typ: "fritt", slug: "hi1b" }}
+        titel="Historia 1b"
+        basta={720}
+        senaste={650}
+        antalRundor={3}
+      />
     );
     expect(html).toContain("Historia 1b");
     expect(html).toContain("720");
     expect(html).toContain("Starta en omgång");
+  });
+
+  it("erbjuder en påbörjad släppt omgång att fortsätta", () => {
+    const html = renderToStaticMarkup(
+      <TidslinjespelRunner
+        lage={{ typ: "omgang", releaseId: 3, besvarade: 4, antalUppgifter: 10 }}
+        titel="Antiken"
+      />
+    );
+    expect(html).toContain("ett försök");
+    expect(html).toContain("Fortsätt med uppgift 5 av 10");
+    expect(html).not.toContain("rekord");
   });
 
   it("visar inte målets årtal i någon uppgift före svar", () => {

@@ -47,6 +47,12 @@ export const MAX_POANG = 100;
 const NARA_TAK = 80;
 /** Färre händelser än så här räcker inte till en omgång med unika mål. */
 export const MIN_HANDELSER = 8;
+/**
+ * Minsta urval för en lärarsläppt omgång. Ett moment kan ha få händelser i
+ * korpusen (Var börjar historien har sex), så omgången krymper med urvalet i
+ * stället för att vägra - men under fyra blir det inget spel.
+ */
+export const MIN_URVAL = 4;
 
 const ANTAL_PLACERA = 4;
 const ANTAL_SKRIV = 3;
@@ -66,10 +72,18 @@ export function nyckel(h: { ar: number; rubrik: string }): string {
   return `${h.ar}|${h.rubrik}`;
 }
 
+/** Tidslinjens sparade vyer - förval för tidsspannet när läraren skapar en omgång. */
+const vySchema = z.object({
+  namn: z.string().min(1).max(80),
+  fran: z.number().int(),
+  till: z.number().int(),
+});
+
 export const tidslinjespelDataSchema = z
   .object({
     epoker: z.array(epokSchema).min(1).max(12),
     handelser: z.array(spelHandelseSchema).min(MIN_HANDELSER).max(1000),
+    vyer: z.array(vySchema).max(50).default([]),
   })
   .superRefine((d, ctx) => {
     const fel = (message: string) => ctx.addIssue({ code: "custom", message });
@@ -317,13 +331,24 @@ function valjAnkare(
   return valda.sort((a, b) => a.ar - b.ar);
 }
 
+/** Ett givet fönster (en omgångs tidsspann) med tio procents marginal, inom axeln. */
+function givetFonster(
+  f: { fran: number; till: number },
+  epoker: TimelineEpok[]
+): { fran: number; till: number } {
+  const a = axel(epoker);
+  const marg = Math.max(1, Math.round((f.till - f.fran) * 0.1));
+  return { fran: Math.max(a.fran, f.fran - marg), till: Math.min(a.till, f.till + marg) };
+}
+
 function placeraConfig(
   mal: SpelHandelse,
   data: TidslinjespelData,
   random: () => number,
-  medSpannGolv: boolean
+  medSpannGolv: boolean,
+  givet?: { fran: number; till: number }
 ): TimelineConfig {
-  const f = fonster(mal.ar, data.epoker);
+  const f = givet ? givetFonster(givet, data.epoker) : fonster(mal.ar, data.epoker);
   const ankare = valjAnkare(mal, data, f, random);
   return {
     form: "placera",
@@ -396,26 +421,65 @@ function ordnaItem(
   return { form: "ordna", config, visningsordning: visning };
 }
 
+export interface RundaVal {
+  /** Händelserna uppgifterna får handla om. Utan: hela korpusen. */
+  mal?: SpelHandelse[];
+  /** Axeln för placera och skriv. Utan: målets epok plus marginal. */
+  fonster?: { fran: number; till: number };
+}
+
+/**
+ * Händelserna i ett tidsspann (gränserna inräknade), utom de läraren bockat
+ * ur. Urvalet för en lärarsläppt omgång.
+ */
+export function urval(
+  data: TidslinjespelData,
+  fran: number,
+  till: number,
+  uteslutna: readonly string[] = []
+): SpelHandelse[] {
+  const bort = new Set(uteslutna);
+  return data.handelser.filter((h) => h.ar >= fran && h.ar <= till && !bort.has(nyckel(h)));
+}
+
 /**
  * En omgång: fyra placera, tre skriv och tre ordna (två, tre och fyra kort),
  * blandade. Ingen händelse är mål i mer än en placera- eller skrivuppgift.
+ *
+ * Med ett urval (`val.mal`) krymper omgången när urvalet har färre än sju
+ * händelser: varje händelse blir en placera- eller skrivuppgift, och
+ * ordnauppgifterna får återanvända dem. Ankarna på axeln tas ur hela
+ * korpusen - de är stödpunkter, inte frågor.
  */
-export function genereraRunda(data: TidslinjespelData, seed: number): RundaItem[] {
+export function genereraRunda(
+  data: TidslinjespelData,
+  seed: number,
+  val: RundaVal = {}
+): RundaItem[] {
   const random = rng(seed);
+  const kandidater = val.mal ?? data.handelser;
   const anvanda = new Set<string>();
-  const enkla = viktatUrval(data.handelser, ANTAL_PLACERA + ANTAL_SKRIV, random);
+  const enkla = viktatUrval(kandidater, ANTAL_PLACERA + ANTAL_SKRIV, random);
   for (const h of enkla) anvanda.add(nyckel(h));
+  const antalPlacera = Math.round((enkla.length * ANTAL_PLACERA) / (ANTAL_PLACERA + ANTAL_SKRIV));
 
   const items: RundaItem[] = [
-    ...enkla.slice(0, ANTAL_PLACERA).map(
-      (h): RundaItem => ({ form: "placera", config: placeraConfig(h, data, random, true) })
+    ...enkla.slice(0, antalPlacera).map(
+      (h): RundaItem => ({
+        form: "placera",
+        config: placeraConfig(h, data, random, true, val.fonster),
+      })
     ),
-    ...enkla.slice(ANTAL_PLACERA).map(
-      (h): RundaItem => ({ form: "skriv", config: placeraConfig(h, data, random, false) })
+    ...enkla.slice(antalPlacera).map(
+      (h): RundaItem => ({
+        form: "skriv",
+        config: placeraConfig(h, data, random, false, val.fonster),
+      })
     ),
   ];
+  const ordnaData = { ...data, handelser: kandidater };
   for (const n of ORDNA_STORLEKAR) {
-    const item = ordnaItem(n, data, anvanda, random);
+    const item = ordnaItem(n, ordnaData, anvanda, random);
     if (item) items.push(item);
   }
   return shuffle(items, random);
@@ -521,3 +585,19 @@ export function svarasteHandelser(rundor: unknown[], minForsok = 2): HandelseSta
     .map(({ summa, ...s }) => ({ ...s, snitt: Math.round(summa / s.forsok) }))
     .sort((a, b) => a.snitt - b.snitt || b.forsok - a.forsok);
 }
+
+// --- Lärarsläppta omgångar ----------------------------------------------------
+
+export type OmgangsStatus = "dold" | "oppen" | "stangd";
+
+/** Dold tills läraren släpper den, öppen tills den stängs. */
+export function omgangsStatus(o: { releasedAt: Date | null; closedAt: Date | null }): OmgangsStatus {
+  if (o.closedAt) return "stangd";
+  return o.releasedAt ? "oppen" : "dold";
+}
+
+export const OMGANGS_STATUS_TEXT: Record<OmgangsStatus, string> = {
+  dold: "Dold",
+  oppen: "Släppt",
+  stangd: "Stängd",
+};

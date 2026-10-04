@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { formatAr } from "@/lib/tidslinje";
-import { svarasteHandelser } from "@/lib/tidslinjespel";
+import { OMGANGS_STATUS_TEXT, omgangsStatus, svarasteHandelser } from "@/lib/tidslinjespel";
 
 export const dynamic = "force-dynamic";
 
@@ -31,7 +31,7 @@ export default async function CourseTidslinjespelPage({
   const cId = Number(courseId);
   if (isNaN(cId)) notFound();
 
-  const [spel, students] = await Promise.all([
+  const [spel, students, omgangar] = await Promise.all([
     prisma.timelineGame.findMany({
       where: { courses: { some: { courseId: cId } } },
       orderBy: { title: "asc" },
@@ -42,6 +42,20 @@ export default async function CourseTidslinjespelPage({
       orderBy: { number: "asc" },
       select: { id: true, number: true, username: true, isTest: true },
     }),
+    prisma.timelineGameRelease.findMany({
+      where: { courseId: cId },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        title: true,
+        fran: true,
+        till: true,
+        releasedAt: true,
+        closedAt: true,
+        unit: { select: { title: true } },
+        rounds: { select: { studentId: true, finishedAt: true } },
+      },
+    }),
   ]);
 
   const elever = students.filter((s) => !s.isTest);
@@ -51,6 +65,8 @@ export default async function CourseTidslinjespelPage({
         where: {
           gameId: { in: spel.map((s) => s.id) },
           studentId: { in: students.map((s) => s.id) },
+          // Fritt spel. De släppta omgångarna har sina resultat på egen sida.
+          releaseId: null,
         },
         orderBy: { createdAt: "asc" },
         select: {
@@ -71,6 +87,64 @@ export default async function CourseTidslinjespelPage({
         och sätt i ordning. Högst 100 poäng per uppgift. Spelet nås från elevens startsida och
         momentsidorna.
       </p>
+
+      {spel.length > 0 && (
+        <section className="mb-12">
+          <div className="flex flex-wrap items-baseline justify-between gap-4 mb-3">
+            <h2 className="text-lg font-semibold tracking-tight">Omgångar</h2>
+            <Link href={`/admin/courses/${cId}/tidslinjespel/ny`} className="btn-primary">
+              Ny omgång
+            </Link>
+          </div>
+          <p className="text-sm text-muted mb-4 max-w-prose">
+            En omgång är händelserna ur ett tidsspann - oftast ett moment. Alla elever får samma uppgifter och
+            ett försök var. Den är dold tills du släpper den.
+          </p>
+          {omgangar.length === 0 ? (
+            <p className="text-sm text-muted">Inga omgångar ännu.</p>
+          ) : (
+            <ul className="card divide-y divide-border-light">
+              {omgangar.map((o) => {
+                const st = omgangsStatus(o);
+                const klara = o.rounds.filter((r) => r.finishedAt && !provkonton.has(r.studentId)).length;
+                return (
+                  <li key={o.id}>
+                    <Link
+                      href={`/admin/courses/${cId}/tidslinjespel/omgang/${o.id}`}
+                      className="p-4 flex items-center justify-between gap-4 hover:bg-surface-muted/50 transition-colors"
+                    >
+                      <span>
+                        <span className="font-medium">{o.title}</span>
+                        <span className="block text-xs text-muted mt-0.5">
+                          {o.unit?.title ?? "Inget moment"} · {formatAr(o.fran)} - {formatAr(o.till)}
+                        </span>
+                      </span>
+                      <span className="flex items-center gap-3 shrink-0 text-sm">
+                        {st !== "dold" && (
+                          <span className="text-muted">
+                            {klara} av {elever.length} klara
+                          </span>
+                        )}
+                        <span
+                          className={`badge text-xs ${
+                            st === "oppen" ? "bg-success-light text-success" : "bg-surface-muted text-muted"
+                          }`}
+                        >
+                          {OMGANGS_STATUS_TEXT[st]}
+                        </span>
+                      </span>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+      )}
+
+      {spel.length > 0 && (
+        <h2 className="text-lg font-semibold tracking-tight mb-1">Fritt spel</h2>
+      )}
 
       {spel.length === 0 && (
         <div className="card p-12 text-center">
@@ -93,7 +167,7 @@ export default async function CourseTidslinjespelPage({
         return (
           <section key={s.id} className="mb-12">
             <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 mb-4">
-              <h2 className="text-lg font-semibold tracking-tight">{s.title}</h2>
+              <h3 className="font-semibold tracking-tight">{s.title}</h3>
               <span className="text-sm text-muted">
                 {klara.length} avslutade omgångar · {spelare} av {elever.length} elever har spelat
                 {provRundor > 0 && ` · provkontot: ${provRundor} omgångar`}

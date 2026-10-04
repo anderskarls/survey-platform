@@ -24,6 +24,7 @@ model Course {
   campaignSnapshot CampaignSnapshot?
   admins    AdminCourse[]
   timelineGames TimelineGameCourse[]
+  timelineGameReleases TimelineGameRelease[]
 }
 
 model Unit {
@@ -38,6 +39,7 @@ model Unit {
   createdAt   DateTime @default(now())
   surveys     Survey[]
   topics      Topic[]
+  timelineGameReleases TimelineGameRelease[]
 
   @@unique([courseId, title])
 }
@@ -299,6 +301,7 @@ model TimelineGame {
   updatedAt DateTime @updatedAt
   courses   TimelineGameCourse[]
   rounds    TimelineGameRound[]
+  releases  TimelineGameRelease[]
 }
 
 model TimelineGameCourse {
@@ -313,13 +316,16 @@ model TimelineGameCourse {
 
 /// En spelomgång. `items` bär uppgifterna med en egen kopia av facit, så att
 /// en senare ändring i korpusen inte skriver om gamla resultat. finishedAt
-/// null = påbörjad men inte avslutad.
+/// null = påbörjad men inte avslutad. releaseId null = fritt spel; satt =
+/// elevens enda försök på en lärarsläppt omgång.
 model TimelineGameRound {
   id           Int          @id @default(autoincrement())
   gameId       Int
   game         TimelineGame @relation(fields: [gameId], references: [id], onDelete: Cascade)
   studentId    Int
   student      Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  releaseId    Int?
+  release      TimelineGameRelease? @relation(fields: [releaseId], references: [id], onDelete: Cascade)
   seed         Int
   items        Json
   score        Int          @default(0)
@@ -329,6 +335,33 @@ model TimelineGameRound {
   createdAt    DateTime     @default(now())
   finishedAt   DateTime?
 
+  @@unique([releaseId, studentId])
   @@index([gameId, studentId])
   @@index([studentId, createdAt])
+}
+
+/// En omgång läraren skapar och släpper: händelserna i ett tidsspann (utom
+/// de urbockade), samma uppgifter för alla elever och ett försök var.
+/// Dold tills releasedAt sätts ("Släpp nu"); closedAt stänger den igen.
+model TimelineGameRelease {
+  id         Int          @id @default(autoincrement())
+  gameId     Int
+  game       TimelineGame @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  courseId   Int
+  course     Course       @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  unitId     Int?
+  unit       Unit?        @relation(fields: [unitId], references: [id], onDelete: SetNull)
+  title      String
+  fran       Int
+  till       Int
+  excluded   String[]     @default([]) // urbockade händelser som "ar|rubrik"
+  seed       Int
+  items      Json // uppgifterna med facit - kopieras till varje elevs omgång
+  releasedAt DateTime?
+  closedAt   DateTime?
+  createdAt  DateTime     @default(now())
+  rounds     TimelineGameRound[]
+
+  @@index([courseId])
+  @@index([unitId])
 }

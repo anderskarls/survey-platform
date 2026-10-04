@@ -5,7 +5,7 @@ import { buildMomentState, LessonOutline, LessonState, TaskState } from "@/lib/m
 import { quizResult, draftProgress } from "@/lib/moment-scoring";
 import { IconCheck, IconArrowRight, IconFlag, IconClock } from "@/components/moment-icons";
 import Link from "next/link";
-import { spelForKurs } from "@/lib/tidslinjespel-db";
+import { omgangarForElev, spelForKurs } from "@/lib/tidslinjespel-db";
 import SpelKort from "@/components/spel/SpelKort";
 
 // ── helpers ───────────────────────────────────────────────────
@@ -175,7 +175,7 @@ export default async function MomentPage({
   const id = Number(unitId);
   if (isNaN(id)) redirect("/student");
 
-  const [unit, course, spel] = await Promise.all([
+  const [unit, course, spel, omgangar] = await Promise.all([
     prisma.unit.findUnique({
       where: { id },
       include: {
@@ -184,6 +184,7 @@ export default async function MomentPage({
     }),
     prisma.course.findUnique({ where: { id: courseId } }),
     spelForKurs(courseId),
+    omgangarForElev(courseId, studentId, id),
   ]);
   if (!unit || unit.courseId !== courseId) redirect("/student");
 
@@ -323,9 +324,9 @@ export default async function MomentPage({
         </div>
       )}
 
-      {spel.length > 0 && (
+      {(spel.length > 0 || omgangar.length > 0) && (
         <div className="mb-8">
-          <SpelKort spel={spel} />
+          <SpelKort spel={spel} omgangar={omgangar} />
         </div>
       )}
 
