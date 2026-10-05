@@ -14,6 +14,8 @@ import {
   MIN_URVAL,
   epokAlternativ,
   epokLamplig,
+  epokerFragbara,
+  epokgranser,
   omgangsStatus,
   tidslinjespelDataSchema,
   toleransFor,
@@ -103,16 +105,21 @@ describe("genereraRunda", () => {
   });
 
   it.each([
-    ["hi1b", HI1B],
-    ["israel-palestina", IP],
-  ])("ger fyra placera, tre skriv, två epok och tre ordna med giltiga configer (%s)", (_, data) => {
+    // hi1b: en skriv blir epokgräns och en placera blir epokordning.
+    ["hi1b", HI1B, { placera: 3, skriv: 3, epok: 2, ordna: 4, grans: 1, ordning: 1 }],
+    // israel-palestina: epokerna heter "Före 1948" osv. och blir inga frågor.
+    ["israel-palestina", IP, { placera: 4, skriv: 3, epok: 2, ordna: 3, grans: 0, ordning: 0 }],
+  ])("ger tolv uppgifter i rätt blandning med giltiga configer (%s)", (_, data, vantat) => {
     for (const seed of SEEDS) {
       const items = genereraRunda(data, seed);
       const antal = (f: string) => items.filter((i) => i.form === f).length;
-      expect(antal("placera")).toBe(4);
-      expect(antal("skriv")).toBe(3);
-      expect(antal("epok")).toBe(2);
-      expect(antal("ordna")).toBe(3);
+      const tema = (t: string) => items.filter((i) => i.epoktema === t).length;
+      expect(antal("placera")).toBe(vantat.placera);
+      expect(antal("skriv")).toBe(vantat.skriv);
+      expect(antal("epok")).toBe(vantat.epok);
+      expect(antal("ordna")).toBe(vantat.ordna);
+      expect(tema("grans")).toBe(vantat.grans);
+      expect(tema("ordning")).toBe(vantat.ordning);
       expect(items.length).toBe(12);
       for (const item of items) {
         expect(timelineConfigSchema.safeParse(item.config).success).toBe(true);
@@ -125,7 +132,7 @@ describe("genereraRunda", () => {
   it("upprepar inget mål bland placera, skriv och epok när korpusen räcker", () => {
     for (const seed of SEEDS) {
       const mal = genereraRunda(HI1B, seed)
-        .filter((i) => i.form !== "ordna")
+        .filter((i) => i.form !== "ordna" && !i.epoktema)
         .map((i) => nyckel(i.config.mal[0]));
       expect(new Set(mal).size).toBe(mal.length);
     }
@@ -175,6 +182,48 @@ describe("epokuppgifter", () => {
     expect(epokAlternativ(HI1B.epoker)).toHaveLength(5);
     expect(epokAlternativ(HI1B.epoker, { fran: -3000, till: 476 })).toEqual(["Antiken"]);
     expect(epokAlternativ(HI1B.epoker, { fran: -500, till: 1100 })).toEqual(["Antiken", "Medeltiden"]);
+  });
+});
+
+describe("uppgifter om epokerna själva", () => {
+  it("frågar bara om inre gränser och bara när namnen saknar årtal", () => {
+    expect(epokgranser(HI1B.epoker).map((g) => g.ar)).toEqual([-3000, 476, 1492, 1789]);
+    expect(epokgranser(HI1B.epoker)[1]).toEqual({ ar: 476, borjar: "Medeltiden", slutar: "Antiken" });
+    expect(epokgranser(HI1B.epoker, { fran: -3000, till: 476 }).map((g) => g.ar)).toEqual([-3000, 476]);
+    expect(epokerFragbara(HI1B.epoker)).toBe(true);
+    expect(epokerFragbara(IP.epoker)).toBe(false);
+  });
+
+  it("ställer gränsen som skrivuppgift på gränsens år", () => {
+    const rubriker = new Set<string>();
+    for (const seed of SEEDS) {
+      const item = genereraRunda(HI1B, seed).find((i) => i.epoktema === "grans")!;
+      const mal = item.config.mal[0];
+      expect(item.form).toBe("skriv");
+      expect([-3000, 476, 1492, 1789]).toContain(mal.ar);
+      expect(mal.rubrik).toMatch(/ (börjar|slutar)$/);
+      rubriker.add(mal.rubrik);
+      expect(rattaItem(item, { ar: mal.ar })!.poang).toBe(MAX_POANG);
+      expect(JSON.stringify(klientItem(item))).not.toMatch(/"ar"/);
+    }
+    expect(rubriker).toContain("Medeltiden börjar");
+    expect(rubriker).toContain("Antiken slutar");
+  });
+
+  it("ordnar tre eller fyra epoker utan Forntiden, med korten i fel ordning", () => {
+    const storlekar = new Set<number>();
+    for (const seed of SEEDS) {
+      const item = genereraRunda(HI1B, seed).find((i) => i.epoktema === "ordning")!;
+      const namn = item.config.mal.map((m) => m.rubrik);
+      storlekar.add(namn.length);
+      expect(namn).not.toContain("Forntiden");
+      expect(item.visningsordning).not.toEqual(item.config.mal.map((m) => m.ar));
+      const k = klientItem(item);
+      expect(k.form === "ordna" && k.epoker).toBe(true);
+      const rattIds = item.config.mal.map((m) => item.visningsordning!.indexOf(m.ar));
+      expect(rattaItem(item, { ordning: rattIds })!.poang).toBe(MAX_POANG);
+    }
+    expect([...storlekar].sort()).toEqual([3, 4]);
   });
 });
 
@@ -304,6 +353,7 @@ describe("svarasteHandelser", () => {
     const a = genereraRunda(HI1B, 1).map((i) => ({ ...i, poang: i.form === "ordna" ? 0 : 50 }));
     const b = a.map((i, n) => ({ ...i, poang: n === 0 && i.form !== "ordna" ? 10 : i.poang }));
     const s = svarasteHandelser([a, b]);
+    // Epokgränsen räknas med - "Medeltiden börjar" är något eleverna kan missa.
     const enkla = new Set(a.filter((i) => i.form !== "ordna").map((i) => nyckel(i.config.mal[0])));
     expect(s.length).toBe(enkla.size);
     expect(s.every((x) => x.forsok === 2)).toBe(true);
@@ -327,12 +377,15 @@ describe("omgång ur ett urval", () => {
     for (const seed of SEEDS) {
       const items = genereraRunda(HI1B, seed, { mal, fonster });
       const enkla = items.filter((i) => i.form !== "ordna");
-      // Spannet ligger inom Antiken: inga epokuppgifter.
-      expect(items.some((i) => i.form === "epok")).toBe(false);
-      expect(enkla.length).toBe(4);
+      // Spannet ligger inom Antiken: inga epokuppgifter och ingen epokordning,
+      // men en gräns (Antiken börjar/slutar) eftersom båda gränserna ligger i spannet.
+      expect(items.some((i) => i.form === "epok" || i.epoktema === "ordning")).toBe(false);
+      expect(items.filter((i) => i.epoktema === "grans").length).toBe(1);
+      expect(enkla.filter((i) => !i.epoktema).length).toBe(4);
       expect(items.filter((i) => i.form === "ordna").length).toBe(3);
       for (const item of items) {
         expect(timelineConfigSchema.safeParse(item.config).success).toBe(true);
+        if (item.epoktema) continue;
         for (const m of item.config.mal) expect(nycklar.has(nyckel(m))).toBe(true);
       }
       // Axeln är omgångens spann plus marginal, inte målets epok.

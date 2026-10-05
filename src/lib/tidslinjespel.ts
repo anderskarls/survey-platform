@@ -134,6 +134,12 @@ export const rundaItemSchema = z.object({
   visningsordning: z.array(z.number().int()).optional(),
   /** epok: knapparna, äldst först. */
   alternativ: z.array(z.string().min(1).max(60)).max(12).optional(),
+  /**
+   * Uppgifter om epokerna själva i stället för om händelser:
+   * skriv + "grans" = när en epok börjar eller slutar,
+   * ordna + "ordning" = sätt epokerna i ordning.
+   */
+  epoktema: z.enum(["grans", "ordning"]).optional(),
   svar: spelSvarSchema.optional(),
   poang: z.number().int().min(0).max(MAX_POANG).optional(),
   utfall: utfallSchema.optional(),
@@ -150,7 +156,7 @@ export type KlientItem =
   | { form: "placera"; rubrik: string; config: ClientTimelineConfig }
   | { form: "skriv"; rubrik: string }
   | { form: "epok"; rubrik: string; alternativ: string[] }
-  | { form: "ordna"; kort: { id: number; rubrik: string }[] };
+  | { form: "ordna"; kort: { id: number; rubrik: string }[]; epoker?: true };
 
 /** Uppgiften utan facit. Det enda av en uppgift som får lämna servern före svar. */
 export function klientItem(item: RundaItem): KlientItem {
@@ -167,6 +173,7 @@ export function klientItem(item: RundaItem): KlientItem {
       id,
       rubrik: item.config.handelser.find((h) => h.ar === ar)?.rubrik ?? "?",
     })),
+    ...(item.epoktema === "ordning" ? { epoker: true as const } : {}),
   };
 }
 
@@ -467,6 +474,84 @@ function epokItem(
   return { form: "epok", config, alternativ };
 }
 
+/** Det tidigaste år en händelse får ha (tidslinjefrågans handelseSchema). */
+const MINSTA_AR = -10000;
+
+/**
+ * Om epokernas namn kan bli frågor. Ett namn med årtal i ("Före 1948",
+ * "1948-1967") ger bort både gränsen och ordningen.
+ */
+export function epokerFragbara(epoker: TimelineEpok[]): boolean {
+  return epoker.every((e) => !/\d/.test(e.namn));
+}
+
+/**
+ * Epokgränserna som kan frågas om: de inre gränserna (korpusens första start
+ * och sista slut är axelns kanter, inte historiska gränser), inom spannet om
+ * ett sådant är givet. Varje gräns kan ställas som "X börjar" eller "Y slutar".
+ */
+export function epokgranser(
+  epoker: TimelineEpok[],
+  f?: { fran: number; till: number }
+): { ar: number; borjar: string; slutar: string }[] {
+  const s = sorteradeEpoker(epoker);
+  return s
+    .slice(1)
+    .map((e, i) => ({ ar: e.fran, borjar: e.namn, slutar: s[i].namn }))
+    .filter((g) => g.ar >= MINSTA_AR && (!f || (g.ar >= f.fran && g.ar <= f.till)));
+}
+
+/** "När börjar Medeltiden?" som skrivuppgift. Målet är gränsens år. */
+function gransItem(
+  epoker: TimelineEpok[],
+  data: TidslinjespelData,
+  random: () => number,
+  givet?: { fran: number; till: number }
+): RundaItem | null {
+  const granser = epokgranser(epoker, givet);
+  if (granser.length === 0) return null;
+  const g = granser[Math.floor(random() * granser.length)];
+  const rubrik = random() < 0.5 ? `${g.borjar} börjar` : `${g.slutar} slutar`;
+  const mal: SpelHandelse = { ar: g.ar, rubrik, niva: 1 };
+  return { form: "skriv", config: placeraConfig(mal, data, random, false, givet), epoktema: "grans" };
+}
+
+/**
+ * Sätt tre eller fyra epoker i ordning. Prickarna på facitaxeln är epokernas
+ * början, så korpusens första epok är inte med - dess början är axelns kant
+ * (Forntiden -13000), inte en historisk gräns. Med fler än tre lottas tre
+ * eller fyra, så att uppgiften inte är densamma varje omgång.
+ */
+function epokordningItem(alternativ: string[], data: TidslinjespelData, random: () => number): RundaItem | null {
+  const forsta = sorteradeEpoker(data.epoker)[0].namn;
+  const epoker = sorteradeEpoker(data.epoker).filter(
+    (e) => e.namn !== forsta && e.fran >= MINSTA_AR && alternativ.includes(e.namn)
+  );
+  if (epoker.length < 3) return null;
+  const n = epoker.length === 3 ? 3 : random() < 0.5 ? 3 : 4;
+  const valda = shuffle(epoker, random)
+    .slice(0, n)
+    .sort((a, b) => a.fran - b.fran);
+  const facit = valda.map((e) => ({ ar: e.fran, rubrik: e.namn }));
+  const sista = valda[valda.length - 1];
+  const marg = Math.max(1, Math.round((sista.till - facit[0].ar) * 0.05));
+  const config: TimelineConfig = {
+    form: "ordna",
+    fran: facit[0].ar - marg,
+    till: sista.till,
+    epoker: data.epoker,
+    handelser: facit,
+    ankare: [],
+    mal: facit,
+  };
+  let visning = shuffle(
+    facit.map((h) => h.ar),
+    random
+  );
+  if (visning.every((a, i) => a === facit[i].ar)) visning = [...visning.slice(1), visning[0]];
+  return { form: "ordna", config, visningsordning: visning, epoktema: "ordning" };
+}
+
 export interface RundaVal {
   /** Händelserna uppgifterna får handla om. Utan: hela korpusen. */
   mal?: SpelHandelse[];
@@ -498,6 +583,10 @@ export function urval(
  * ordnauppgifterna får återanvända dem. Ankarna på axeln tas ur hela
  * korpusen - de är stödpunkter, inte frågor.
  *
+ * Har epokerna namn utan årtal blir en skrivuppgift en epokgräns ("När
+ * börjar Medeltiden?") och en placerauppgift en epokordning (tre-fyra
+ * epoker i ordning). Antalet uppgifter är detsamma.
+ *
  * Epokuppgifterna tar helst händelser som inte redan varit mål. Finns inga
  * får en använd händelse vara med; finns inga lämpliga alls, eller ligger
  * spannet inom en enda epok, blir det inga epokuppgifter.
@@ -510,9 +599,18 @@ export function genereraRunda(
   const random = rng(seed);
   const kandidater = val.mal ?? data.handelser;
   const anvanda = new Set<string>();
-  const enkla = viktatUrval(kandidater, ANTAL_PLACERA + ANTAL_SKRIV, random);
+  const alternativ = epokAlternativ(data.epoker, val.fonster);
+
+  // Epokernas egna uppgifter tar en skriv- och en placeraplats när de går att ställa.
+  const fragbara = epokerFragbara(data.epoker);
+  const grans = fragbara ? gransItem(data.epoker, data, random, val.fonster) : null;
+  const epokordning = fragbara ? epokordningItem(alternativ, data, random) : null;
+  const placeraTal = ANTAL_PLACERA - (epokordning ? 1 : 0);
+  const skrivTal = ANTAL_SKRIV - (grans ? 1 : 0);
+
+  const enkla = viktatUrval(kandidater, placeraTal + skrivTal, random);
   for (const h of enkla) anvanda.add(nyckel(h));
-  const antalPlacera = Math.round((enkla.length * ANTAL_PLACERA) / (ANTAL_PLACERA + ANTAL_SKRIV));
+  const antalPlacera = Math.round((enkla.length * placeraTal) / (placeraTal + skrivTal));
 
   const items: RundaItem[] = [
     ...enkla.slice(0, antalPlacera).map(
@@ -527,8 +625,9 @@ export function genereraRunda(
         config: placeraConfig(h, data, random, false, val.fonster),
       })
     ),
+    ...(grans ? [grans] : []),
+    ...(epokordning ? [epokordning] : []),
   ];
-  const alternativ = epokAlternativ(data.epoker, val.fonster);
   if (alternativ.length >= 2) {
     const lampliga = kandidater.filter((h) => epokLamplig(h, data.epoker));
     const epokMal = viktatUrval(

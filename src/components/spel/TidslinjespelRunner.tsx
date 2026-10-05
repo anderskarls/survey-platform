@@ -159,12 +159,12 @@ export default function TidslinjespelRunner({
           {lage.typ === "fritt" ? (
             <p className="text-muted mt-3 max-w-prose">
               Tolv uppgifter per omgång: placera händelser på tidslinjen, skriv årtalet, välj epok och sätt
-              händelser i rätt ordning. Ju närmare du kommer, desto fler poäng - högst {MAX_POANG} per uppgift.
+              händelser och epoker i rätt ordning. Ju närmare du kommer, desto fler poäng - högst {MAX_POANG} per uppgift.
             </p>
           ) : (
             <p className="text-muted mt-3 max-w-prose">
               {lage.antalUppgifter} uppgifter: placera händelser på tidslinjen, skriv årtalet, välj epok och sätt
-              händelser i rätt ordning. Alla i klassen får samma uppgifter och du har <strong>ett försök</strong>. Avbryter du
+              händelser och epoker i rätt ordning. Alla i klassen får samma uppgifter och du har <strong>ett försök</strong>. Avbryter du
               kan du fortsätta där du slutade.
             </p>
           )}
@@ -462,7 +462,9 @@ function OrdnaUppgift({
     <div>
       <Rubrik
         fraga={
-          item.kort.length === 2
+          item.epoker
+            ? "Sätt epokerna i ordning. Tryck på dem en i taget, äldst först."
+            : item.kort.length === 2
             ? "Vilken kom först? Tryck på den äldsta händelsen först."
             : "Sätt händelserna i ordning. Tryck på dem en i taget, äldst först."
         }
