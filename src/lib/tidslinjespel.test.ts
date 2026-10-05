@@ -12,6 +12,8 @@ import {
   svarasteHandelser,
   urval,
   MIN_URVAL,
+  epokAlternativ,
+  epokLamplig,
   omgangsStatus,
   tidslinjespelDataSchema,
   toleransFor,
@@ -103,13 +105,15 @@ describe("genereraRunda", () => {
   it.each([
     ["hi1b", HI1B],
     ["israel-palestina", IP],
-  ])("ger fyra placera, tre skriv och tre ordna med giltiga configer (%s)", (_, data) => {
+  ])("ger fyra placera, tre skriv, två epok och tre ordna med giltiga configer (%s)", (_, data) => {
     for (const seed of SEEDS) {
       const items = genereraRunda(data, seed);
       const antal = (f: string) => items.filter((i) => i.form === f).length;
       expect(antal("placera")).toBe(4);
       expect(antal("skriv")).toBe(3);
+      expect(antal("epok")).toBe(2);
       expect(antal("ordna")).toBe(3);
+      expect(items.length).toBe(12);
       for (const item of items) {
         expect(timelineConfigSchema.safeParse(item.config).success).toBe(true);
       }
@@ -118,7 +122,7 @@ describe("genereraRunda", () => {
     }
   });
 
-  it("upprepar inget mål bland placera och skriv", () => {
+  it("upprepar inget mål bland placera, skriv och epok när korpusen räcker", () => {
     for (const seed of SEEDS) {
       const mal = genereraRunda(HI1B, seed)
         .filter((i) => i.form !== "ordna")
@@ -148,6 +152,32 @@ describe("genereraRunda", () => {
   });
 });
 
+describe("epokuppgifter", () => {
+  it("tar aldrig en händelse på eller nära en epokgräns", () => {
+    for (const seed of SEEDS) {
+      for (const item of genereraRunda(HI1B, seed).filter((i) => i.form === "epok")) {
+        expect([476, 1492, 1789, -3000]).not.toContain(item.config.mal[0].ar);
+        expect(item.config.form).toBe("epok");
+        expect(item.alternativ).toEqual(HI1B.epoker.map((e) => e.namn));
+      }
+    }
+  });
+
+  it("räknar gränsavståndet mot händelsens tolerans", () => {
+    const ep = HI1B.epoker;
+    expect(epokLamplig({ ar: 1789, rubrik: "x", niva: 1 }, ep)).toBe(false);
+    expect(epokLamplig({ ar: 1785, rubrik: "x", niva: 1 }, ep)).toBe(false); // tolerans 7
+    expect(epokLamplig({ ar: 1770, rubrik: "x", niva: 1 }, ep)).toBe(true);
+    expect(epokLamplig({ ar: -10000, rubrik: "x", cirka: true, niva: 1 }, ep)).toBe(true);
+  });
+
+  it("ger bara de epoker som överlappar spannet", () => {
+    expect(epokAlternativ(HI1B.epoker)).toHaveLength(5);
+    expect(epokAlternativ(HI1B.epoker, { fran: -3000, till: 476 })).toEqual(["Antiken"]);
+    expect(epokAlternativ(HI1B.epoker, { fran: -500, till: 1100 })).toEqual(["Antiken", "Medeltiden"]);
+  });
+});
+
 describe("klientItem", () => {
   it("släpper inte igenom facit", () => {
     for (const seed of SEEDS.slice(0, 20)) {
@@ -163,7 +193,7 @@ describe("klientItem", () => {
           const mal = item.config.mal[0];
           expect(ut).not.toContain(`"ar":${mal.ar},`);
         }
-        if (item.form === "ordna") {
+        if (item.form === "ordna" || item.form === "epok") {
           expect(ut).not.toMatch(/"ar"/);
         }
       }
@@ -223,6 +253,22 @@ describe("rattaItem", () => {
   const placera = items.find((i) => i.form === "placera")!;
   const skriv = items.find((i) => i.form === "skriv")!;
   const ordna = items.find((i) => i.form === "ordna")!;
+  const epok = items.find((i) => i.form === "epok")!;
+
+  it("rättar epok på epokens namn", () => {
+    const mal = epok.config.mal[0];
+    const ratt = HI1B.epoker.find((e) => mal.ar >= e.fran && mal.ar < e.till)!.namn;
+    const fel = HI1B.epoker.find((e) => e.namn !== ratt)!.namn;
+    const r = rattaItem(epok, { epok: ratt })!;
+    expect(r.poang).toBe(MAX_POANG);
+    expect(r.result.epokRatt).toBe(ratt);
+    const f = rattaItem(epok, { epok: fel })!;
+    expect(f.poang).toBe(0);
+    expect(f.utfall).toBe("fel");
+    expect(f.result.epokVald).toBe(fel);
+    expect(rattaItem(epok, { epok: "Rymdåldern" })).toBeNull();
+    expect(rattaItem(epok, { ar: mal.ar })).toBeNull();
+  });
 
   it("rättar placera på avståndet", () => {
     const mal = placera.config.mal[0];
@@ -258,7 +304,8 @@ describe("svarasteHandelser", () => {
     const a = genereraRunda(HI1B, 1).map((i) => ({ ...i, poang: i.form === "ordna" ? 0 : 50 }));
     const b = a.map((i, n) => ({ ...i, poang: n === 0 && i.form !== "ordna" ? 10 : i.poang }));
     const s = svarasteHandelser([a, b]);
-    expect(s.length).toBe(7);
+    const enkla = new Set(a.filter((i) => i.form !== "ordna").map((i) => nyckel(i.config.mal[0])));
+    expect(s.length).toBe(enkla.size);
     expect(s.every((x) => x.forsok === 2)).toBe(true);
     if (a[0].form !== "ordna") expect(s[0].rubrik).toBe(a[0].config.mal[0].rubrik);
   });
@@ -280,6 +327,8 @@ describe("omgång ur ett urval", () => {
     for (const seed of SEEDS) {
       const items = genereraRunda(HI1B, seed, { mal, fonster });
       const enkla = items.filter((i) => i.form !== "ordna");
+      // Spannet ligger inom Antiken: inga epokuppgifter.
+      expect(items.some((i) => i.form === "epok")).toBe(false);
       expect(enkla.length).toBe(4);
       expect(items.filter((i) => i.form === "ordna").length).toBe(3);
       for (const item of items) {
@@ -291,6 +340,22 @@ describe("omgång ur ett urval", () => {
         expect(item.config.fran).toBeLessThanOrEqual(-3000);
         expect(item.config.till).toBeGreaterThanOrEqual(476);
         expect(item.config.till).toBeLessThan(1000);
+      }
+    }
+  });
+});
+
+describe("omgång över två epoker", () => {
+  it("ger epokuppgifter med bara spannets epoker som knappar", () => {
+    const fonster = { fran: -600, till: 1400 };
+    const mal = urval(HI1B, fonster.fran, fonster.till);
+    for (const seed of SEEDS) {
+      const items = genereraRunda(HI1B, seed, { mal, fonster });
+      const epok = items.filter((i) => i.form === "epok");
+      expect(epok.length).toBe(2);
+      for (const item of epok) {
+        expect(item.alternativ).toEqual(["Antiken", "Medeltiden"]);
+        expect(timelineConfigSchema.safeParse(item.config).success).toBe(true);
       }
     }
   });

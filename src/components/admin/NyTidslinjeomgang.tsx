@@ -225,8 +225,8 @@ export default function NyTidslinjeomgang({ courseId, spel, moment, minUrval }: 
           )}
           {valda.length >= minUrval && valda.length < 7 && (
             <p className="text-xs text-muted mt-2">
-              Med {valda.length} händelser blir omgången kortare än tio uppgifter - varje händelse blir en
-              uppgift, plus tre ordna-uppgifter.
+              Med {valda.length} händelser blir omgången kortare än tolv uppgifter - varje händelse blir en
+              uppgift, plus tre ordna-uppgifter och upp till två epokuppgifter.
             </p>
           )}
         </div>

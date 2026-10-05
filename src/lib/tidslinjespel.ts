@@ -22,10 +22,11 @@ import {
  *
  * Korpusen kommer från tidslinjerepots `spel.py` (samma CSV-filer som
  * tidslinjen ritas ur) och laddas upp med `scripts/ladda-tidslinjespel.mts`.
- * En omgång är tio uppgifter i tre former:
+ * En omgång är tolv uppgifter i fyra former:
  *
  *   placera  tryck på axeln där händelsen hör hemma (tidslinjefrågans placera)
  *   skriv    skriv årtalet
+ *   epok     välj händelsens epok bland knappar (facit visas på axeln efteråt)
  *   ordna    sätt två till fyra händelser i kronologisk ordning
  *
  * Omgången genereras och rättas på servern. Facit ligger i omgångsraden
@@ -38,7 +39,7 @@ import {
  * samma seed ger samma omgång.
  */
 
-export const SPEL_FORMER = ["placera", "skriv", "ordna"] as const;
+export const SPEL_FORMER = ["placera", "skriv", "epok", "ordna"] as const;
 export type SpelForm = (typeof SPEL_FORMER)[number];
 
 /** Poäng för en uppgift med fullt rätt svar. */
@@ -56,6 +57,7 @@ export const MIN_URVAL = 4;
 
 const ANTAL_PLACERA = 4;
 const ANTAL_SKRIV = 3;
+const ANTAL_EPOK = 2;
 const ORDNA_STORLEKAR = [2, 3, 4];
 
 // --- Korpusen ---------------------------------------------------------------
@@ -117,6 +119,8 @@ export const spelSvarSchema = z.object({
   ar: z.number().int().min(-100000).max(100000).optional(),
   /** ordna: kortens id i den ordning eleven valde dem, äldst först. */
   ordning: z.array(z.number().int().min(0).max(7)).max(8).optional(),
+  /** epok: namnet på epoken eleven valde. */
+  epok: z.string().min(1).max(60).optional(),
 });
 export type SpelSvar = z.infer<typeof spelSvarSchema>;
 
@@ -124,10 +128,12 @@ const utfallSchema = z.enum(["ratt", "nara", "fel"]);
 
 export const rundaItemSchema = z.object({
   form: z.enum(SPEL_FORMER),
-  /** Facit och axel. placera och skriv: en placera-config; ordna: en ordna-config. */
+  /** Facit och axel. placera och skriv: en placera-config; epok: en epok-config; ordna: en ordna-config. */
   config: timelineConfigSchema,
   /** ordna: korten i den ordning de visas, som år (åren är unika i uppgiften). */
   visningsordning: z.array(z.number().int()).optional(),
+  /** epok: knapparna, äldst först. */
+  alternativ: z.array(z.string().min(1).max(60)).max(12).optional(),
   svar: spelSvarSchema.optional(),
   poang: z.number().int().min(0).max(MAX_POANG).optional(),
   utfall: utfallSchema.optional(),
@@ -143,6 +149,7 @@ export function lasRunda(items: unknown): RundaItem[] {
 export type KlientItem =
   | { form: "placera"; rubrik: string; config: ClientTimelineConfig }
   | { form: "skriv"; rubrik: string }
+  | { form: "epok"; rubrik: string; alternativ: string[] }
   | { form: "ordna"; kort: { id: number; rubrik: string }[] };
 
 /** Uppgiften utan facit. Det enda av en uppgift som får lämna servern före svar. */
@@ -152,6 +159,8 @@ export function klientItem(item: RundaItem): KlientItem {
     return { form: "placera", rubrik: mal.rubrik, config: stripTimelineFacit(item.config) };
   }
   if (item.form === "skriv") return { form: "skriv", rubrik: mal.rubrik };
+  // Bara knapparna - axeln skulle visa årtalsskalan runt målets epok.
+  if (item.form === "epok") return { form: "epok", rubrik: mal.rubrik, alternativ: item.alternativ ?? [] };
   return {
     form: "ordna",
     kort: (item.visningsordning ?? []).map((ar, id) => ({
@@ -421,6 +430,43 @@ function ordnaItem(
   return { form: "ordna", config, visningsordning: visning };
 }
 
+/**
+ * Epokerna som blir knappar: de som överlappar omgångens spann, eller alla.
+ * Ett spann inom en enda epok ger färre än två, och då blir det inga
+ * epokuppgifter - svaret vore givet.
+ */
+export function epokAlternativ(epoker: TimelineEpok[], f?: { fran: number; till: number }): string[] {
+  return sorteradeEpoker(epoker)
+    .filter((e) => !f || (e.till > f.fran && e.fran < f.till))
+    .map((e) => e.namn);
+}
+
+/**
+ * Om en händelse duger som epokuppgift. Epokgränserna sätts ofta av just
+ * händelserna (476, 1492, 1789), och en händelse på gränsen hör till båda
+ * epokerna i elevens ögon. Därför krävs ett avstånd till närmaste inre
+ * gräns som är större än händelsens tolerans.
+ */
+export function epokLamplig(h: SpelHandelse, epoker: TimelineEpok[]): boolean {
+  const s = sorteradeEpoker(epoker);
+  const granser = s.slice(1).map((e) => e.fran);
+  const tol = toleransFor(h.ar, h.cirka);
+  return granser.every((g) => Math.abs(h.ar - g) > tol);
+}
+
+function epokItem(
+  mal: SpelHandelse,
+  alternativ: string[],
+  data: TidslinjespelData,
+  random: () => number,
+  givet?: { fran: number; till: number }
+): RundaItem {
+  // Axeln är bara facitbilden efter svar; toleransen hör till placera.
+  const config: TimelineConfig = { ...placeraConfig(mal, data, random, false, givet), form: "epok" };
+  delete config.tolerans;
+  return { form: "epok", config, alternativ };
+}
+
 export interface RundaVal {
   /** Händelserna uppgifterna får handla om. Utan: hela korpusen. */
   mal?: SpelHandelse[];
@@ -443,13 +489,18 @@ export function urval(
 }
 
 /**
- * En omgång: fyra placera, tre skriv och tre ordna (två, tre och fyra kort),
- * blandade. Ingen händelse är mål i mer än en placera- eller skrivuppgift.
+ * En omgång: fyra placera, tre skriv, två epok och tre ordna (två, tre och
+ * fyra kort), blandade. Ingen händelse är mål i mer än en placera- eller
+ * skrivuppgift.
  *
  * Med ett urval (`val.mal`) krymper omgången när urvalet har färre än sju
  * händelser: varje händelse blir en placera- eller skrivuppgift, och
  * ordnauppgifterna får återanvända dem. Ankarna på axeln tas ur hela
  * korpusen - de är stödpunkter, inte frågor.
+ *
+ * Epokuppgifterna tar helst händelser som inte redan varit mål. Finns inga
+ * får en använd händelse vara med; finns inga lämpliga alls, eller ligger
+ * spannet inom en enda epok, blir det inga epokuppgifter.
  */
 export function genereraRunda(
   data: TidslinjespelData,
@@ -477,6 +528,29 @@ export function genereraRunda(
       })
     ),
   ];
+  const alternativ = epokAlternativ(data.epoker, val.fonster);
+  if (alternativ.length >= 2) {
+    const lampliga = kandidater.filter((h) => epokLamplig(h, data.epoker));
+    const epokMal = viktatUrval(
+      lampliga.filter((h) => !anvanda.has(nyckel(h))),
+      ANTAL_EPOK,
+      random
+    );
+    if (epokMal.length < ANTAL_EPOK) {
+      const valda = new Set(epokMal.map(nyckel));
+      epokMal.push(
+        ...viktatUrval(
+          lampliga.filter((h) => !valda.has(nyckel(h))),
+          ANTAL_EPOK - epokMal.length,
+          random
+        )
+      );
+    }
+    for (const h of epokMal) {
+      anvanda.add(nyckel(h));
+      items.push(epokItem(h, alternativ, data, random, val.fonster));
+    }
+  }
   const ordnaData = { ...data, handelser: kandidater };
   for (const n of ORDNA_STORLEKAR) {
     const item = ordnaItem(n, ordnaData, anvanda, random);
@@ -528,6 +602,31 @@ export function rattaItem(item: RundaItem, svar: SpelSvar): ItemRattning | null 
       utfall: result.utfall,
       result,
       visning: stripTimelineFacit({ ...config, fran, till }),
+    };
+  }
+
+  if (item.form === "epok") {
+    if (svar.epok === undefined || !(item.alternativ ?? []).includes(svar.epok)) return null;
+    const epokRatt = epokFor(config.mal[0].ar, config.epoker);
+    const ratt = svar.epok === epokRatt;
+    const result: TimelineResult = {
+      form: "epok",
+      utfall: ratt ? "ratt" : "fel",
+      isCorrect: ratt,
+      mal: config.mal,
+      klick: null,
+      avstand: null,
+      epokVald: svar.epok,
+      epokRatt,
+      klickad: null,
+      ordning: null,
+      rattPlats: null,
+    };
+    return {
+      poang: ratt ? MAX_POANG : 0,
+      utfall: result.utfall,
+      result,
+      visning: stripTimelineFacit(config),
     };
   }
 

@@ -158,13 +158,13 @@ export default function TidslinjespelRunner({
           <h1 className="text-3xl font-bold tracking-tight">{titel}</h1>
           {lage.typ === "fritt" ? (
             <p className="text-muted mt-3 max-w-prose">
-              Tio uppgifter per omgång: placera händelser på tidslinjen, skriv årtalet och sätt händelser i rätt
-              ordning. Ju närmare du kommer, desto fler poäng - högst {MAX_POANG} per uppgift.
+              Tolv uppgifter per omgång: placera händelser på tidslinjen, skriv årtalet, välj epok och sätt
+              händelser i rätt ordning. Ju närmare du kommer, desto fler poäng - högst {MAX_POANG} per uppgift.
             </p>
           ) : (
             <p className="text-muted mt-3 max-w-prose">
-              {lage.antalUppgifter} uppgifter: placera händelser på tidslinjen, skriv årtalet och sätt händelser i
-              rätt ordning. Alla i klassen får samma uppgifter och du har <strong>ett försök</strong>. Avbryter du
+              {lage.antalUppgifter} uppgifter: placera händelser på tidslinjen, skriv årtalet, välj epok och sätt
+              händelser i rätt ordning. Alla i klassen får samma uppgifter och du har <strong>ett försök</strong>. Avbryter du
               kan du fortsätta där du slutade.
             </p>
           )}
@@ -275,6 +275,7 @@ interface UppgiftProps {
 export function Uppgift({ item, rattning, laddar, onSvar }: UppgiftProps) {
   if (item.form === "placera") return <PlaceraUppgift item={item} rattning={rattning} laddar={laddar} onSvar={onSvar} />;
   if (item.form === "skriv") return <SkrivUppgift item={item} rattning={rattning} laddar={laddar} onSvar={onSvar} />;
+  if (item.form === "epok") return <EpokUppgift item={item} rattning={rattning} laddar={laddar} onSvar={onSvar} />;
   return <OrdnaUppgift item={item} rattning={rattning} laddar={laddar} onSvar={onSvar} />;
 }
 
@@ -399,6 +400,50 @@ function SkrivUppgift({
             {text.trim() === "" ? "" : ar === null ? "Skriv ett årtal, t.ex. 1066 eller 509 f.Kr." : `Ditt svar: ${formatAr(ar)}`}
           </p>
         </form>
+      )}
+    </div>
+  );
+}
+
+function EpokUppgift({
+  item,
+  rattning,
+  laddar,
+  onSvar,
+}: UppgiftProps & { item: Extract<KlientItem, { form: "epok" }> }) {
+  const [vald, setVald] = useState<string | null>(null);
+  return (
+    <div>
+      <Rubrik fraga="Vilken epok hör händelsen till?" text={item.rubrik} />
+      {rattning ? (
+        <Facit rattning={rattning} />
+      ) : (
+        <>
+          <div className="grid gap-2 sm:grid-cols-2" role="group" aria-label="Epoker">
+            {item.alternativ.map((namn) => (
+              <button
+                key={namn}
+                type="button"
+                aria-pressed={vald === namn}
+                disabled={laddar}
+                onClick={() => setVald(namn)}
+                className={`card p-4 text-left font-medium ${
+                  vald === namn ? "border-primary ring-2 ring-primary" : "card-hover"
+                }`}
+              >
+                {namn}
+              </button>
+            ))}
+          </div>
+          <button
+            type="button"
+            className="btn-primary mt-3"
+            disabled={laddar || vald === null}
+            onClick={() => vald !== null && onSvar({ epok: vald })}
+          >
+            Svara
+          </button>
+        </>
       )}
     </div>
   );

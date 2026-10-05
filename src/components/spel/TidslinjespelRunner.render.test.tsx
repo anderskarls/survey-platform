@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import TidslinjespelRunner, { Uppgift, skrivetAr } from "./TidslinjespelRunner";
 import { formatAr } from "@/lib/tidslinje";
-import { genereraRunda, klientItem, tidslinjespelDataSchema } from "@/lib/tidslinjespel";
+import { beskrivTimelineResultat } from "@/lib/tidslinje";
+import { genereraRunda, klientItem, rattaItem, tidslinjespelDataSchema } from "@/lib/tidslinjespel";
 
 /**
  * Det som måste hålla: en uppgift renderad ur det klienten får visar aldrig
@@ -69,6 +70,35 @@ describe("TidslinjespelRunner", () => {
         if (item.form !== "ordna") expect(html).toContain(item.config.mal[0].rubrik);
       }
     }
+  });
+});
+
+describe("epokuppgiften", () => {
+  const item = genereraRunda(DATA, 11).find((i) => i.form === "epok")!;
+
+  it("visar en knapp per epok och ingen axel före svar", () => {
+    const html = renderToStaticMarkup(
+      <Uppgift item={klientItem(item)} rattning={null} laddar={false} onSvar={() => {}} />
+    );
+    for (const e of DATA.epoker) expect(html).toContain(`>${e.namn}<`);
+    expect(html).not.toContain("<svg");
+  });
+
+  it("visar facit på axeln efter ett fel svar", () => {
+    const mal = item.config.mal[0];
+    const val = item.alternativ!.find((n) => rattaItem(item, { epok: n })!.utfall === "fel")!;
+    const r = rattaItem(item, { epok: val })!;
+    const html = renderToStaticMarkup(
+      <Uppgift
+        item={klientItem(item)}
+        rattning={{ ...r, text: beskrivTimelineResultat(r.result), score: 0, klar: false }}
+        laddar={false}
+        onSvar={() => {}}
+      />
+    );
+    expect(html).toContain("<svg");
+    expect(html).toContain(mal.rubrik);
+    expect(beskrivTimelineResultat(r.result)).toContain(`du valde ${val}`);
   });
 });
 

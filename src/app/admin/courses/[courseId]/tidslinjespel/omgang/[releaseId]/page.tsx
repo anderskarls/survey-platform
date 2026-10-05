@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { formatAr } from "@/lib/tidslinje";
+import { epokFor, formatAr } from "@/lib/tidslinje";
 import {
   OMGANGS_STATUS_TEXT,
   lasRunda,
@@ -13,7 +13,12 @@ import OmgangKontroller from "@/components/admin/OmgangKontroller";
 export const dynamic = "force-dynamic";
 
 const TH = "p-3 font-semibold text-muted text-xs uppercase tracking-wider";
-const FORM_TEXT = { placera: "Placera på linjen", skriv: "Skriv årtalet", ordna: "Sätt i ordning" } as const;
+const FORM_TEXT = {
+  placera: "Placera på linjen",
+  skriv: "Skriv årtalet",
+  epok: "Välj epok",
+  ordna: "Sätt i ordning",
+} as const;
 
 const tidFormat = new Intl.DateTimeFormat("sv-SE", {
   timeZone: "Europe/Stockholm",
@@ -24,6 +29,10 @@ const tidFormat = new Intl.DateTimeFormat("sv-SE", {
 });
 
 function facit(item: RundaItem): string {
+  if (item.form === "epok") {
+    const m = item.config.mal[0];
+    return `${m.rubrik} (${formatAr(m.ar, m.cirka)}) - ${epokFor(m.ar, item.config.epoker) ?? "?"}`;
+  }
   return item.config.mal.map((m) => `${m.rubrik} (${formatAr(m.ar, m.cirka)})`).join(" → ");
 }
 
@@ -122,7 +131,7 @@ export default async function OmgangAdminPage({
                 {i + 1}. {FORM_TEXT[item.form]}:
               </span>{" "}
               {facit(item)}
-              {item.form !== "ordna" && (
+              {(item.form === "placera" || item.form === "skriv") && (
                 <span className="text-muted"> · tolerans {item.config.tolerans} år</span>
               )}
             </span>

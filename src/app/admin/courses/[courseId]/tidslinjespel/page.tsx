@@ -83,8 +83,8 @@ export default async function CourseTidslinjespelPage({
     <div className="animate-fade-in">
       <h1 className="text-2xl font-bold mb-2 tracking-tight">Tidslinjespel</h1>
       <p className="text-muted text-sm mb-8 max-w-prose">
-        Eleverna spelar omgångar om tio uppgifter mot kursens tidslinje: placera på linjen, skriv årtalet
-        och sätt i ordning. Högst 100 poäng per uppgift. Spelet nås från elevens startsida och
+        Eleverna spelar omgångar om tolv uppgifter mot kursens tidslinje: placera på linjen, skriv årtalet,
+        välj epok och sätt i ordning. Högst 100 poäng per uppgift. Spelet nås från elevens startsida och
         momentsidorna.
       </p>
 

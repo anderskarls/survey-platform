@@ -2,18 +2,22 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getStudentSession } from "@/lib/student-session";
-import { formatAr } from "@/lib/tidslinje";
+import { epokFor, formatAr } from "@/lib/tidslinje";
 import { MAX_POANG, lasRunda, omgangsStatus, type RundaItem } from "@/lib/tidslinjespel";
 import TidslinjespelRunner from "@/components/spel/TidslinjespelRunner";
 
 export const dynamic = "force-dynamic";
 
-const FORM_TEXT = { placera: "Placera", skriv: "Skriv årtalet", ordna: "Ordna" } as const;
+const FORM_TEXT = { placera: "Placera", skriv: "Skriv årtalet", epok: "Epok", ordna: "Ordna" } as const;
 
 /** Uppgiften som en rad i elevens resultat - facit får synas när omgången är spelad. */
 function beskriv(item: RundaItem): string {
   const mal = item.config.mal;
   if (item.form === "ordna") return mal.map((m) => `${m.rubrik} (${formatAr(m.ar, m.cirka)})`).join(" → ");
+  if (item.form === "epok") {
+    const svar = item.svar?.epok ? ` · ditt svar ${item.svar.epok}` : "";
+    return `${mal[0].rubrik} (${formatAr(mal[0].ar, mal[0].cirka)}) - ${epokFor(mal[0].ar, item.config.epoker) ?? "?"}${svar}`;
+  }
   const svar = item.svar?.ar !== undefined ? ` · ditt svar ${formatAr(item.svar.ar)}` : "";
   return `${mal[0].rubrik} (${formatAr(mal[0].ar, mal[0].cirka)})${svar}`;
 }
