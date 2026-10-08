@@ -129,7 +129,8 @@ export default async function StudentDashboard() {
   const unitIdSet = new Set(units.map((u) => u.id));
   const isLoose = (s: { unitId: number | null }) =>
     s.unitId == null || !unitIdSet.has(s.unitId);
-  const looseSurveys = surveys.filter(isLoose);
+  // showOnHome: momentuppgiften visas också här, utan att lämna momentet.
+  const looseSurveys = surveys.filter((s) => isLoose(s) || s.showOnHome);
   // Nästa schemalagda enkät visas som ett låst kort med sitt datum, så att
   // veckans rytm syns i stället för att testet dyker upp ur tomma intet.
   // Enkäter som hör till ett moment räknas inte här - de har sin egen
