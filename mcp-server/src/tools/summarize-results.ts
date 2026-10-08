@@ -1,3 +1,4 @@
+import { lasbartSvar } from "../tabellsvar.js";
 import { prisma } from "../prisma.js";
 import { gallandeSvarPerElev } from "../svarsurval.js";
 import { arOsaker, raknaSvarsalternativ } from "../svarsvarden.js";
@@ -53,7 +54,7 @@ export async function summarizeResults(surveyId: number): Promise<string> {
     const answersWithStudent = responses.flatMap((r) =>
       r.answers
         .filter((a) => a.questionId === q.id)
-        .map((a) => ({ value: a.value, studentNumber: r.student.number, isCorrect: a.isCorrect }))
+        .map((a) => ({ value: lasbartSvar(a.value), studentNumber: r.student.number, isCorrect: a.isCorrect }))
     );
 
     lines.push(`## ${q.text}`);

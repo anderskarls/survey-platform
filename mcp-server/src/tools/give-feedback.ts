@@ -1,3 +1,4 @@
+import { lasbartSvar } from "../tabellsvar.js";
 import { prisma } from "../prisma.js";
 
 // Fetches free-text answers without feedback and returns them for Claude to review.
@@ -17,7 +18,7 @@ export async function getFreeTextAnswers(
 
   const whereClause: Record<string, unknown> = {
     response: { surveyId },
-    question: { type: "FREE_TEXT" },
+    question: { type: { in: ["FREE_TEXT", "TABLE"] } },
     feedback: null,
   };
 
@@ -47,7 +48,7 @@ export async function getFreeTextAnswers(
       `[answer_id: ${a.id}] Elev ${a.response.student.number}\n` +
       `  Ämne: ${a.question.topic.name}\n` +
       `  Fråga: ${a.question.text}\n` +
-      `  Svar: ${a.value}`
+      `  Svar: ${lasbartSvar(a.value)}`
   );
 
   return (
@@ -77,7 +78,7 @@ export async function saveFeedback(
     throw new Error(`Svar med ID ${answerId} hittades inte`);
   }
 
-  if (answer.question.type !== "FREE_TEXT") {
+  if (answer.question.type !== "FREE_TEXT" && answer.question.type !== "TABLE") {
     throw new Error("Feedback kan bara ges på fritextsvar");
   }
 

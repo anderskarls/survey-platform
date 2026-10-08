@@ -144,6 +144,9 @@ export function planQuestionUpdate(
       400
     );
   }
+  if (nextType === "TABLE" && !input.config && !existing.config) {
+    throw new QuestionEditError("Tabellfrågor kräver config med kolumner och rader", 400);
+  }
 
   if (isClozeType(nextType)) {
     // Facit ligger i config. Byts typen till en luckform utan att en config

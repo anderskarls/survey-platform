@@ -5,6 +5,7 @@ import { requireSurveyAccess } from "@/lib/require-auth";
 import { CSV_BOM, toCsv } from "@/lib/csv-export";
 import { arOsaker } from "@/lib/svarsvarden";
 import { formateraSorteringssvar } from "@/lib/formaga";
+import { formateraTabellsvar } from "@/lib/tabell";
 import { gallandeSvarPerElev } from "@/lib/svarsurval";
 
 export async function GET(
@@ -66,7 +67,7 @@ export async function GET(
         a.questionId,
         arOsaker(a.value)
           ? "osäker"
-          : formateraSorteringssvar(a.value) ?? a.value,
+          : formateraTabellsvar(a.value) ?? formateraSorteringssvar(a.value) ?? a.value,
       ])
     );
     return [

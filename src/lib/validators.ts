@@ -3,6 +3,7 @@ import { SUBSKILLS, exemplarsSchema, sortingConfigSchema } from "@/lib/formaga";
 import { clozeConfigSchema, hasGap, isClozeType } from "@/lib/cloze";
 import { timelineConfigSchema } from "@/lib/tidslinje";
 import { CONCEPT_CARD, conceptConfigSchema } from "@/lib/begreppskort";
+import { tabellConfigSchema } from "@/lib/tabell";
 
 export const QUESTION_TYPES = [
   "MULTIPLE_CHOICE",
@@ -13,6 +14,7 @@ export const QUESTION_TYPES = [
   "CLOZE_CARD",
   CONCEPT_CARD,
   "TIMELINE",
+  "TABLE",
 ] as const;
 
 // Sorterings-, tidslinje-, luck- och begreppskonfigurationer delar config-kolumn
@@ -24,6 +26,7 @@ const questionConfigSchema = z.union([
   timelineConfigSchema,
   clozeConfigSchema,
   conceptConfigSchema,
+  tabellConfigSchema,
 ]);
 
 // Postgres kan inte lagra NUL (0x00) i en textkolumn - hela inlämningen dör
@@ -209,6 +212,13 @@ export const createQuestionSchema = z.object({
       code: "custom",
       path: ["config"],
       message: "Tidslinjefrågor kräver en config med spann, prickar och mål",
+    });
+  }
+  if (data.type === "TABLE" && !tabellConfigSchema.safeParse(data.config).success) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["config"],
+      message: "Tabellfrågor kräver en config med kolumner och rader",
     });
   }
   if (data.type === CONCEPT_CARD && !conceptConfigSchema.safeParse(data.config).success) {

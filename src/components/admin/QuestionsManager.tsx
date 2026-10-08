@@ -681,6 +681,11 @@ export default function QuestionsManager({ apiBase, showCorrectAnswers = false }
                                 Tidslinjefråga - genereras av tidslinjen och
                                 uppdateras via CSV-import.
                               </p>
+                            ) : q.type === "TABLE" ? (
+                              <p className="text-sm text-muted self-center">
+                                Tabellfråga - byggs ur elevbladet och
+                                uppdateras genom att bladet importeras igen.
+                              </p>
                             ) : (
                               <select
                                 value={editQ.type}

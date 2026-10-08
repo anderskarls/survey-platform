@@ -1,3 +1,4 @@
+import { lasbartSvar } from "../tabellsvar.js";
 import { prisma } from "../prisma.js";
 import { gallandeSvarPerElev } from "../svarsurval.js";
 import { raknaSvarsalternativ } from "../svarsvarden.js";
@@ -61,7 +62,7 @@ export async function getMomentReport(unitId: number): Promise<string> {
       const answers = s.responses.flatMap((r) =>
         r.answers
           .filter((a) => a.questionId === q.id)
-          .map((a) => ({ n: r.student.number, value: a.value }))
+          .map((a) => ({ n: r.student.number, value: lasbartSvar(a.value) }))
       );
       reflectionEntries.push({ survey: s.title, lesson: s.lesson, question: q.text, answers });
     }
@@ -77,7 +78,7 @@ export async function getMomentReport(unitId: number): Promise<string> {
         r.answers
           .filter((a) => a.questionId === q.id)
           .map((a) => ({
-            value: a.value,
+            value: lasbartSvar(a.value),
             n: r.student.number,
             isCorrect: a.isCorrect,
             feedback: a.feedback,

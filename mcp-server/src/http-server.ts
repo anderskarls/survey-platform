@@ -1,3 +1,4 @@
+import { lasbartSvar } from "./tabellsvar.js";
 import "dotenv/config";
 import express from "express";
 import { timingSafeEqual } from "node:crypto";
@@ -113,7 +114,7 @@ app.get("/feedback/pending/:surveyId", async (req, res) => {
     const answers = await prisma.answer.findMany({
       where: {
         response: { surveyId },
-        question: { type: "FREE_TEXT" },
+        question: { type: { in: ["FREE_TEXT", "TABLE"] } },
         feedback: null,
       },
       include: {
@@ -129,7 +130,7 @@ app.get("/feedback/pending/:surveyId", async (req, res) => {
         studentNumber: a.response.student.number,
         topic: a.question.topic.name,
         question: a.question.text,
-        answer: a.value,
+        answer: lasbartSvar(a.value),
       })),
     });
   } catch (error) {

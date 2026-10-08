@@ -1,3 +1,4 @@
+import { lasbartSvar } from "../tabellsvar.js";
 import { prisma } from "../prisma.js";
 
 export async function getStudentProgress(courseId: number, studentNumber: number): Promise<string> {
@@ -41,7 +42,7 @@ export async function getStudentProgress(courseId: number, studentNumber: number
         questionId: a.questionId,
         questionText: a.question.text,
         questionType: a.question.type,
-        value: a.value,
+        value: lasbartSvar(a.value),
         isCorrect: a.isCorrect,
       })),
     };

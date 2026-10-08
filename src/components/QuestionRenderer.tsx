@@ -7,6 +7,8 @@ import { FLASHCARD_RATINGS, rendersAsCard } from "@/lib/flashcard";
 import { splitAtGap } from "@/lib/cloze";
 import SortingBoard from "@/components/SortingBoard";
 import TimelineQuestion from "@/components/TimelineQuestion";
+import TableQuestion from "@/components/TableQuestion";
+import { byggTabellsvar, lasTabellsvar } from "@/lib/tabell";
 import { timelineAnswerSchema, type TimelineAnswer } from "@/lib/tidslinje";
 import { OSAKER, arOsaker } from "@/lib/svarsvarden";
 import type { EnkatFraga } from "@/lib/enkatfraga";
@@ -345,6 +347,21 @@ export default function QuestionRenderer({
               <p className="text-sm text-error">
                 Den här tidslinjefrågan är felaktigt uppsatt och går inte att
                 visa. Säg till din lärare - du kan hoppa över den.
+              </p>
+            )
+          ) : q.type === "TABLE" ? (
+            q.tabell ? (
+              // Rutornas text bärs som en JSON-sträng i samma answers-map som
+              // alla andra svar; helt tom tabell blir "" och räknas obesvarad.
+              <TableQuestion
+                config={q.tabell}
+                rutor={lasTabellsvar(answers[q.id])}
+                onChange={(rutor) => onAnswer(q.id, byggTabellsvar(q.tabell!, rutor))}
+              />
+            ) : (
+              <p className="text-sm text-error">
+                Den här tabellen är felaktigt uppsatt och går inte att visa.
+                Säg till din lärare - du kan hoppa över den.
               </p>
             )
           ) : q.type === "SORTING" ? (

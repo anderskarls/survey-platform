@@ -6,11 +6,17 @@ import { gallandeSvarPerElev } from "@/lib/svarsurval";
 import { raknaSvarsalternativ } from "@/lib/svarsvarden";
 import { formateraSorteringssvar } from "@/lib/formaga";
 import { beskrivTimelineFacit, formateraTidslinjesvar } from "@/lib/tidslinje";
+import { formateraTabellsvar } from "@/lib/tabell";
 
 // Ett sorterings- eller tidslinjesvar är JSON i databasen. Läraren ska läsa
 // "Ångmaskinen: Teknik" respektive "3000 f.Kr.", inte datastrukturen.
 function lasbart(value: string): string {
-  return formateraSorteringssvar(value) ?? formateraTidslinjesvar(value) ?? value;
+  return (
+    formateraTabellsvar(value) ??
+    formateraSorteringssvar(value) ??
+    formateraTidslinjesvar(value) ??
+    value
+  );
 }
 
 

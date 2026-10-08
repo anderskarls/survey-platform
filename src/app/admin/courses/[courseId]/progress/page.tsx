@@ -73,7 +73,7 @@ export default async function CourseProgressPage({
         if (ans.isCorrect) correct++;
       }
       if (
-        ans.question.type === "FREE_TEXT" &&
+        (ans.question.type === "FREE_TEXT" || ans.question.type === "TABLE") &&
         (!ans.feedback || ans.feedback.trim() === "")
       ) {
         pendingFeedback++;

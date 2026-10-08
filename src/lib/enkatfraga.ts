@@ -10,6 +10,7 @@ import {
   timelineConfigSchema,
   type ClientTimelineConfig,
 } from "@/lib/tidslinje";
+import { parseTabellConfig, type TabellConfig } from "@/lib/tabell";
 
 /**
  * En fråga som den ser ut för eleven i enkät- och quizflödet.
@@ -41,6 +42,8 @@ export interface EnkatFraga {
   answer?: string | null;
   /** Luckfrågans ledtråd. Facit ingår aldrig - det stannar på servern. */
   cloze?: ClientClozeConfig | null;
+  /** TABLE: hela tabellen (den har inget facit). Null för övriga typer och för trasig config. */
+  tabell?: TabellConfig | null;
 }
 
 interface DbFragaLike {
@@ -60,6 +63,7 @@ export function toEnkatFraga(q: DbFragaLike, flashcard = false): EnkatFraga {
     options: q.options.map((o) => o.text),
     answer: cardBack(q, flashcard),
     cloze: toClientClozeConfig(q.type, q.config),
+    tabell: q.type === "TABLE" ? parseTabellConfig(q.config) : null,
   };
   if (q.type === "TIMELINE") {
     const config = timelineConfigSchema.safeParse(q.config);

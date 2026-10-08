@@ -6,6 +6,7 @@ import { flashcardLabel } from "@/lib/flashcard";
 import { arOsaker } from "@/lib/svarsvarden";
 import type { SortingItemResult } from "@/lib/formaga";
 import { formateraTidslinjesvar, type TimelineResult } from "@/lib/tidslinje";
+import { formateraTabellsvar } from "@/lib/tabell";
 
 interface Score {
   correct: number;
@@ -179,13 +180,13 @@ export default function QuizResultsDisplay({
                     <p className="text-sm">
                       Ditt svar:{" "}
                       <span
-                        className={
+                        className={`whitespace-pre-line ${
                           r.isCorrect === false
                             ? "text-muted"
-                            : "text-success font-semibold"
+                            : "text-success font-semibold"}`
                         }
                       >
-                        {r.yourAnswer}
+                        {formateraTabellsvar(r.yourAnswer) ?? r.yourAnswer}
                       </span>
                     </p>
                   )}

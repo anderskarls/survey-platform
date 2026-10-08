@@ -33,7 +33,8 @@ export interface MCQuestion {
 export interface FTQuestion {
   id: number;
   text: string;
-  type: "FREE_TEXT";
+  /** TABLE visas som fritext: svaret är redan formaterat till en rad per ruta. */
+  type: "FREE_TEXT" | "TABLE";
   textResponses: string[];
   studentAnswers?: StudentAnswer[];
   answeredBy: number;
@@ -196,13 +197,13 @@ export default function ResultsCharts({
                   .map((sa) => (
                     <div
                       key={sa.studentNumber}
-                      className="bg-surface-muted rounded-lg p-3 text-sm"
+                      className="bg-surface-muted rounded-lg p-3 text-sm whitespace-pre-line"
                     >
                       <span className="font-semibold text-muted">#{sa.studentNumber}</span>{" "}
                       {sa.value}
                     </div>
                   ))
-              ) : q.type === "FREE_TEXT" && q.textResponses.length === 0 ? (
+              ) : (q.type === "FREE_TEXT" || q.type === "TABLE") && q.textResponses.length === 0 ? (
                 <p className="text-muted text-sm">Inga svar ännu.</p>
               ) : (
                 q.textResponses.map((text, i) => (

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { formateraTabellsvar } from "@/lib/tabell";
 import { prisma } from "@/lib/prisma";
 import { requireSurveyAccess } from "@/lib/require-auth";
 
@@ -38,7 +39,8 @@ export async function GET(
   }
 
   const pendingQuestions = survey.questions
-    .filter((sq) => sq.question.type === "FREE_TEXT")
+    // Tabellen är en skrivuppgift som fritexten och får feedback på samma sätt.
+    .filter((sq) => sq.question.type === "FREE_TEXT" || sq.question.type === "TABLE")
     .map((sq) => {
       const q = sq.question;
       const answersWithoutFeedback = survey.responses.flatMap((r) =>
@@ -53,7 +55,7 @@ export async function GET(
           .map((a) => ({
             answer_id: a.id,
             student_number: r.student.number,
-            value: a.value,
+            value: formateraTabellsvar(a.value) ?? a.value,
           }))
       );
 

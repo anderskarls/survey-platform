@@ -6,6 +6,7 @@ import FeedbackDisplay from "@/components/FeedbackButton";
 import { flashcardLabel } from "@/lib/flashcard";
 import { arOsaker } from "@/lib/svarsvarden";
 import { formateraSorteringssvar } from "@/lib/formaga";
+import { formateraTabellsvar } from "@/lib/tabell";
 
 export default async function ResultDetailPage({
   params,
@@ -85,13 +86,17 @@ export default async function ResultDetailPage({
           const isCorrect = answer.isCorrect === true;
           const isWrong = answer.isCorrect === false;
           const isUnsure = arOsaker(answer.value);
-          const isFreeText = answer.question.type === "FREE_TEXT";
+          // Tabellen är en skrivuppgift som fritexten: lärarens feedback visas.
+          const isFreeText =
+            answer.question.type === "FREE_TEXT" || answer.question.type === "TABLE";
           // Flashcard: värdet är elevens egen skattning, inte ett valt svar
           const rating = flashcardLabel(answer.value);
           const sorteringssvar =
             answer.question.type === "SORTING"
               ? formateraSorteringssvar(answer.value)
-              : null;
+              : answer.question.type === "TABLE"
+                ? formateraTabellsvar(answer.value)
+                : null;
 
           return (
             <div
@@ -128,7 +133,7 @@ export default async function ResultDetailPage({
                   <p>
                     <span className="text-muted">Ditt svar: </span>
                     <span
-                      className={`font-medium ${
+                      className={`font-medium whitespace-pre-line ${
                         isCorrect
                           ? "text-success"
                           : isWrong
