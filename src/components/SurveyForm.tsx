@@ -7,6 +7,8 @@ import ProgressBar from "@/components/ProgressBar";
 import LockOverlay from "@/components/LockOverlay";
 import { enterKeyAction } from "@/lib/form-enter";
 import { submissionAnswers } from "@/lib/blank-answer";
+import { obesvaradePositioner, inlamningsbeslut } from "@/lib/obesvarade";
+import BekraftaInlamning from "@/components/BekraftaInlamning";
 import type { EnkatFraga } from "@/lib/enkatfraga";
 
 interface SurveyData {
@@ -50,6 +52,8 @@ export default function SurveyForm({ survey }: { survey: SurveyData }) {
   // läraren såg noll, och en tom kolumn läses som "ingen fuskade".
   const [lockViolations, setLockViolations] = useState(0);
   const [currentStep, setCurrentStep] = useState(0);
+  // Bekräftelserutan för obesvarade frågor - se src/lib/obesvarade.ts
+  const [bekraftar, setBekraftar] = useState(false);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isQuiz = survey.mode === "QUIZ";
@@ -135,8 +139,21 @@ export default function SurveyForm({ survey }: { survey: SurveyData }) {
     setSaving(false);
   }
 
-  async function handleSubmit(e: React.FormEvent) {
+  const obesvarade = obesvaradePositioner(
+    survey.questions.map((q) => q.id),
+    answers
+  );
+
+  // Skicka svar och Enter på sista frågan landar här. Med obesvarade
+  // frågor frågar vi först; bara rutans egen knapp lämnar in sedan.
+  function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    const beslut = inlamningsbeslut(obesvarade.length, bekraftar);
+    if (beslut === "fraga") setBekraftar(true);
+    if (beslut === "skicka") void skicka();
+  }
+
+  async function skicka() {
     setError("");
 
     setSubmitting(true);
@@ -175,6 +192,7 @@ export default function SurveyForm({ survey }: { survey: SurveyData }) {
       setError("Kunde inte skicka svar. Kontrollera din internetanslutning.");
     } finally {
       setSubmitting(false);
+      setBekraftar(false);
     }
   }
 
@@ -301,44 +319,57 @@ export default function SurveyForm({ survey }: { survey: SurveyData }) {
         </div>
       )}
 
-      <div className="flex gap-3">
-        <button
-          type="button"
-          onClick={goPrev}
-          disabled={currentStep === 0 || submitting}
-          className="btn-secondary py-3 px-5"
-        >
-          Föregående
-        </button>
-        <button
-          type="button"
-          onClick={handleSaveDraft}
-          disabled={saving || submitting}
-          className="btn-secondary py-3 px-5"
-        >
-          {saving ? "Sparar..." : draftStatus === "saved" && !saving ? "Sparat" : "Spara"}
-        </button>
-        {isLastQuestion ? (
+      {bekraftar && obesvarade.length > 0 ? (
+        <BekraftaInlamning
+          obesvarade={obesvarade.length}
+          totalt={totalQuestions}
+          submitting={submitting}
+          onFortsatt={() => {
+            setBekraftar(false);
+            setCurrentStep(obesvarade[0]);
+          }}
+          onLamnaIn={() => void skicka()}
+        />
+      ) : (
+        <div className="flex gap-3">
           <button
-            key="nav-submit"
-            type="submit"
-            disabled={submitting || answeredCount === 0}
-            className="btn-primary flex-1 py-3"
-          >
-            {submitting ? "Skickar..." : "Skicka svar"}
-          </button>
-        ) : (
-          <button
-            key="nav-next"
             type="button"
-            onClick={goNext}
-            disabled={submitting}
-            className="btn-primary flex-1 py-3"
+            onClick={goPrev}
+            disabled={currentStep === 0 || submitting}
+            className="btn-secondary py-3 px-5"
           >
-            Nästa
+            Föregående
           </button>
-        )}
-      </div>
+          <button
+            type="button"
+            onClick={handleSaveDraft}
+            disabled={saving || submitting}
+            className="btn-secondary py-3 px-5"
+          >
+            {saving ? "Sparar..." : draftStatus === "saved" && !saving ? "Sparat" : "Spara"}
+          </button>
+          {isLastQuestion ? (
+            <button
+              key="nav-submit"
+              type="submit"
+              disabled={submitting || answeredCount === 0}
+              className="btn-primary flex-1 py-3"
+            >
+              {submitting ? "Skickar..." : "Skicka svar"}
+            </button>
+          ) : (
+            <button
+              key="nav-next"
+              type="button"
+              onClick={goNext}
+              disabled={submitting}
+              className="btn-primary flex-1 py-3"
+            >
+              Nästa
+            </button>
+          )}
+        </div>
+      )}
     </form>
   );
 }
