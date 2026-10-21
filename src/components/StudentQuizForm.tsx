@@ -8,7 +8,7 @@ import QuizResultsDisplay, { type QuizResult } from "@/components/QuizResultsDis
 import LockOverlay from "@/components/LockOverlay";
 import { enterKeyAction } from "@/lib/form-enter";
 import { submissionAnswers } from "@/lib/blank-answer";
-import { obesvaradePositioner, inlamningsbeslut } from "@/lib/obesvarade";
+import { obesvaradePositioner } from "@/lib/obesvarade";
 import BekraftaInlamning from "@/components/BekraftaInlamning";
 import type { EnkatFraga } from "@/lib/enkatfraga";
 
@@ -53,7 +53,7 @@ export default function StudentQuizForm({
   const [draftError, setDraftError] = useState("");
   const [draftLoaded, setDraftLoaded] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
-  // Bekräftelserutan för obesvarade frågor - se src/lib/obesvarade.ts
+  // Bekräftelserutan före inlämning - se src/lib/obesvarade.ts
   const [bekraftar, setBekraftar] = useState(false);
   const [lockViolations, setLockViolations] = useState(0);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -148,13 +148,11 @@ export default function StudentQuizForm({
     answers
   );
 
-  // Skicka svar och Enter på sista frågan landar här. Med obesvarade
-  // frågor frågar vi först; bara rutans egen knapp lämnar in sedan.
+  // Skicka svar och Enter på sista frågan landar här. Vi frågar alltid
+  // först; bara rutans egen knapp lämnar in sedan.
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const beslut = inlamningsbeslut(obesvarade.length, bekraftar);
-    if (beslut === "fraga") setBekraftar(true);
-    if (beslut === "skicka") void skicka();
+    setBekraftar(true);
   }
 
   async function skicka() {
@@ -336,14 +334,14 @@ export default function StudentQuizForm({
         />
       )}
 
-      {bekraftar && obesvarade.length > 0 ? (
+      {bekraftar ? (
         <BekraftaInlamning
           obesvarade={obesvarade.length}
           totalt={totalQuestions}
           submitting={submitting}
           onFortsatt={() => {
             setBekraftar(false);
-            setCurrentStep(obesvarade[0]);
+            if (obesvarade.length > 0) setCurrentStep(obesvarade[0]);
           }}
           onLamnaIn={() => void skicka()}
         />

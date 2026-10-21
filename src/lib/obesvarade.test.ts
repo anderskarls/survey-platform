@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { createElement } from "react";
-import { obesvaradePositioner, inlamningsbeslut } from "./obesvarade";
+import { obesvaradePositioner } from "./obesvarade";
 import BekraftaInlamning from "@/components/BekraftaInlamning";
 
 describe("obesvaradePositioner", () => {
@@ -23,35 +23,20 @@ describe("obesvaradePositioner", () => {
   });
 });
 
-describe("inlamningsbeslut", () => {
-  it("skickar direkt när allt är besvarat", () => {
-    expect(inlamningsbeslut(0, false)).toBe("skicka");
-  });
-
-  it("frågar först när något är obesvarat", () => {
-    expect(inlamningsbeslut(5, false)).toBe("fraga");
-  });
-
-  it("lämnar inte in på Enter eller submit medan rutan visas", () => {
-    // Elev 8, MSA26A: andra klicket av farten får inte bli en inlämning
-    expect(inlamningsbeslut(5, true)).toBe("vanta");
-  });
-
-  it("skickar om eleven svarat på det sista medan rutan stod framme", () => {
-    expect(inlamningsbeslut(0, true)).toBe("skicka");
-  });
-});
-
-describe("BekraftaInlamning", () => {
-  const html = renderToStaticMarkup(
+function ruta(obesvarade: number, totalt: number) {
+  return renderToStaticMarkup(
     createElement(BekraftaInlamning, {
-      obesvarade: 5,
-      totalt: 8,
+      obesvarade,
+      totalt,
       submitting: false,
       onFortsatt: () => {},
       onLamnaIn: () => {},
     })
   );
+}
+
+describe("BekraftaInlamning med obesvarade frågor", () => {
+  const html = ruta(5, 8);
 
   it("säger hur många som är obesvarade", () => {
     expect(html).toContain("Du har inte svarat på 5 av 8 frågor.");
@@ -63,6 +48,25 @@ describe("BekraftaInlamning", () => {
   });
 
   it("har ingen submit-knapp - bara ett uttryckligt klick lämnar in", () => {
+    expect(html).not.toContain('type="submit"');
+  });
+});
+
+describe("BekraftaInlamning när allt är besvarat", () => {
+  const html = ruta(0, 8);
+
+  it("frågar ändå om eleven vill lämna in", () => {
+    expect(html).toContain("Vill du lämna in?");
+    expect(html).toContain("Du kan inte ändra dina svar efteråt.");
+    expect(html).not.toContain("Du har inte svarat");
+  });
+
+  it("har Gå tillbaka sist - på Skicka svar-knappens plats", () => {
+    expect(html.indexOf("Lämna in<")).toBeGreaterThan(-1);
+    expect(html.indexOf("Gå tillbaka")).toBeGreaterThan(html.indexOf("Lämna in<"));
+  });
+
+  it("har ingen submit-knapp", () => {
     expect(html).not.toContain('type="submit"');
   });
 });

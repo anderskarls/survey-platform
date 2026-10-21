@@ -1,5 +1,5 @@
 /**
- * Bekräftelse innan en uppgift lämnas in med obesvarade frågor.
+ * Bekräftelse innan en uppgift lämnas in.
  *
  * Bakgrunden: frågorna visas en i taget, och på sista frågan byts Nästa ut
  * mot Skicka svar på exakt samma plats. Den som klickar sig snabbt genom
@@ -10,9 +10,11 @@
  * gånger på fyra minuter. Varje gång fick läraren be om att få uppgiften
  * upplåst för hand.
  *
- * Nu stannar inlämningen och frågar när något är obesvarat. Knappen som tar
- * eleven tillbaka står där Skicka svar stod, så ett klick till av farten
- * landar på den och inte på inlämningen.
+ * Nu stannar varje inlämning och frågar - med obesvarade frågor säger rutan
+ * hur många (2026-10-21: läraren ville ha rutan varje gång, inte bara då).
+ * Knappen som tar eleven tillbaka står där Skicka svar stod, så ett klick
+ * till av farten landar på den och inte på inlämningen. Medan rutan visas
+ * lämnar bara dess egen knapp in, inte en Enter eller ett formulär-submit.
  */
 import { isBlank } from "@/lib/blank-answer";
 
@@ -22,15 +24,4 @@ export function obesvaradePositioner(
   answers: Record<number, string>
 ): number[] {
   return questionIds.flatMap((id, i) => (isBlank(answers[id] ?? "") ? [i] : []));
-}
-
-/**
- * Vad ett inlämningsförsök ska leda till. `bekraftar` är sant när rutan redan
- * visas - då lämnar bara rutans egen knapp in, inte en Enter eller ett
- * formulär-submit som råkar komma in under tiden. Har eleven svarat på det
- * sista medan rutan stod framme finns inget kvar att fråga om.
- */
-export function inlamningsbeslut(antalObesvarade: number, bekraftar: boolean): "skicka" | "fraga" | "vanta" {
-  if (antalObesvarade === 0) return "skicka";
-  return bekraftar ? "vanta" : "fraga";
 }
