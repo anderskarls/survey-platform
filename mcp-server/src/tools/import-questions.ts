@@ -1,14 +1,15 @@
 import { prisma } from "../prisma.js";
 import Papa from "papaparse";
-import { optionCreateData, parseQuestionRow } from "../lib/csv-question.js";
+import { lattlastText, medLattlast, optionCreateData, parseQuestionRow } from "../lib/csv-question.js";
 
 /**
  * Samma dubblettregel som webbappens src/lib/import-questions.ts: en fråga
  * är (topic, text) inom kursen, och en rad som matchar en befintlig fråga
  * uppdaterar den i stället för att skapa en till. Id:t består, så
  * övningshistoriken följer med. Exemplars skrivs bara över när raden har
- * några. Regeln finns på två ställen för att paketen inte delar kod - ändras
- * den ska båda följa med.
+ * några, och en lättläst formulering (config.lattlast) behålls när raden
+ * saknar kolumnen. Regeln finns på två ställen för att paketen inte delar
+ * kod - ändras den ska båda följa med.
  */
 export async function importQuestions(courseId: number, csvContent: string): Promise<string> {
   const result = Papa.parse(csvContent, { header: true, skipEmptyLines: true });
@@ -56,6 +57,14 @@ export async function importQuestions(courseId: number, csvContent: string): Pro
           continue;
         }
 
+        // Raden utan lattlast-kolumn skriver inte bort en formulering som finns.
+        const behallen =
+          existing.type === parsed.type ? lattlastText(existing.config) : undefined;
+        const configUt =
+          config !== undefined && !parsed.lattlast
+            ? (medLattlast(config, behallen) as never)
+            : config;
+
         const nya = options?.create ?? [];
         const alternativLika =
           JSON.stringify(existing.options.map((o) => [o.text, o.isCorrect])) ===
@@ -66,7 +75,7 @@ export async function importQuestions(courseId: number, csvContent: string): Pro
           data: {
             type: parsed.type,
             subskill: parsed.subskill ?? null,
-            config,
+            config: configUt,
             exemplars,
             options: alternativLika ? undefined : { deleteMany: {}, create: nya },
           },

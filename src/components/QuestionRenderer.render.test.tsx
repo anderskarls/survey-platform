@@ -124,3 +124,18 @@ describe("tidslinjefrågan i enkäten", () => {
     expect(html).not.toContain("<textarea");
   });
 });
+
+describe("växeln Ordinarie / Lättläst", () => {
+  it("visas när en fråga har en lättläst formulering, med Ordinarie vald från servern", () => {
+    const html = render({ questions: [{ ...question, lattlast: "Vad betyder ordet attitude?" }] });
+    expect(html).toContain("Lättläst");
+    expect(html).toContain('aria-pressed="true"');
+    // Servern renderar alltid den ordinarie texten; elevens val gäller efter hydreringen.
+    expect(html).toContain("Vad betyder &quot;attitude&quot;?");
+    expect(html).not.toContain("Vad betyder ordet attitude?");
+  });
+
+  it("syns inte när ingen fråga har en", () => {
+    expect(render()).not.toContain("Lättläst");
+  });
+});

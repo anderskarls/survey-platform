@@ -3,7 +3,8 @@ import {
   stripSortingFacit,
   type ClientSortingConfig,
 } from "@/lib/formaga";
-import { cardBack } from "@/lib/flashcard";
+import { cardBack, rendersAsCard } from "@/lib/flashcard";
+import { lattlastText, visarLattlast } from "@/lib/lattlast";
 import { toClientClozeConfig, type ClientClozeConfig } from "@/lib/cloze";
 import {
   stripTimelineFacit,
@@ -44,6 +45,12 @@ export interface EnkatFraga {
   cloze?: ClientClozeConfig | null;
   /** TABLE: hela tabellen (den har inget facit). Null för övriga typer och för trasig config. */
   tabell?: TabellConfig | null;
+  /**
+   * Lärarens lättlästa formulering av frågan, som eleven kan slå på. Null när
+   * den saknas, och för kort och luckor - där är meningen själva uppgiften.
+   * Se lattlast.ts.
+   */
+  lattlast?: string | null;
 }
 
 interface DbFragaLike {
@@ -64,6 +71,10 @@ export function toEnkatFraga(q: DbFragaLike, flashcard = false): EnkatFraga {
     answer: cardBack(q, flashcard),
     cloze: toClientClozeConfig(q.type, q.config),
     tabell: q.type === "TABLE" ? parseTabellConfig(q.config) : null,
+    lattlast:
+      visarLattlast(q.type) && !rendersAsCard(q.type, flashcard)
+        ? lattlastText(q.config)
+        : null,
   };
   if (q.type === "TIMELINE") {
     const config = timelineConfigSchema.safeParse(q.config);

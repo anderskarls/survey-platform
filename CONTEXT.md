@@ -41,6 +41,10 @@ _Avoid_: Clozekort, luckkort
 Ett begrepp på framsidan och lärarens förklaring på baksidan; eleven försöker minnas betydelsen, vänder kortet och skattar sig själv (`CONCEPT_CARD`). Skrivs i rutan på momentsidan för begrepp som kom upp i klassrummet men inte stod i momentplaneringen, och hamnar i momentets begreppsämne ("Momentnamn - Begrepp"), som är öppet för övning. Kort oavsett kursens flashcardläge. Se `docs/ovning/05-kortformer.md`.
 _Avoid_: Begreppsfråga, glosa (i historie- och samhällskurser)
 
+**Lättläst formulering**:
+Samma fråga skriven för elever vars svenska ännu är begränsad (`config.lattlast`). Eleven slår på den med växeln Ordinarie / Lättläst ovanför frågorna, och valet följer med mellan sidor och enkäter. Bara frågetexten har en lättläst form - alternativen rättas på sin text och är desamma. Finns inte för luckfrågor och kort, där meningen är själva uppgiften. Kommer från momentplaneringens nivåmaterial (CSV-kolumnen `lattlast`).
+_Avoid_: Förenklad fråga, nivå 1, lätt version
+
 **Elevkonto**:
 En elevs inloggning i **en** kurs. En elev som läser två kurser har två elevkonton, bundna till samma fysiska person av en delad personnyckel (`personKey`). Ominlärningen slår ihop kontona; sessionen gäller ett konto i taget.
 _Avoid_: Användare, konto (utan led)

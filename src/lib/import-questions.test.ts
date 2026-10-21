@@ -141,3 +141,28 @@ describe("importQuestionRows", () => {
     expect(db.questions[0].exemplars).toEqual([{ level: "E", text: "Caesar först", kommentar: "" }]);
   });
 });
+
+describe("importQuestionRows och den lättlästa formuleringen", () => {
+  const MED = `topic,type,text,config,lattlast
+Rom,SORTING,Placera i rätt epok (1),"{""categories"":[""Antiken"",""Medeltiden""],""items"":[{""text"":""Caesar mördas"",""category"":""Antiken""}]}",Sortera händelserna.
+Rom,FREE_TEXT,Förklara republikens fall.,,Varför tog republiken slut?
+`;
+  const UTAN = MED.replace(",Sortera händelserna.", ",").replace(",Varför tog republiken slut?", ",");
+
+  it("en omkörning utan kolumnen behåller formuleringen - också när configen skrivs om", async () => {
+    const db = minnesDb();
+    await importQuestionRows(db.tx, 7, parseCsvContent(MED));
+    await importQuestionRows(db.tx, 7, parseCsvContent(UTAN));
+    const [sortering, fritext] = db.questions;
+    expect((sortering.config as { lattlast?: string }).lattlast).toBe("Sortera händelserna.");
+    expect((sortering.config as { categories: string[] }).categories).toEqual(["Antiken", "Medeltiden"]);
+    expect((fritext.config as { lattlast?: string }).lattlast).toBe("Varför tog republiken slut?");
+  });
+
+  it("en ny formulering ersätter den gamla", async () => {
+    const db = minnesDb();
+    await importQuestionRows(db.tx, 7, parseCsvContent(MED));
+    await importQuestionRows(db.tx, 7, parseCsvContent(MED.replace("Varför tog republiken slut?", "Varför slutade republiken?")));
+    expect((db.questions[1].config as { lattlast?: string }).lattlast).toBe("Varför slutade republiken?");
+  });
+});

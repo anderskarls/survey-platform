@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { SUBSKILLS, exemplarsSchema, sortingConfigSchema } from "@/lib/formaga";
 import { CLOZE_GAP, clozeConfigSchema, hasGap, isClozeType } from "@/lib/cloze";
 import { timelineConfigSchema } from "@/lib/tidslinje";
+import { LATTLAST_MAX, medLattlast } from "@/lib/lattlast";
 
 export interface CsvQuestionRow {
   topic: string;
@@ -20,6 +21,8 @@ export interface CsvQuestionRow {
   jsonError?: string;
   /** Värdet i type-kolumnen när det inte är en typ appen känner igen */
   unknownType?: string;
+  /** Kolumnen "lattlast": frågetexten i lättläst form (se lattlast.ts) */
+  lattlast?: string;
 }
 
 const KNOWN_TYPES = [
@@ -85,6 +88,7 @@ export function parseCsvContent(csvContent: string): CsvQuestionRow[] {
       options,
       correctAnswer: row.correctAnswer?.trim() || undefined,
       subskill: row.subskill?.trim().toLowerCase() || undefined,
+      lattlast: row.lattlast?.trim() || undefined,
       unknownType,
       config,
       exemplars,
@@ -152,6 +156,16 @@ export function validateCsvRows(rows: CsvQuestionRow[]): string[] {
         );
       }
     }
+    if (row.lattlast && row.lattlast.length > LATTLAST_MAX) {
+      errors.push(
+        `Den lättlästa formuleringen av "${row.text}" är längre än ${LATTLAST_MAX} tecken`
+      );
+    }
+    if (row.lattlast && (isClozeType(row.type) || row.type === "CONCEPT_CARD")) {
+      errors.push(
+        `Luckfrågor och kort har ingen lättläst formulering ("${row.text}") - där är meningen själva uppgiften`
+      );
+    }
     if (row.exemplars !== undefined) {
       const parsed = exemplarsSchema.safeParse(row.exemplars);
       if (!parsed.success) {
@@ -178,10 +192,14 @@ export function questionCreateData(
     text: row.text,
     type: row.type,
     subskill,
-    config:
+    // Den lättlästa formuleringen läggs i config bredvid typens egen
+    // konfiguration; för flerval och fritext är den hela configen.
+    config: medLattlast(
       row.type === "SORTING" || row.type === "TIMELINE" || isClozeType(row.type)
-        ? (row.config as Prisma.InputJsonValue)
+        ? row.config
         : undefined,
+      row.lattlast
+    ) as Prisma.InputJsonValue | undefined,
     exemplars:
       row.exemplars !== undefined
         ? (row.exemplars as Prisma.InputJsonValue)

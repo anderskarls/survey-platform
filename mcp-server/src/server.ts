@@ -35,7 +35,7 @@ const server = new McpServer({
 
 server.tool(
   "import_questions",
-  "Importera frågor till en kurs frågebank från CSV-innehåll. CSV-format: topic,type,text,option1,option2,...",
+  "Importera frågor till en kurs frågebank från CSV-innehåll. CSV-format: topic,type,text,option1,option2,.... Valfri kolumn lattlast: frågetexten i lättläst form för elever vars svenska ännu är begränsad - samma fråga, samma alternativ; eleven slår på den med växeln Ordinarie/Lättläst (inte för luckfrågor och kort).",
   {
     course_id: z.number().int().positive().describe("Kursens ID"),
     csv_content: z.string().min(1).describe("CSV-innehåll med frågor"),
@@ -109,7 +109,7 @@ server.tool(
 
 server.tool(
   "create_quiz_from_csv",
-  "Importera frågor från CSV OCH skapa en quiz/enkät av exakt de frågorna i ett enda anrop. Använd detta när du vill skapa en quiz direkt från nygenererade frågor (t.ex. från en lektionsplanering) utan att först behöva ta reda på fråge-ID:n. Frågornas ordning i quizzen följer CSV-raderna. CSV-format: topic,type,text,option1,option2,...,correctAnswer. För luckfrågor: type=CLOZE, skriv ___ i texten där ordet ska stå och lägg facit i JSON-kolumnen config, t.ex. {\"answer\":\"influence\",\"accept\":[\"influences\"],\"hint\":\"Inflytande / Påverkan\"}. För luckmeningskort (vänds i stället för att skrivas, eleven självskattar): samma format men type=CLOZE_CARD",
+  "Importera frågor från CSV OCH skapa en quiz/enkät av exakt de frågorna i ett enda anrop. Använd detta när du vill skapa en quiz direkt från nygenererade frågor (t.ex. från en lektionsplanering) utan att först behöva ta reda på fråge-ID:n. Frågornas ordning i quizzen följer CSV-raderna. CSV-format: topic,type,text,option1,option2,...,correctAnswer. För luckfrågor: type=CLOZE, skriv ___ i texten där ordet ska stå och lägg facit i JSON-kolumnen config, t.ex. {\"answer\":\"influence\",\"accept\":[\"influences\"],\"hint\":\"Inflytande / Påverkan\"}. För luckmeningskort (vänds i stället för att skrivas, eleven självskattar): samma format men type=CLOZE_CARD. Valfri kolumn lattlast: frågetexten i lättläst form för elever vars svenska ännu är begränsad - samma fråga, samma alternativ; eleven slår på den med växeln Ordinarie/Lättläst (inte för luckfrågor och kort).",
   {
     course_id: z.number().int().positive().describe("Kursens ID"),
     title: z.string().min(1).describe("Quizzens/enkätens titel"),
@@ -372,7 +372,7 @@ server.tool(
 
 server.tool(
   "import_moment",
-  "Skapa ett helt moment (Unit) med lektionsöversikt och flera elevuppgifter i ett anrop. Varje uppgift blir en egen enkät/quiz från CSV, alla grupperade under momentet. Skicka momentets hela lektionsbåge i `lessons` (alla lektioner, även de utan digital uppgift, fylls från momentplanen) och ange `lesson` per uppgift så eleven kan följa hela momentet. Använd när /planera-moment genererat ett moment. CSV-format per uppgift: topic,type,text,option1,...,correctAnswer.",
+  "Skapa ett helt moment (Unit) med lektionsöversikt och flera elevuppgifter i ett anrop. Varje uppgift blir en egen enkät/quiz från CSV, alla grupperade under momentet. Skicka momentets hela lektionsbåge i `lessons` (alla lektioner, även de utan digital uppgift, fylls från momentplanen) och ange `lesson` per uppgift så eleven kan följa hela momentet. Använd när /planera-moment genererat ett moment. CSV-format per uppgift: topic,type,text,option1,...,correctAnswer. Valfri kolumn lattlast: frågetexten i lättläst form för elever vars svenska ännu är begränsad - samma fråga, samma alternativ; eleven slår på den med växeln Ordinarie/Lättläst (inte för luckfrågor och kort).",
   {
     course_id: z.number().int().positive().describe("Kursens ID"),
     title: z.string().min(1).describe("Momentets titel"),

@@ -195,3 +195,33 @@ describe("parseQuestionRow - övriga typer opåverkade", () => {
     );
   });
 });
+
+describe("kolumnen lattlast", () => {
+  it("läggs i config - för flerval som hela configen, för sortering bredvid facit", () => {
+    const mc = parseQuestionRow({
+      topic: "Rom",
+      type: "MULTIPLE_CHOICE",
+      text: "Vilken faktor var avgörande?",
+      option1: "Armén",
+      option2: "Senaten",
+      correctAnswer: "Armén",
+      lattlast: "Vad var viktigast?",
+    });
+    expect(mc?.config).toEqual({ lattlast: "Vad var viktigast?" });
+    expect(mc?.lattlast).toBe("Vad var viktigast?");
+
+    const sortering = parseQuestionRow(sortingRow({ lattlast: "Sortera." }));
+    expect(sortering?.config).toEqual({ ...SORTING_CONFIG, lattlast: "Sortera." });
+  });
+
+  it("ger ingen config när kolumnen saknas", () => {
+    const mc = parseQuestionRow({ topic: "Rom", text: "Vad?", option1: "A", option2: "B" });
+    expect(mc?.config).toBeUndefined();
+  });
+
+  it("avvisas på en luckfråga", () => {
+    expect(() =>
+      parseQuestionRow({ topic: "Glosor", type: "CLOZE", text: "I ___ it", config: '{"answer":"read"}', lattlast: "Skriv ordet" })
+    ).toThrow(/lättläst/);
+  });
+});

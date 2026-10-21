@@ -108,6 +108,31 @@ const exemplarsSchema = z
   .min(1)
   .max(3);
 
+/**
+ * Lättläst formulering (kolumnen "lattlast") - speglar webbappens
+ * src/lib/lattlast.ts, som är kanonisk. Den läggs i config under nyckeln
+ * `lattlast`, bredvid typens egen konfiguration. Bara frågetexten har en
+ * lättläst form; alternativen rättas på sin text och är desamma.
+ */
+export const LATTLAST_MAX = 1000;
+
+/** Den lättlästa formuleringen ur en config, eller undefined. */
+export function lattlastText(config: unknown): string | undefined {
+  if (!config || typeof config !== "object" || Array.isArray(config)) return undefined;
+  const v = (config as Record<string, unknown>).lattlast;
+  return typeof v === "string" && v.trim() !== "" ? v.trim() : undefined;
+}
+
+/** Lägger formuleringen i configen utan att röra resten; utan formulering returneras configen orörd. */
+export function medLattlast(config: unknown, lattlast: string | undefined): unknown {
+  if (!lattlast) return config;
+  const bas =
+    config && typeof config === "object" && !Array.isArray(config)
+      ? (config as Record<string, unknown>)
+      : {};
+  return { ...bas, lattlast };
+}
+
 /** Delfärdigheterna i förmågeträningen - speglar SUBSKILLS i formaga.ts. */
 const SUBSKILLS = ["kategorisera", "kedjor", "forgrena", "vikta", "kritisera"];
 
@@ -122,6 +147,8 @@ export interface ParsedQuestionRow {
   subskill?: string;
   /** Exempelsvar i nivåer, visas för eleven efter försöket. */
   exemplars?: unknown;
+  /** Frågetexten i lättläst form - redan inlagd i config; här för importens behåll-regel. */
+  lattlast?: string;
 }
 
 /**
@@ -235,11 +262,21 @@ export function parseQuestionRow(
     if (val) options.push(val);
   }
 
+  // Lättläst formulering: inte för luckor och kort, där meningen är uppgiften.
+  const lattlast = row.lattlast?.trim() || undefined;
+  if (lattlast && CLOZE_TYPES.includes(type)) {
+    throw new Error(`Luckfrågan "${text}" kan inte ha en lättläst formulering - meningen är själva uppgiften.`);
+  }
+  if (lattlast && lattlast.length > LATTLAST_MAX) {
+    throw new Error(`Den lättlästa formuleringen av "${text}" är längre än ${LATTLAST_MAX} tecken.`);
+  }
+
   return {
     topicName: row.topic?.trim() || "Övrigt",
     text,
     type,
-    config,
+    config: medLattlast(config, lattlast),
+    lattlast,
     options,
     correctAnswer: row.correctAnswer?.trim() || undefined,
     subskill,

@@ -12,6 +12,7 @@ import { byggTabellsvar, lasTabellsvar } from "@/lib/tabell";
 import { timelineAnswerSchema, type TimelineAnswer } from "@/lib/tidslinje";
 import { OSAKER, arOsaker } from "@/lib/svarsvarden";
 import type { EnkatFraga } from "@/lib/enkatfraga";
+import { sattLattlast, useLattlast } from "@/lib/lattlast-val";
 
 type Question = EnkatFraga;
 
@@ -245,6 +246,37 @@ function lasTidslinjesvar(value: string | undefined): TimelineAnswer | null {
   }
 }
 
+/**
+ * Växeln Ordinarie / Lättläst. Visas bara när någon fråga på sidan har en
+ * lättläst formulering. Båda formuleringarna är samma fråga - alternativen,
+ * rättningen och svaret är desamma - så eleven kan byta när som helst.
+ */
+function LattlastVaxel({ pa }: { pa: boolean }) {
+  const knapp = (aktiv: boolean) =>
+    `px-4 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+      aktiv ? "bg-primary text-white shadow-sm" : "text-muted hover:text-foreground"
+    }`;
+  return (
+    <div className="flex flex-wrap items-center gap-3 mb-4">
+      <div
+        role="group"
+        aria-label="Hur frågorna är skrivna"
+        className="inline-flex gap-1 p-1 rounded-xl border border-border-light bg-surface-muted/50"
+      >
+        <button type="button" aria-pressed={!pa} onClick={() => sattLattlast(false)} className={knapp(!pa)}>
+          Ordinarie
+        </button>
+        <button type="button" aria-pressed={pa} onClick={() => sattLattlast(true)} className={knapp(pa)}>
+          Lättläst
+        </button>
+      </div>
+      <span className="text-sm text-muted">
+        {pa ? "Samma frågor, skrivna med enklare svenska." : "Det finns en lättläst version av frågorna."}
+      </span>
+    </div>
+  );
+}
+
 export default function QuestionRenderer({
   questions,
   answers,
@@ -254,8 +286,14 @@ export default function QuestionRenderer({
   flashcard = false,
   onRated,
 }: QuestionRendererProps) {
+  const lattlastValt = useLattlast();
+  const harLattlast = questions.some((q) => q.lattlast);
+  // Frågor utan lättläst formulering visas som de är, även när eleven valt Lättläst.
+  const fragetext = (q: Question) => (lattlastValt && q.lattlast ? q.lattlast : q.text);
+
   return (
     <>
+      {harLattlast && <LattlastVaxel pa={lattlastValt} />}
       {questions.map((q, i) =>
         rendersAsCard(q.type, flashcard) ? (
           <FlashcardCard
@@ -280,7 +318,7 @@ export default function QuestionRenderer({
         <div key={q.id} className="card p-6 mb-4">
           <div className="flex items-start justify-between gap-2 mb-3">
             <label className="block font-semibold tracking-tight">
-              {startIndex + i + 1}. {q.text}
+              {startIndex + i + 1}. {fragetext(q)}
             </label>
             {flaggedIds !== undefined && (
               <FlagButton
@@ -291,7 +329,7 @@ export default function QuestionRenderer({
           </div>
 
           {q.type === "MULTIPLE_CHOICE" ? (
-            <div className="flex flex-col gap-2" role="radiogroup" aria-label={q.text}>
+            <div className="flex flex-col gap-2" role="radiogroup" aria-label={fragetext(q)}>
               {q.options.map((opt) => (
                 <label
                   key={opt}

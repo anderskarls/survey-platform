@@ -2,6 +2,7 @@ import { prisma } from "../prisma.js";
 import { Prisma } from "@prisma/client";
 import { nanoid } from "nanoid";
 import Papa from "papaparse";
+import { LATTLAST_MAX } from "../lib/csv-question.js";
 
 export type SurveyMode = "SURVEY" | "QUIZ";
 
@@ -74,6 +75,12 @@ export async function importMoment(
             if (val) options.push(val);
           }
           const correctAnswer = row.correctAnswer?.trim();
+          // Lättläst formulering (se csv-question.ts): i config bredvid ingenting annat -
+          // momentimporten har bara flerval, fritext och reflektion.
+          const lattlast = row.lattlast?.trim() || undefined;
+          if (lattlast && lattlast.length > LATTLAST_MAX) {
+            throw new Error(`Den lättlästa formuleringen av "${text}" är längre än ${LATTLAST_MAX} tecken.`);
+          }
 
           const topic = await tx.topic.upsert({
             where: { courseId_name: { courseId, name: topicName } },
@@ -86,6 +93,7 @@ export async function importMoment(
               text,
               type,
               topicId: topic.id,
+              config: lattlast ? ({ lattlast } as never) : undefined,
               options:
                 type === "MULTIPLE_CHOICE" && options.length > 0
                   ? {

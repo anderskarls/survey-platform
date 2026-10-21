@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { questionCreateData, type CsvQuestionRow } from "@/lib/csv";
+import { lattlastText, medLattlast } from "@/lib/lattlast";
 
 /**
  * Importen av frågerader - delad av /api/questions/import och
@@ -15,7 +16,9 @@ import { questionCreateData, type CsvQuestionRow } from "@/lib/csv";
  * Vad CSV-raden säger gäller: typ, delfärdighet, config och alternativen
  * skrivs över. Exemplars skrivs bara över när raden har några - de kan ha
  * lagts till för hand i admin och ska inte försvinna för att kolumnen saknas
- * i filen. Config nollas när frågan byter typ, annars lämnas den.
+ * i filen. Config nollas när frågan byter typ, annars lämnas den. Samma sak
+ * med den lättlästa formuleringen (config.lattlast): en rad utan kolumnen
+ * behåller den som finns, också när raden skriver om resten av configen.
  */
 
 export interface ImportResult {
@@ -66,12 +69,18 @@ export async function importQuestionRows(
       nyckel(existing.options) === nyckel(nyaAlternativ as OptionLik[]);
     const typbyte = existing.type !== data.type;
 
+    const behallen = typbyte ? undefined : lattlastText(existing.config) ?? undefined;
+    const config =
+      data.config !== undefined && !row.lattlast
+        ? medLattlast(data.config, behallen)
+        : data.config;
+
     await tx.question.update({
       where: { id: existing.id },
       data: {
         type: data.type,
         subskill: data.subskill ?? null,
-        config: data.config ?? (typbyte ? Prisma.DbNull : undefined),
+        config: (config as Prisma.InputJsonValue | undefined) ?? (typbyte ? Prisma.DbNull : undefined),
         exemplars: data.exemplars ?? undefined,
         options: alternativLika
           ? undefined
