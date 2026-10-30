@@ -11,6 +11,8 @@ import { submissionAnswers } from "@/lib/blank-answer";
 import { obesvaradePositioner } from "@/lib/obesvarade";
 import BekraftaInlamning from "@/components/BekraftaInlamning";
 import type { EnkatFraga } from "@/lib/enkatfraga";
+import LedtradPanel from "@/components/LedtradPanel";
+import type { TidigareLedtrad } from "@/lib/ledtrad";
 
 interface SurveyData {
   id: number;
@@ -31,15 +33,25 @@ interface Props {
   lockMode?: boolean;
   /** Visa flervalsfrågorna som Anki-kort i stället för alternativlistor. */
   flashcard?: boolean;
+  /**
+   * Ledtrådar (bara för elever läraren slagit på stödet för): vilka frågor
+   * som har en ledtrådsknapp, och vad eleven redan fått. Sidan avgör det på
+   * servern - underlaget lämnar aldrig servern.
+   */
+  ledtradar?: { fragor: number[]; tidigare: Record<number, TidigareLedtrad[]> };
 }
 
 export default function StudentQuizForm({
   survey,
   lockMode = false,
   flashcard = false,
+  ledtradar,
 }: Props) {
   const router = useRouter();
   const [answers, setAnswers] = useState<Record<number, string>>({});
+  const [ledtradLista, setLedtradLista] = useState<Record<number, TidigareLedtrad[]>>(
+    ledtradar?.tidigare ?? {}
+  );
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -331,6 +343,23 @@ export default function StudentQuizForm({
           startIndex={currentStep}
           flashcard={flashcard}
           onRated={handleRated}
+          efterFraga={
+            ledtradar
+              ? (q) =>
+                  ledtradar.fragor.includes(q.id) ? (
+                    <LedtradPanel
+                      key={q.id}
+                      surveyId={survey.id}
+                      questionId={q.id}
+                      utkast={answers[q.id] ?? ""}
+                      tidigare={ledtradLista[q.id] ?? []}
+                      onNy={(l) =>
+                        setLedtradLista((prev) => ({ ...prev, [q.id]: [...(prev[q.id] ?? []), l] }))
+                      }
+                    />
+                  ) : null
+              : undefined
+          }
         />
       )}
 

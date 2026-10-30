@@ -139,3 +139,17 @@ describe("växeln Ordinarie / Lättläst", () => {
     expect(render()).not.toContain("Lättläst");
   });
 });
+
+describe("plats under svarsfältet (efterFraga)", () => {
+  const fritext = { ...question, id: 2, text: "Vilken frihet saknade hen?", type: "FREE_TEXT", options: [], answer: null };
+
+  it("renderar det anroparen lägger där", () => {
+    const html = render({ questions: [fritext], efterFraga: () => <p>LEDTRADSPANEL</p> });
+    expect(html).toContain("LEDTRADSPANEL");
+  });
+
+  it("lämnar frågan orörd utan anropare, och kort får ingen plats alls", () => {
+    expect(render({ questions: [fritext] })).not.toContain("LEDTRADSPANEL");
+    expect(render({ flashcard: true, efterFraga: () => <p>LEDTRADSPANEL</p> })).not.toContain("LEDTRADSPANEL");
+  });
+});

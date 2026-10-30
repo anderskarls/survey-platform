@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import FlagButton from "@/components/FlagButton";
 import ClozeCardFace from "@/components/ClozeCardFace";
 import { FLASHCARD_RATINGS, rendersAsCard } from "@/lib/flashcard";
@@ -26,6 +26,8 @@ interface QuestionRendererProps {
   flashcard?: boolean;
   /** Anropas när eleven skattat ett kort, så formuläret kan gå vidare. */
   onRated?: (questionId: number) => void;
+  /** Renderas under svarsfältet, t.ex. ledtrådspanelen. Inte för kort. */
+  efterFraga?: (q: Question) => ReactNode;
 }
 
 /**
@@ -285,6 +287,7 @@ export default function QuestionRenderer({
   startIndex = 0,
   flashcard = false,
   onRated,
+  efterFraga,
 }: QuestionRendererProps) {
   const lattlastValt = useLattlast();
   const harLattlast = questions.some((q) => q.lattlast);
@@ -446,6 +449,7 @@ export default function QuestionRenderer({
               className="input-field"
             />
           )}
+          {efterFraga?.(q)}
         </div>
         )
       )}

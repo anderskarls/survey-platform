@@ -11,6 +11,7 @@ interface Student {
   number: number;
   username: string;
   isTest: boolean;
+  hintsEnabled: boolean;
   responseCount: number;
   linkedCourses: string[];
 }
@@ -58,6 +59,24 @@ export default function StudentsPage() {
   useEffect(() => {
     loadStudents();
   }, [loadStudents]);
+
+  // Ledtrådsreglaget: ändras direkt i tabellen och backas om sparandet misslyckas
+  async function toggleHints(s: Student) {
+    const next = !s.hintsEnabled;
+    setStudents((prev) => prev.map((x) => (x.id === s.id ? { ...x, hintsEnabled: next } : x)));
+    try {
+      const res = await fetch(`/api/courses/${courseId}/students/${s.number}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ hintsEnabled: next }),
+      });
+      if (!res.ok) throw new Error("Patch failed");
+    } catch {
+      setStudents((prev) => prev.map((x) => (x.id === s.id ? { ...x, hintsEnabled: !next } : x)));
+      showToast("Kunde inte spara ledtrådsvalet", "error");
+    }
+  }
+  const hintCount = students.filter((s) => s.hintsEnabled && !s.isTest).length;
 
   useEffect(() => {
     async function loadCourses() {
@@ -323,6 +342,12 @@ export default function StudentsPage() {
                 <th className="p-4 font-semibold text-muted text-xs uppercase tracking-wider">Användarnamn</th>
                 <th className="p-4 font-semibold text-muted text-xs uppercase tracking-wider">Antal enkätsvar</th>
                 <th className="p-4 font-semibold text-muted text-xs uppercase tracking-wider">Länkad till</th>
+                <th
+                  className="p-4 font-semibold text-muted text-xs uppercase tracking-wider"
+                  title="AI-ledtrådar på reflektionsuppgifter som har ledtrådsunderlag. Aldrig på quiz eller prov."
+                >
+                  Ledtrådar{hintCount > 0 ? ` (${hintCount})` : ""}
+                </th>
                 <th className="p-4"></th>
               </tr>
             </thead>
@@ -341,6 +366,15 @@ export default function StudentsPage() {
                   <td className="p-4 text-muted">{s.responseCount}</td>
                   <td className="p-4 text-muted text-sm">
                     {s.linkedCourses.length > 0 ? s.linkedCourses.join(", ") : "-"}
+                  </td>
+                  <td className="p-4">
+                    <input
+                      type="checkbox"
+                      checked={s.hintsEnabled}
+                      onChange={() => toggleHints(s)}
+                      aria-label={`Ledtrådar för elev ${s.number}`}
+                      className="h-4 w-4 accent-primary cursor-pointer"
+                    />
                   </td>
                   <td className="p-4">
                     <Link

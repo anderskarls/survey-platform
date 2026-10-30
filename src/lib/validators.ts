@@ -346,6 +346,21 @@ export const createStudentsSchema = z
     })
   );
 
+/** PATCH /api/courses/[courseId]/students/[number]: lärarens inställningar per elev. */
+export const updateStudentSchema = z
+  .object({
+    // Ledtrådar (ledtrad.ts) påslagna för eleven i den här kursen
+    hintsEnabled: z.boolean(),
+  })
+  .strict();
+
+/** POST /api/surveys/[id]/ledtrad: elevens begäran om en ledtråd. */
+export const ledtradSchema = z.object({
+  questionId: z.number().int().positive(),
+  // Utkastet som eleven har i rutan just nu - samma tak som inlämningen
+  utkast: z.string().max(SVARSTAK),
+});
+
 export const studentSwitchSchema = z.object({
   courseId: z.number().int().positive(),
 });

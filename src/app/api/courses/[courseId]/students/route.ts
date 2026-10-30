@@ -64,6 +64,7 @@ export async function GET(
       number: s.number,
       username: s.username,
       isTest: s.isTest,
+      hintsEnabled: s.hintsEnabled,
       responseCount: s._count.responses,
       linkedCourses: s.personKey
         ? (linkedCoursesByKey.get(s.personKey) ?? [])

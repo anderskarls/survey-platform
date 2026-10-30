@@ -3,6 +3,41 @@ import { prisma } from "@/lib/prisma";
 import { answerLabel } from "@/lib/blank-answer";
 import { requireCourseAccess } from "@/lib/require-auth";
 import { arOsaker } from "@/lib/svarsvarden";
+import { handleApiError } from "@/lib/api-helpers";
+import { updateStudentSchema } from "@/lib/validators";
+
+/**
+ * Lärarens inställningar för en elev. I dag bara ledtrådsreglaget. updateMany
+ * med courseId i villkoret, så att ett elevnummer aldrig träffar en annan kurs.
+ */
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ courseId: string; number: string }> }
+) {
+  const authError = await requireCourseAccess(params);
+  if (authError) return authError;
+
+  const { courseId, number } = await params;
+  const cId = Number(courseId);
+  const studentNumber = Number(number);
+  if (isNaN(cId) || isNaN(studentNumber)) {
+    return NextResponse.json({ error: "Ogiltigt ID" }, { status: 400 });
+  }
+
+  try {
+    const data = updateStudentSchema.parse(await request.json());
+    const { count } = await prisma.student.updateMany({
+      where: { courseId: cId, number: studentNumber },
+      data,
+    });
+    if (count === 0) {
+      return NextResponse.json({ error: "Eleven hittades inte" }, { status: 404 });
+    }
+    return NextResponse.json({ number: studentNumber, ...data });
+  } catch (error) {
+    return handleApiError(error);
+  }
+}
 
 export async function GET(
   _request: NextRequest,

@@ -5,6 +5,8 @@ import StudentQuizForm from "@/components/StudentQuizForm";
 import { toEnkatFraga } from "@/lib/enkatfraga";
 import Link from "next/link";
 import { isReleased } from "@/lib/survey-release";
+import { kanVisaLedtrad } from "@/lib/ledtrad-sparr";
+import type { LedtradKind, TidigareLedtrad } from "@/lib/ledtrad";
 
 /**
  * Elevens testvy. Hela testet, varje gång.
@@ -67,6 +69,8 @@ export default async function StudentQuizPage({
     redirect("/student");
   }
 
+  const ledtradar = await hamtaLedtradar(survey, session.studentId, courseId);
+
   return (
     <div>
       <div className="mb-4">
@@ -84,7 +88,57 @@ export default async function StudentQuizPage({
         }}
         lockMode={survey.lockMode}
         flashcard={flashcard}
+        ledtradar={ledtradar}
       />
     </div>
   );
+}
+
+/**
+ * Vilka frågor som får en ledtrådsknapp, och vad eleven redan fått. Samma
+ * spärrar som routen (kanVisaLedtrad); undefined när eleven inte har stödet,
+ * så att formuläret ser ut precis som förut för alla andra.
+ */
+async function hamtaLedtradar(
+  survey: {
+    id: number;
+    mode: string;
+    lockMode: boolean;
+    courseId: number;
+    openAt: Date | null;
+    questions: { question: { id: number; type: string; hintBasis: unknown } }[];
+  },
+  studentId: number,
+  courseId: number
+): Promise<{ fragor: number[]; tidigare: Record<number, TidigareLedtrad[]> } | undefined> {
+  const [student, inlamningar] = await Promise.all([
+    prisma.student.findUnique({ where: { id: studentId }, select: { hintsEnabled: true } }),
+    prisma.response.count({ where: { surveyId: survey.id, studentId } }),
+  ]);
+  if (!student?.hintsEnabled || inlamningar > 0) return undefined;
+
+  const fragor = survey.questions
+    .map((sq) => sq.question)
+    .filter(
+      (q) =>
+        kanVisaLedtrad({
+          survey: { ...survey, slappt: isReleased(survey) },
+          sessionCourseId: courseId,
+          hintsEnabled: true,
+          fraga: { type: q.type, iSurvey: true, hintBasis: q.hintBasis },
+        }).ok
+    )
+    .map((q) => q.id);
+  if (fragor.length === 0) return undefined;
+
+  const rader = await prisma.hintRequest.findMany({
+    where: { surveyId: survey.id, studentId, questionId: { in: fragor } },
+    select: { questionId: true, kind: true, rung: true, hint: true },
+    orderBy: { createdAt: "asc" },
+  });
+  const tidigare: Record<number, TidigareLedtrad[]> = {};
+  for (const r of rader) {
+    (tidigare[r.questionId] ??= []).push({ kind: r.kind as LedtradKind, rung: r.rung, hint: r.hint });
+  }
+  return { fragor, tidigare };
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { draftSchema, respondSchema, SVARSTAK } from "./validators";
+import { draftSchema, respondSchema, SVARSTAK, updateStudentSchema } from "./validators";
 
 const NUL = "\u0000";
 
@@ -65,5 +65,15 @@ describe("respondSchema", () => {
 
   it("kräver minst ett svar", () => {
     expect(respondSchema.safeParse({ answers: [] }).success).toBe(false);
+  });
+});
+
+describe("updateStudentSchema", () => {
+  it("tar bara emot ledtrådsreglaget", () => {
+    expect(updateStudentSchema.safeParse({ hintsEnabled: true }).success).toBe(true);
+    expect(updateStudentSchema.safeParse({ hintsEnabled: "ja" }).success).toBe(false);
+    expect(updateStudentSchema.safeParse({}).success).toBe(false);
+    // Inget annat elevfält ska gå att ändra den här vägen
+    expect(updateStudentSchema.safeParse({ hintsEnabled: true, isTest: true }).success).toBe(false);
   });
 });
