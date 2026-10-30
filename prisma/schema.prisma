@@ -51,6 +51,9 @@ model Student {
   passwordHash String
   personKey    String?    // samma nyckel = samma fysiska elev i flera kurser
   isTest       Boolean    @default(false) // lärarens provkonto: räknas inte i klassaggregaten
+  /// Ledtrådar påslagna för den här eleven i den här kursen (läraren väljer
+  /// elev för elev). Bara en bool - inget om varför lagras. Se ledtrad.ts.
+  hintsEnabled Boolean    @default(false)
   courseId      Int
   course       Course     @relation(fields: [courseId], references: [id], onDelete: Cascade)
   createdAt    DateTime   @default(now())
@@ -60,6 +63,7 @@ model Student {
   assignmentFeedbacks AssignmentFeedback[]
   practiceAttempts   PracticeAttempt[]
   timelineGameRounds TimelineGameRound[]
+  hintRequests       HintRequest[]
 
   @@unique([courseId, number])
   @@index([personKey])
@@ -88,10 +92,14 @@ model Question {
   subskill        String?          // delfärdighet för förmågeträning: kategorisera | kedjor | forgrena | vikta | kritisera
   config          Json?            // typspecifik konfiguration; SORTING: { categories, items: [{ text, category }] }
   exemplars       Json?            // exempelsvar i nivåer: [{ level: "E"|"C"|"A", text, kommentar }] - visas först efter elevens försök
+  /// Underlag för ledtrådar: { facit, kriterier?, kalla? } (ledtradUnderlagSchema
+  /// i ledtrad.ts). Lämnar aldrig servern. Utan underlag visas ingen ledtrådsknapp.
+  hintBasis       Json?
   topicId         Int
   topic           Topic            @relation(fields: [topicId], references: [id])
   options         QuestionOption[]
   surveyQuestions SurveyQuestion[]
+  hintRequests    HintRequest[]
   answers         Answer[]
   flaggedBy       FlaggedQuestion[]
   practiceAttempts PracticeAttempt[]
@@ -136,6 +144,7 @@ model Survey {
   questions   SurveyQuestion[]
   responses   Response[]
   drafts      DraftResponse[]
+  hintRequests HintRequest[]
 
   @@unique([versionOfId, versionNumber])
   @@index([unitId])
@@ -226,6 +235,34 @@ model PracticeAttempt {
 
   @@index([studentId, questionId])
   @@index([studentId, createdAt])
+}
+
+/// En ledtråd som en elev bett om och fått. Elevens utkast sparas inte här -
+/// det finns redan i DraftResponse. Diagnosen är lärarens och skickas aldrig
+/// till eleven. Gallras med kursen (kaskad via Student).
+model HintRequest {
+  id              Int      @id @default(autoincrement())
+  studentId       Int
+  student         Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  surveyId        Int
+  survey          Survey   @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+  questionId      Int
+  question        Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  kind            String   // LEDTRAD | FORKLARING (förklaring av frågan räknas inte som steg)
+  rung            Int?     @db.SmallInt // 1-4; null för FORKLARING
+  hint            String
+  diagnosis       String
+  model           String
+  inputTokens     Int
+  outputTokens    Int
+  cacheReadTokens Int      @default(0)
+  latencyMs       Int
+  /// Läraren provade som eleven - räknas inte i rapporten.
+  impersonated    Boolean  @default(false)
+  createdAt       DateTime @default(now())
+
+  @@index([studentId, questionId])
+  @@index([surveyId])
 }
 
 model CampaignSnapshot {
