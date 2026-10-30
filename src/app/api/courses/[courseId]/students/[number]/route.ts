@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { answerLabel } from "@/lib/blank-answer";
+import { ledtradNyckel, sammanfattaLedtradar } from "@/lib/ledtrad-rapport";
 import { requireCourseAccess } from "@/lib/require-auth";
 import { arOsaker } from "@/lib/svarsvarden";
 import { handleApiError } from "@/lib/api-helpers";
@@ -74,6 +75,11 @@ export async function GET(
     orderBy: { createdAt: "asc" },
   });
 
+  // Ledtrådar eleven själv bad om - lärarens provning som eleven räknas inte.
+  const ledtradar = sammanfattaLedtradar(
+    await prisma.hintRequest.findMany({ where: { studentId: student.id, impersonated: false } })
+  );
+
   const surveys = responses.map((r) => {
     const correctCount = r.answers.filter((a) => a.isCorrect === true).length;
     const totalQuestions = r.answers.length;
@@ -91,6 +97,7 @@ export async function GET(
         value: answerLabel(a.value),
         isCorrect: a.isCorrect,
         feedback: a.feedback,
+        ledtradar: ledtradar.get(ledtradNyckel(r.survey.id, student.id, a.question.id)) ?? null,
       })),
     };
   });

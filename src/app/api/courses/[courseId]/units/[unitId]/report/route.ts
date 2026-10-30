@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { answerLabel } from "@/lib/blank-answer";
+import { ledtradEtikett, ledtradNyckel, postEtikett, sammanfattaLedtradar } from "@/lib/ledtrad-rapport";
 import { requireCourseAccess } from "@/lib/require-auth";
 import { gallandeSvarPerElev } from "@/lib/svarsurval";
 import { raknaSvarsalternativ } from "@/lib/svarsvarden";
@@ -56,6 +57,18 @@ export async function GET(
     s.responses = gallandeSvarPerElev(s.responses, { quiz: s.mode === "QUIZ" });
   }
 
+  // Ledtrådar: bara elevernas egna. Lärarens provning (impersonated) och
+  // provkontot hör inte till klassens bild.
+  const hintRows = await prisma.hintRequest.findMany({
+    where: {
+      surveyId: { in: unit.surveys.map((s) => s.id) },
+      impersonated: false,
+      student: { isTest: false },
+    },
+    include: { student: { select: { number: true } } },
+  });
+  const ledtradar = sammanfattaLedtradar(hintRows);
+
   const lines: string[] = [];
   lines.push(`# Momentrapport: ${unit.title}`);
   lines.push(`Kurs: ${unit.course.name} (${unit.course.code})`);
@@ -82,6 +95,7 @@ export async function GET(
             // Tom rad = obesvarad fråga. Se blank-answer.ts.
             value: answerLabel(a.value),
             n: r.student.number,
+            sid: r.student.id,
             isCorrect: a.isCorrect,
             feedback: a.feedback,
           }))
@@ -109,8 +123,10 @@ export async function GET(
         ans
           .sort((a, b) => a.n - b.n)
           .forEach((a) => {
+            const hj = ledtradar.get(ledtradNyckel(s.id, a.sid, q.id));
             lines.push(
-              `- Elev #${a.n}: "${a.value}"${a.feedback ? " [feedback finns]" : " [SAKNAR feedback]"}`
+              `- Elev #${a.n}: "${a.value}"${a.feedback ? " [feedback finns]" : " [SAKNAR feedback]"}` +
+                (hj ? ` [fick ${ledtradEtikett(hj)}]` : "")
             );
           });
       }
@@ -128,6 +144,36 @@ export async function GET(
       lines.push("## Flaggade frågor (elever bad om hjälp)");
       flagged.forEach((f) => lines.push(`- Elev #${f.student.number}: "${f.question.text}"`));
       lines.push("");
+    }
+  }
+
+  if (ledtradar.size > 0) {
+    lines.push("## Ledtrådar (AI-stöd för utvalda elever)");
+    lines.push(
+      "_Diagnosen är AI:ns bild av var resonemanget brast när eleven bad om hjälp - " +
+        "eleven har aldrig sett den. Svaren ovan skrevs efter ledtrådarna._"
+    );
+    for (const s of unit.surveys) {
+      for (const sq of s.questions) {
+        const q = sq.question;
+        const elever = [...new Map(
+          hintRows
+            .filter((h) => h.surveyId === s.id && h.questionId === q.id)
+            .map((h) => [h.studentId, h.student.number])
+        )].sort((a, b) => a[1] - b[1]);
+        if (elever.length === 0) continue;
+        lines.push(`### ${s.title}: ${q.text}`);
+        for (const [sid, n] of elever) {
+          const sam = ledtradar.get(ledtradNyckel(s.id, sid, q.id))!;
+          const inlamnad = s.responses.some((r) => r.student.id === sid);
+          lines.push(`- Elev #${n}: ${ledtradEtikett(sam)}${inlamnad ? "" : " (har inte lämnat in)"}`);
+          for (const p of sam.poster) {
+            lines.push(`  - ${postEtikett(p)}: "${p.hint}"`);
+            lines.push(`    - Diagnos: ${p.diagnosis}`);
+          }
+        }
+        lines.push("");
+      }
     }
   }
 

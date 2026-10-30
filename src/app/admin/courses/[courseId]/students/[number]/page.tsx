@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
+import { ledtradEtikett, postEtikett, type LedtradSammanfattning } from "@/lib/ledtrad-rapport";
 
 interface Answer {
   questionId: number;
@@ -10,6 +11,7 @@ interface Answer {
   value: string;
   isCorrect: boolean | null;
   feedback: string | null;
+  ledtradar: LedtradSammanfattning | null;
 }
 
 interface SurveyResponse {
@@ -108,6 +110,26 @@ export default function StudentDetailPage() {
                           </>
                         )}
                       </div>
+                      {a.ledtradar && (
+                        <details className="mt-2 text-sm">
+                          <summary className="cursor-pointer text-xs font-semibold text-muted">
+                            Fick {ledtradEtikett(a.ledtradar)}
+                          </summary>
+                          <ol className="mt-2 space-y-2 pl-1">
+                            {a.ledtradar.poster.map((p, i) => (
+                              <li key={i} className="rounded-lg border border-border-light p-2.5">
+                                <div className="text-xs font-semibold text-muted mb-0.5">
+                                  {postEtikett(p)}
+                                </div>
+                                <div className="text-foreground">{p.hint}</div>
+                                <div className="text-xs text-muted mt-1">
+                                  Diagnos (syns inte för eleven): {p.diagnosis}
+                                </div>
+                              </li>
+                            ))}
+                          </ol>
+                        </details>
+                      )}
                       {isFreeText && (
                         <div className="mt-2">
                           {a.feedback && a.feedback.trim() !== "" ? (
