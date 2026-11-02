@@ -46,6 +46,12 @@ export interface LedtradInput {
   kriterier?: string;
   /** Källmaterialet eleven arbetar med, om det finns. */
   kalla?: string;
+  /**
+   * Frågans del av momentets kunskapsgraf: påståendena som är svar och
+   * kedjorna (premisser -> slutsats) som leder dit. Innehåller svaren, så
+   * läckagefiltret bevakar den som facit. Säger inget om den enskilda eleven.
+   */
+  graf?: string;
   /** Elevens nuvarande utkast. */
   utkast: string;
   tidigare: TidigareLedtrad[];
@@ -95,6 +101,13 @@ Du får lärarens facit med godtagbara svar och vanliga fel. Det är till för d
 
 Allt som facit godtar är rätt, även när det inte står i källmaterialet du fått (facit kan till exempel säga "källbanken, inte boken"). Be aldrig eleven stryka eller byta ut något som facit godtar. Säg bara att något är fel när det strider mot facit eller källmaterialet. Använd aldrig lärarens egna ord för materialet, som "källbanken" - eleven känner inte till dem. Det som facit säger inte ska krävas av eleverna, ska du inte heller be om.
 
+## Kunskapskedjan
+Ibland får du också frågans kunskapskedja: korta påståenden med id (som Me6) och kedjor där några påståenden tillsammans leder till ett annat. Den är också till för dig, inte för eleven. Använd den så här:
+- Jämför utkastet med kedjorna och hitta den första premiss eleven saknar eller har fel på. Det är den ledtråden ska hjälpa eleven att hitta, inte slutsatsen längre fram.
+- Har eleven redan premisserna men inte dragit slutsatsen: hjälp hen att sätta ihop dem.
+- Nämn aldrig id:n och citera inte påståendena. Påståenden märkta [ej krav] godtas men ska inte efterfrågas.
+- Kedjan säger vad som hänger ihop i ämnet, inte vad eleven kan. Det är utkastet som visar det.
+
 ## Förbjudet
 - Nämn aldrig betyg eller nivåer (E, C, A, "betyg", "nivå").
 - Jämför aldrig med andra elever ("många missar", "de flesta", "bäst i klassen").
@@ -136,6 +149,7 @@ export function byggAnrop(input: LedtradInput, malRung: number): LedtradAnrop {
     `## Uppgiften\n${input.fraga}`,
     input.kriterier ? `## Vad ett svar ska uppfylla (får förklaras för eleven)\n${input.kriterier}` : null,
     `## Lärarens facit (visas aldrig för eleven)\n${input.facit}`,
+    input.graf ? `## Kunskapskedjan bakom frågan (visas aldrig för eleven)\n${input.graf}` : null,
     input.kalla ? `## Källmaterialet eleven arbetar med\n${input.kalla}` : null,
   ]
     .filter(Boolean)
@@ -173,6 +187,7 @@ export const ledtradUnderlagSchema = z.object({
   facit: z.string().trim().min(1).max(20_000),
   kriterier: z.string().trim().max(10_000).optional(),
   kalla: z.string().trim().max(40_000).optional(),
+  graf: z.string().trim().max(20_000).optional(),
 });
 export type LedtradUnderlag = z.infer<typeof ledtradUnderlagSchema>;
 
@@ -356,7 +371,7 @@ export async function hamtaLedtrad(
       sistaFel = new LedtradFel("tolkning", "Svaret gick inte att tolka.");
       continue;
     }
-    const flaggor = granskaLedtrad(svar.hint, input.facit);
+    const flaggor = granskaLedtrad(svar.hint, input.graf ? `${input.facit}\n\n${input.graf}` : input.facit);
     if (flaggor.length > 0) {
       underkanda.push(flaggor);
       sistaFel = new LedtradFel("granskning", `Ledtråden underkändes: ${flaggor.join(", ")}`);

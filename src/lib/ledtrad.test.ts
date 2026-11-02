@@ -58,6 +58,15 @@ describe("byggAnrop", () => {
   it("markerar tomt utkast", () => {
     expect(byggAnrop(input({ utkast: "  " }), 0).messages[0].content).toContain("(tomt");
   });
+  it("lägger kunskapskedjan i det cachade underlaget, efter facit", () => {
+    const a = byggAnrop(input({ graf: "- R2: G2 + Me6 -> Me7" }), 1);
+    expect(a.system[1].text).toContain("## Kunskapskedjan bakom frågan");
+    expect(a.system[1].text.indexOf("R2: G2")).toBeGreaterThan(a.system[1].text.indexOf(facit));
+    expect(a.messages[0].content).not.toContain("R2: G2");
+  });
+  it("utelämnar kedjeavsnittet när frågan saknar graf", () => {
+    expect(byggAnrop(input(), 1).system[1].text).not.toContain("Kunskapskedjan");
+  });
   it("håller elevens utkast utanför systemdelen, så cachen inte bryts", () => {
     const a = byggAnrop(input({ utkast: "unik-elevtext" }), 0);
     expect(a.system.some((s) => s.text.includes("unik-elevtext"))).toBe(false);
@@ -152,6 +161,14 @@ describe("hamtaLedtrad", () => {
   it("kastar när båda försöken underkänns", async () => {
     const k = fake([ok("Många missar."), ok("Många missar.")]);
     await expect(hamtaLedtrad(input(), k)).rejects.toMatchObject({ orsak: "granskning" });
+  });
+  it("underkänner en ledtråd som citerar grafen", async () => {
+    const graf = "- Mt10: Skillnaden mellan metoiken och slaven är att ingen ägde metoiken.";
+    const lacka = ok("Skillnaden mellan metoiken och slaven är att ingen ägde henne.");
+    const k = fake([lacka, ok("Vem ägde metoiken?")]);
+    const r = await hamtaLedtrad(input({ graf }), k);
+    expect(r.underkanda).toEqual([["facit-lacka"]]);
+    expect(r.svar.hint).toBe("Vem ägde metoiken?");
   });
   it("frågar inte om efter en vägran", async () => {
     const k = fake([{ ...ok("x"), stop_reason: "refusal" }]);

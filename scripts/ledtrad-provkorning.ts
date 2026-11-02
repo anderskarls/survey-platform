@@ -6,7 +6,10 @@
  *   npx tsx scripts/ledtrad-provkorning.ts --torr          bygger allt utom AI-anropen
  *   npx tsx scripts/ledtrad-provkorning.ts                 skarp körning (ANTHROPIC_API_KEY)
  *
- * Flaggor: --surveys 385,386  --antal 24  --steg 5  --facit <md>  --kalla <md>
+ * Flaggor: --surveys 385,386  --antal 24  --steg 5  --facit <md>  --kalla <md>  --graf <md>
+ *
+ * Kunskapsgrafen: standard är med graf. --utan-graf kör utan, och --jamfor kör
+ * varje fall både utan och med, sida vid sida på granskningssidan.
  *
  * Underlaget per fråga tas ur lektionens facit och källmaterial i vaultet:
  * avsnittet "## Station N" och, i facit, delen HADE eller SAKNADE beroende på
@@ -31,6 +34,7 @@ import {
 } from "../src/lib/ledtrad";
 import { skapaLedtradKlient } from "../src/lib/ledtrad-klient";
 import { underlagFor, utanFrontmatter } from "./ledtrad-facit-md";
+import { grafFor, lasGraf, type Graf } from "./ledtrad-graf-md";
 
 config({ path: "mcp-server/.env" });
 neonConfig.webSocketConstructor = ws;
@@ -47,6 +51,12 @@ const ANTAL = Number(flagga("--antal", "24"));
 const STEG = Math.min(Number(flagga("--steg", String(MAX_RUNG - MIN_RUNG + 1))), MAX_RUNG - MIN_RUNG + 1);
 const FACIT = flagga("--facit", `${MOMENT}/facit-elevuppgift-lektion-3.md`);
 const KALLA = flagga("--kalla", `${MOMENT}/kallmaterial-lektion-3-bearbetad.md`);
+const GRAF = flagga("--graf", `${MOMENT}/kunskapsgraf-lektion-3.md`);
+type Variant = "utan" | "med";
+const VARIANTER: Variant[] = process.argv.includes("--jamfor")
+  ? ["utan", "med"]
+  : [process.argv.includes("--utan-graf") ? "utan" : "med"];
+const VARIANT_NAMN: Record<Variant, string> = { utan: "Utan graf", med: "Med graf" };
 
 // Opus 5.5, USD per miljon token. Cacheskrivning = 1,25 x input.
 const PRIS = { input: 4, output: 20, cacheRead: 0.2, cacheWrite: 5 };
@@ -61,6 +71,7 @@ interface Fall {
   questionId: number;
   utkast: string;
   underlag: Underlag;
+  graf: string | null;
 }
 
 interface StegResultat {
@@ -83,7 +94,7 @@ function blanda<T>(lista: T[], seed = 42): T[] {
   return a;
 }
 
-async function hamtaFall(prisma: PrismaClient, facitMd: string, kallaMd: string): Promise<Fall[]> {
+async function hamtaFall(prisma: PrismaClient, facitMd: string, kallaMd: string, graf: Graf): Promise<Fall[]> {
   const svar = await prisma.answer.findMany({
     where: { response: { surveyId: { in: SURVEYS }, student: { isTest: false } }, question: { type: "FREE_TEXT" } },
     select: { value: true, questionId: true, question: { select: { text: true } } },
@@ -107,6 +118,7 @@ async function hamtaFall(prisma: PrismaClient, facitMd: string, kallaMd: string)
     questionId: a.questionId,
     utkast: a.value,
     underlag: a.underlag,
+    graf: grafFor(a.question.text, graf),
   }));
 
   // Syntetiska fall på en fråga som har underlag: de svåra lägena.
@@ -126,16 +138,25 @@ async function hamtaFall(prisma: PrismaClient, facitMd: string, kallaMd: string)
       questionId: bas.questionId,
       utkast,
       underlag: bas.underlag,
+      graf: grafFor(bas.question.text, graf),
     });
   }
   return fall;
 }
 
-async function korFall(f: Fall, klient: ReturnType<typeof skapaLedtradKlient> | null): Promise<StegResultat[]> {
+async function korFall(f: Fall, variant: Variant, klient: ReturnType<typeof skapaLedtradKlient> | null): Promise<StegResultat[]> {
   const tidigare: TidigareLedtrad[] = [];
   const resultat: StegResultat[] = [];
   for (let i = 0; i < STEG + 2 && resultat.length < STEG; i++) {
-    const input: LedtradInput = { fraga: f.fraga, facit: f.underlag.facit, kriterier: f.underlag.kriterier, kalla: f.underlag.kalla, utkast: f.utkast, tidigare: [...tidigare] };
+    const input: LedtradInput = {
+      fraga: f.fraga,
+      facit: f.underlag.facit,
+      kriterier: f.underlag.kriterier,
+      kalla: f.underlag.kalla,
+      graf: variant === "med" ? (f.graf ?? undefined) : undefined,
+      utkast: f.utkast,
+      tidigare: [...tidigare],
+    };
     if (nastaRung(tidigare) === null) break;
     if (!klient) {
       byggAnrop(input, nastaRung(tidigare)!);
@@ -186,7 +207,28 @@ function percentil(v: number[], p: number): number {
   return s[Math.min(s.length - 1, Math.floor((p / 100) * s.length))];
 }
 
-function skrivSida(fall: Fall[], res: StegResultat[][]): string {
+type FallResultat = Partial<Record<Variant, StegResultat[]>>;
+
+function stegLista(f: Fall, variant: Variant, steg: StegResultat[]): string {
+  return steg
+    .map((r, j) => {
+      const id = `${f.id}-${variant}-${j}`;
+      if (!r.svar) return `<li class="fel">${esc(r.fel ?? "fel")}</li>`;
+      const rung = r.svar.kind === "FORKLARING" ? "Förklaring" : `R${r.svar.rung}`;
+      const flagg = r.underkanda.length ? `<span class="flagg">omgjord: ${esc(r.underkanda.map((u) => u.join("+")).join(", "))}</span>` : "";
+      return `<li data-id="${id}">
+  <div class="rung">${rung}</div>
+  <div class="hint">${esc(r.svar.hint)}</div>
+  <div class="diag">Diagnos: ${esc(r.svar.diagnosis)} ${flagg}</div>
+  <div class="meta">${r.tokens.in}+${r.tokens.cacheRead} cache in, ${r.tokens.out} ut, ${(r.latencyMs / 1000).toFixed(1)} s</div>
+  <div class="bedom">${["bra", "för mycket", "för lite", "fel spår"].map((b) => `<label><input type="radio" name="${id}" value="${b}"> ${b}</label>`).join("")}</div>
+</li>`;
+    })
+    .join("\n");
+}
+
+function skrivSida(fall: Fall[], resPerFall: FallResultat[]): string {
+  const res = resPerFall.flatMap((r) => VARIANTER.map((v) => r[v] ?? []));
   const alla = res.flat().filter((r) => r.svar);
   const t = alla.reduce(
     (a, r) => ({ in: a.in + r.tokens.in, out: a.out + r.tokens.out, cr: a.cr + r.tokens.cacheRead, cw: a.cw + r.tokens.cacheWrite }),
@@ -200,26 +242,15 @@ function skrivSida(fall: Fall[], res: StegResultat[][]): string {
 
   const kort = fall
     .map((f, i) => {
-      const steg = res[i]
-        .map((r, j) => {
-          const id = `${f.id}-${j}`;
-          if (!r.svar) return `<li class="fel">${esc(r.fel ?? "fel")}</li>`;
-          const rung = r.svar.kind === "FORKLARING" ? "Förklaring" : `R${r.svar.rung}`;
-          const flagg = r.underkanda.length ? `<span class="flagg">omgjord: ${esc(r.underkanda.map((u) => u.join("+")).join(", "))}</span>` : "";
-          return `<li data-id="${id}">
-  <div class="rung">${rung}</div>
-  <div class="hint">${esc(r.svar.hint)}</div>
-  <div class="diag">Diagnos: ${esc(r.svar.diagnosis)} ${flagg}</div>
-  <div class="meta">${r.tokens.in}+${r.tokens.cacheRead} cache in, ${r.tokens.out} ut, ${(r.latencyMs / 1000).toFixed(1)} s</div>
-  <div class="bedom">${["bra", "för mycket", "för lite", "fel spår"].map((b) => `<label><input type="radio" name="${id}" value="${b}"> ${b}</label>`).join("")}</div>
-</li>`;
-        })
-        .join("\n");
+      const kolumner = VARIANTER.map(
+        (v) => `<div class="kol">${VARIANTER.length > 1 ? `<h3>${VARIANT_NAMN[v]}</h3>` : ""}<ol class="steg">${stegLista(f, v, resPerFall[i][v] ?? [])}</ol></div>`
+      ).join("");
       return `<section class="${f.syntetiskt ? "syn" : ""}">
 <h2>${esc(f.etikett)} <small>fråga ${f.questionId}</small></h2>
 <p class="fraga">${esc(f.fraga)}</p>
 <blockquote>${f.utkast.trim() ? esc(f.utkast) : "<em>(tomt)</em>"}</blockquote>
-<ol class="steg">${steg}</ol>
+<div class="kolumner">${kolumner}</div>
+${f.graf ? "" : `<p class="fel">Frågan saknar avsnitt i grafen.</p>`}
 </section>`;
     })
     .join("\n");
@@ -229,7 +260,7 @@ function skrivSida(fall: Fall[], res: StegResultat[][]): string {
 <style>
 :root{--bg:#faf8f4;--fg:#1f1d1a;--mut:#6b655c;--kant:#ddd6ca;--yta:#fff;--acc:#7a3b1d;--varn:#9a6a00;--fel:#a12a2a}
 @media (prefers-color-scheme:dark){:root{--bg:#191714;--fg:#ece7de;--mut:#a39b8f;--kant:#3a352e;--yta:#221f1b;--acc:#e0a07a;--varn:#e0b450;--fel:#ec8a8a}}
-body{background:var(--bg);color:var(--fg);font:16px/1.5 Georgia,serif;max-width:860px;margin:0 auto;padding:16px}
+body{background:var(--bg);color:var(--fg);font:16px/1.5 Georgia,serif;max-width:1180px;margin:0 auto;padding:16px}
 h1{font-size:1.5rem}h2{font-size:1.1rem;margin:0}small{color:var(--mut);font-weight:normal}
 .sum{background:var(--yta);border:1px solid var(--kant);padding:12px 16px;border-radius:6px}
 section{background:var(--yta);border:1px solid var(--kant);border-radius:6px;padding:14px 16px;margin:18px 0}
@@ -237,11 +268,14 @@ section.syn{border-left:4px solid var(--acc)}
 .fraga{color:var(--mut);margin:.3rem 0}blockquote{margin:.5rem 0;padding:.4rem .8rem;border-left:3px solid var(--kant);white-space:pre-wrap}
 .steg{padding-left:0;list-style:none}.steg li{border-top:1px solid var(--kant);padding:8px 0}
 .rung{font:600 .8rem system-ui,sans-serif;color:var(--acc)}.hint{font-size:1.05rem}
-.diag,.meta{font:.85rem system-ui,sans-serif;color:var(--mut)}.flagg{color:var(--varn)}li.fel{color:var(--fel)}
+.diag,.meta{font:.85rem system-ui,sans-serif;color:var(--mut)}.flagg{color:var(--varn)}li.fel,p.fel{color:var(--fel)}
 .bedom{font:.85rem system-ui,sans-serif;display:flex;flex-wrap:wrap;gap:12px;margin-top:4px}
 button{font:inherit;padding:6px 12px}
+.kolumner{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,360px),1fr));gap:16px}
+h3{font:600 .9rem system-ui,sans-serif;margin:.6rem 0 0;color:var(--mut)}
 </style></head><body>
 <h1>Ledtrådar - provkörning ${datum}</h1>
+<p>${VARIANTER.map((v) => VARIANT_NAMN[v]).join(" mot ")}.</p>
 <div class="sum">
 <p>${fall.length} fall (${fall.filter((f) => f.syntetiskt).length} syntetiska), ${alla.length} ledtrådar, ${fel} fel, ${underkanda} omgjorda av efterfiltret.</p>
 <p>Token: ${t.in} in, ${t.cr} cacheläsning, ${t.cw} cacheskrivning, ${t.out} ut. Kostnad ca ${kostnad.toFixed(2)} USD
@@ -273,7 +307,8 @@ async function main() {
   const kallaMd = utanFrontmatter(readFileSync(KALLA, "utf8"));
   const prisma = new PrismaClient({ adapter: new PrismaNeon({ connectionString: process.env.DATABASE_URL! }) });
   try {
-    const fall = await hamtaFall(prisma, facitMd, kallaMd);
+    const graf = lasGraf(utanFrontmatter(readFileSync(GRAF, "utf8")));
+    const fall = await hamtaFall(prisma, facitMd, kallaMd, graf);
     const fragor = new Set(fall.map((f) => f.questionId));
     console.error(`${fall.length} fall på ${fragor.size} frågor, upp till ${STEG} steg var${TORR ? " (torrkörning)" : ""}.`);
     for (const f of fall.slice(0, 1)) {
@@ -286,9 +321,13 @@ async function main() {
       }
     }
     const klient = TORR ? null : skapaLedtradKlient();
-    const res = await parallellt(fall, 3, (f) => korFall(f, klient));
+    const jobb = fall.flatMap((f, i) => VARIANTER.map((v) => ({ i, v, f })));
+    const utfall = await parallellt(jobb, 3, (j) => korFall(j.f, j.v, klient));
+    const res: FallResultat[] = fall.map(() => ({}));
+    jobb.forEach((j, k) => (res[j.i][j.v] = utfall[k]));
     mkdirSync("reports", { recursive: true });
-    const fil = `reports/ledtrad-provkorning-${new Date().toISOString().slice(0, 10)}${TORR ? "-torr" : ""}.html`;
+    const slag = VARIANTER.length > 1 ? "-jamfor" : VARIANTER[0] === "utan" ? "-utan-graf" : "-graf";
+    const fil = `reports/ledtrad-provkorning-${new Date().toISOString().slice(0, 10)}${slag}${TORR ? "-torr" : ""}.html`;
     writeFileSync(fil, skrivSida(fall, res), "utf8");
     console.error(`Skrev ${fil}`);
   } finally {

@@ -104,6 +104,7 @@ export async function POST(
           facit: underlag.facit,
           kriterier: underlag.kriterier,
           kalla: underlag.kalla,
+          graf: underlag.graf,
           utkast,
           tidigare: historik,
         },
