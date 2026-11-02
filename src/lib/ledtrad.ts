@@ -241,11 +241,23 @@ function ord(text: string): string[] {
     .filter(Boolean);
 }
 
+function ngram(o: string[], n: number): Set<string> {
+  const g = new Set<string>();
+  for (let i = 0; i + n <= o.length; i++) g.add(o.slice(i, i + n).join(" "));
+  return g;
+}
+
 /**
  * Efterfilter på det eleven skulle se. Tom lista = godkänd. Fångar det
  * reglerna förbjuder men som en modell ibland gör ändå.
+ *
+ * kalla skickas med från R3, där ledtråden ska peka ut stället i källan: en
+ * facitträff som också står i källan är då en hänvisning, inte en läcka.
+ * Det räcker att träffen bortsett från ett ord i kanten står där ("gjorde
+ * samma arbete som en fri" mot källans "samma arbete som en fri daglönare").
+ * Lärarens egna formuleringar fastnar fortfarande.
  */
-export function granskaLedtrad(hint: string, facit: string): string[] {
+export function granskaLedtrad(hint: string, facit: string, kalla?: string): string[] {
   const flaggor: string[] = [];
   // Versaler utan i-flagga: "A-par" och "E-nivå" ska skiljas åt. \b räknar
   // inte å/ä/ö som bokstäver, därav lookarounds med \p{L}.
@@ -260,14 +272,14 @@ export function granskaLedtrad(hint: string, facit: string): string[] {
   }
   if (hint.length > LANGD_TAK) flaggor.push("for-lang");
 
-  const facitOrd = ord(facit);
-  const facitGram = new Set<string>();
-  for (let i = 0; i + OVERLAPP_ORD <= facitOrd.length; i++) {
-    facitGram.add(facitOrd.slice(i, i + OVERLAPP_ORD).join(" "));
-  }
+  const facitGram = ngram(ord(facit), OVERLAPP_ORD);
+  const kallaGram = kalla ? ngram(ord(kalla), OVERLAPP_ORD - 1) : new Set<string>();
   const hintOrd = ord(hint);
   for (let i = 0; i + OVERLAPP_ORD <= hintOrd.length; i++) {
-    if (facitGram.has(hintOrd.slice(i, i + OVERLAPP_ORD).join(" "))) {
+    const bit = hintOrd.slice(i, i + OVERLAPP_ORD);
+    if (!facitGram.has(bit.join(" "))) continue;
+    const iKallan = kallaGram.has(bit.slice(1).join(" ")) || kallaGram.has(bit.slice(0, -1).join(" "));
+    if (!iKallan) {
       flaggor.push("facit-lacka");
       break;
     }
@@ -371,7 +383,11 @@ export async function hamtaLedtrad(
       sistaFel = new LedtradFel("tolkning", "Svaret gick inte att tolka.");
       continue;
     }
-    const flaggor = granskaLedtrad(svar.hint, input.graf ? `${input.facit}\n\n${input.graf}` : input.facit);
+    const flaggor = granskaLedtrad(
+      svar.hint,
+      input.graf ? `${input.facit}\n\n${input.graf}` : input.facit,
+      svar.rung !== null && svar.rung >= 3 ? input.kalla : undefined
+    );
     if (flaggor.length > 0) {
       underkanda.push(flaggor);
       sistaFel = new LedtradFel("granskning", `Ledtråden underkändes: ${flaggor.join(", ")}`);

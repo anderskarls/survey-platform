@@ -112,6 +112,18 @@ describe("granskaLedtrad", () => {
       "facit-lacka"
     );
   });
+  it("släpper en facitträff som också står i källan, när källan skickas med", () => {
+    const f = "Kunde göra samma arbete som en fri daglönare i ett hantverk och fick då samma lön.";
+    const k = "Han eller hon kunde göra samma arbete som en fri daglönare i ett hantverk och fick då samma lön.";
+    const hint = "Läs meningen om när slaven gjorde samma arbete som en fri daglönare. Vad fick hen då?";
+    expect(granskaLedtrad(hint, f)).toContain("facit-lacka");
+    expect(granskaLedtrad(hint, f, k)).not.toContain("facit-lacka");
+  });
+  it("fångar lärarens egna formuleringar även med källan", () => {
+    const f = "Han var fri därför att andra inte var det - friheten var en position i en ordning.";
+    const hint = "Tänk på att friheten var en position i en ordning för honom.";
+    expect(granskaLedtrad(hint, f, "Perikles talar till Aten om friheten.")).toContain("facit-lacka");
+  });
   it("fångar för långa ledtrådar", () => {
     expect(granskaLedtrad("ord ".repeat(150), facit)).toContain("for-lang");
   });
@@ -169,6 +181,14 @@ describe("hamtaLedtrad", () => {
     const r = await hamtaLedtrad(input({ graf }), k);
     expect(r.underkanda).toEqual([["facit-lacka"]]);
     expect(r.svar.hint).toBe("Vem ägde metoiken?");
+  });
+  it("godtar en källhänvisning som också står i facit från R3, men inte på R1", async () => {
+    const kalla = "Den som lottades in i rådet var skyldig att ställa upp, inte bara berättigad.";
+    const hint = "Läs meningen: han var skyldig att ställa upp, inte bara berättigad. Vem krävde det?";
+    const r3 = await hamtaLedtrad(input({ kalla, tidigare: [{ kind: "LEDTRAD", rung: 2, hint: "a" }] }), fake([ok(hint)]));
+    expect(r3.underkanda).toEqual([]);
+    expect(r3.svar.rung).toBe(3);
+    await expect(hamtaLedtrad(input({ kalla }), fake([ok(hint), ok(hint)]))).rejects.toMatchObject({ orsak: "granskning" });
   });
   it("frågar inte om efter en vägran", async () => {
     const k = fake([{ ...ok("x"), stop_reason: "refusal" }]);
