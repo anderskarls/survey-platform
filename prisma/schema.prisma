@@ -140,6 +140,10 @@ model Survey {
   versions      Survey[] @relation("SurveyVersions")
   /// 2, 3, ... - originalet är version 1 och bär inget nummer.
   versionNumber Int?
+  /// Serie av momentuppgifter som eleven fyller i som en helhet, en flik per
+  /// lektion (t.ex. "Kartan - makt och skatt"). Seriens uppgifter lämnas aldrig
+  /// in: allt sparas som utkast och kan ändras när som helst. Se serie.ts.
+  series      String?
   createdAt   DateTime         @default(now())
   questions   SurveyQuestion[]
   responses   Response[]

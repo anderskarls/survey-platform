@@ -5,6 +5,7 @@ import StudentQuizForm from "@/components/StudentQuizForm";
 import { toEnkatFraga } from "@/lib/enkatfraga";
 import Link from "next/link";
 import { isReleased } from "@/lib/survey-release";
+import { serieHref } from "@/lib/serie";
 import { kanVisaLedtrad } from "@/lib/ledtrad-sparr";
 import type { LedtradKind, TidigareLedtrad } from "@/lib/ledtrad";
 
@@ -57,6 +58,12 @@ export default async function StudentQuizPage({
   // förbi veckoordningen.
   if (!isReleased(survey)) {
     redirect("/student");
+  }
+
+  // Serieuppgifter (kartan) lämnas aldrig in - de fylls i i kartvyn, där allt
+  // sparas som utkast. Gamla länkar och startsidan leder hit.
+  if (survey.series && survey.unitId != null) {
+    redirect(serieHref(survey.unitId, survey.series, survey.id));
   }
 
   const flashcard = survey.course.flashcardMode;

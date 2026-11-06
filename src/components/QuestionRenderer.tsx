@@ -253,7 +253,7 @@ function lasTidslinjesvar(value: string | undefined): TimelineAnswer | null {
  * lättläst formulering. Båda formuleringarna är samma fråga - alternativen,
  * rättningen och svaret är desamma - så eleven kan byta när som helst.
  */
-function LattlastVaxel({ pa }: { pa: boolean }) {
+export function LattlastVaxel({ pa }: { pa: boolean }) {
   const knapp = (aktiv: boolean) =>
     `px-4 py-1.5 text-sm font-medium rounded-lg transition-colors ${
       aktiv ? "bg-primary text-white shadow-sm" : "text-muted hover:text-foreground"

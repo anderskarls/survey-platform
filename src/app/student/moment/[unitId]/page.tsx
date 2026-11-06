@@ -7,6 +7,7 @@ import { IconCheck, IconArrowRight, IconFlag, IconClock } from "@/components/mom
 import Link from "next/link";
 import { omgangarForElev, spelForKurs } from "@/lib/tidslinjespel-db";
 import SpelKort from "@/components/spel/SpelKort";
+import { serieHref, serieuppgifter } from "@/lib/serie";
 
 // ── helpers ───────────────────────────────────────────────────
 function formatDate(iso?: string): string | null {
@@ -61,7 +62,8 @@ function TaskRow({ task, kind }: { task: TaskState; kind: string }) {
     done: "Repetera",
   };
   const m = meta[task.status];
-  const label = action[task.status];
+  // En serieuppgift (kartan) repeteras inte - den öppnas för att läsas eller ändras.
+  const label = task.href && task.status === "done" ? "Öppna" : action[task.status];
   const isUpcoming = task.status === "upcoming";
   const statusText =
     task.status === "done"
@@ -83,7 +85,7 @@ function TaskRow({ task, kind }: { task: TaskState; kind: string }) {
       <div className={`text-xs shrink-0 ${m.cls}`}>{statusText}</div>
       {label && !isUpcoming ? (
         <Link
-          href={`/student/quiz/${task.surveyId}`}
+          href={task.href ?? `/student/quiz/${task.surveyId}`}
           className={`shrink-0 text-center min-w-[5.5rem] text-sm ${
             task.status === "active" || task.status === "todo" ? "btn-primary" : "btn-secondary"
           }`}
@@ -179,7 +181,10 @@ export default async function MomentPage({
     prisma.unit.findUnique({
       where: { id },
       include: {
-        surveys: { orderBy: { createdAt: "asc" }, include: { questions: true } },
+        surveys: {
+          orderBy: { createdAt: "asc" },
+          include: { questions: { include: { question: { select: { id: true, type: true, config: true } } } } },
+        },
       },
     }),
     prisma.course.findUnique({ where: { id: courseId } }),
@@ -219,6 +224,13 @@ export default async function MomentPage({
     if (p) progressBySurvey.set(d.surveyId, p);
   }
 
+  const serie = serieuppgifter(id, unit.surveys, drafts);
+  // En kartvy per serie i momentet, med hur många sidor som är klara.
+  const serier = [...new Set(unit.surveys.map((s) => s.series).filter((x): x is string => !!x))].map((namn) => {
+    const ids = unit.surveys.filter((s) => s.series === namn).map((s) => s.id);
+    return { namn, klara: ids.filter((i) => serie.get(i)?.complete).length, totalt: ids.length };
+  });
+
   const moment = buildMomentState({
     lessons,
     surveys: unit.surveys.map((s) => ({
@@ -229,6 +241,8 @@ export default async function MomentPage({
       result: resultBySurvey.get(s.id),
       progress: progressBySurvey.get(s.id),
       openAt: s.openAt,
+      complete: serie.get(s.id)?.complete,
+      href: serie.get(s.id)?.href,
     })),
     submittedSurveyIds: responses.map((r) => r.surveyId),
     draftSurveyIds: drafts.map((d) => d.surveyId),
@@ -302,7 +316,7 @@ export default async function MomentPage({
           </div>
         </div>
         {resumeTask ? (
-          <Link href={`/student/quiz/${resumeTask.surveyId}`} className="btn-primary shrink-0 hidden sm:inline-flex items-center gap-2">
+          <Link href={resumeTask.href ?? `/student/quiz/${resumeTask.surveyId}`} className="btn-primary shrink-0 hidden sm:inline-flex items-center gap-2">
             Fortsätt <IconArrowRight size={15} />
           </Link>
         ) : (
@@ -323,6 +337,25 @@ export default async function MomentPage({
           <Link href={`/student/moment/${id}/att-gora`} className="btn-secondary text-sm shrink-0">Visa →</Link>
         </div>
       )}
+
+      {serier.map((s) => (
+        <Link
+          key={s.namn}
+          href={serieHref(id, s.namn)}
+          className="card p-4 sm:p-5 flex items-center gap-4 mb-8 hover:border-primary transition-colors"
+        >
+          <div className="flex-1 min-w-0">
+            <div className="font-mono text-[10px] uppercase tracking-wider text-accent mb-0.5">Fylls i varje lektion</div>
+            <div className="font-semibold tracking-tight">{s.namn}</div>
+            <div className="text-xs text-muted mt-0.5">
+              {s.klara} av {s.totalt} sidor klara · allt sparas automatiskt
+            </div>
+          </div>
+          <span className="btn-primary shrink-0 inline-flex items-center gap-2 text-sm">
+            Öppna <IconArrowRight size={15} />
+          </span>
+        </Link>
+      ))}
 
       {(spel.length > 0 || omgangar.length > 0) && (
         <div className="mb-8">

@@ -39,6 +39,10 @@ export interface SurveyInput {
   result?: string; // e.g. "8/8" for a graded quiz (display only, computed by the page)
   progress?: string; // e.g. "11/14" answered in a saved draft (display only)
   openAt?: Date | null; // scheduled release; null/undefined = open from the start
+  // Serieuppgift (serie.ts): lämnas aldrig in, klar när utkastet är komplett.
+  // Räknas då som "done" precis som en inlämning.
+  complete?: boolean;
+  href?: string; // where the task opens; default /student/quiz/<id>
 }
 
 export interface TaskState {
@@ -50,6 +54,7 @@ export interface TaskState {
   result?: string;
   progress?: string;
   openAt?: Date | null; // set when the task is upcoming because of its release date
+  href?: string; // set for series tasks (the kartvy); default /student/quiz/<id>
 }
 
 export interface LessonState {
@@ -158,8 +163,9 @@ export function buildMomentState(input: {
     result: s.result,
     progress: s.progress,
     openAt: s.openAt ?? null,
+    href: s.href,
     status: deriveTaskStatus({
-      hasResponse: submitted.has(s.id),
+      hasResponse: submitted.has(s.id) || s.complete === true,
       hasDraft: drafts.has(s.id),
       lessonDate: s.lesson != null ? dateByLesson.get(s.lesson) ?? null : null,
       released: isReleased({ openAt: s.openAt ?? null }, now),

@@ -2,6 +2,7 @@ import { getStudentSession } from "@/lib/student-session";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { buildMomentState, LessonOutline, TaskState } from "@/lib/moment-status";
+import { serieuppgifter } from "@/lib/serie";
 import { quizResult, draftProgress } from "@/lib/moment-scoring";
 import { IconCheck, IconArrowRight, IconFlag, IconClock, IconDot } from "@/components/moment-icons";
 import Link from "next/link";
@@ -80,7 +81,7 @@ function NextCard({ task }: { task: FlowTask }) {
           {active && <span className="text-primary font-medium"> · pågår{task.progress ? ` ${task.progress}` : ""}</span>}
         </div>
       </div>
-      <Link href={`/student/quiz/${task.surveyId}`} className="btn-primary shrink-0 inline-flex items-center gap-2">
+      <Link href={task.href ?? `/student/quiz/${task.surveyId}`} className="btn-primary shrink-0 inline-flex items-center gap-2">
         {active ? "Fortsätt" : "Börja"} <IconArrowRight size={15} />
       </Link>
     </div>
@@ -95,7 +96,7 @@ function FlowRow({ task }: { task: FlowTask }) {
     active: <span className="text-xs text-primary font-medium">Pågår</span>,
     todo: <span className="text-xs text-accent font-medium">Att göra</span>,
     missed: (
-      <Link href={`/student/quiz/${task.surveyId}`} className="btn-secondary text-sm shrink-0">
+      <Link href={task.href ?? `/student/quiz/${task.surveyId}`} className="btn-secondary text-sm shrink-0">
         Ta igen
       </Link>
     ),
@@ -143,7 +144,12 @@ export default async function MomentTasksPage({
 
   const unit = await prisma.unit.findUnique({
     where: { id },
-    include: { surveys: { orderBy: { createdAt: "asc" }, include: { questions: true } } },
+    include: {
+      surveys: {
+        orderBy: { createdAt: "asc" },
+        include: { questions: { include: { question: { select: { id: true, type: true, config: true } } } } },
+      },
+    },
   });
   if (!unit || unit.courseId !== courseId) redirect("/student");
 
@@ -177,6 +183,7 @@ export default async function MomentTasksPage({
     if (p) progressBySurvey.set(d.surveyId, p);
   }
 
+  const serie = serieuppgifter(id, unit.surveys, drafts);
   const moment = buildMomentState({
     lessons,
     surveys: unit.surveys.map((s) => ({
@@ -187,6 +194,8 @@ export default async function MomentTasksPage({
       result: resultBySurvey.get(s.id),
       progress: progressBySurvey.get(s.id),
       openAt: s.openAt,
+      complete: serie.get(s.id)?.complete,
+      href: serie.get(s.id)?.href,
     })),
     submittedSurveyIds: responses.map((r) => r.surveyId),
     draftSurveyIds: drafts.map((d) => d.surveyId),
